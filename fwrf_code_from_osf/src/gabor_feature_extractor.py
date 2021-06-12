@@ -279,7 +279,7 @@ class Gaborizer(nn.Module):
     
     def __init__(self, num_orientations, cycles_per_stim,
                  freq_spacing='log', pix_per_cycle=2, cycles_per_radius=1, 
-                 radii_per_filter=4, complex_cell=True, pad_type='half', 
+                 radii_per_filter=4, complex_cell=True, pad_type='half', padding_mode = 'circular',
                  crop=False):
      
         super(Gaborizer, self).__init__()
@@ -291,6 +291,7 @@ class Gaborizer(nn.Module):
         self.radii_per_filter = radii_per_filter
         self.complex_cell = complex_cell
         self.pad_type = pad_type
+        self.padding_mode = padding_mode
         self.crop=crop
         
         (self.feature_table,
@@ -353,7 +354,7 @@ class Gaborizer(nn.Module):
             
             #create instance of torch feature extractor with the given resampling parameter
             feature_extractor = GaborFeatExtractor(self.real_filters_tnsr, self.imag_filters_tnsr, 
-                                                   (new_dim, new_dim), pad_type=self.pad_type, crop=self.crop)
+                                                   (new_dim, new_dim), pad_type=self.pad_type, padding_mode=self.padding_mode, crop=self.crop)
             self.gfe_list.append(feature_extractor)
             
         
@@ -376,17 +377,18 @@ class Gaborizer(nn.Module):
 
 
 class GaborFeatExtractor(nn.Module):    
-    def __init__(self, real_filters_tnsr, imag_filters_tnsr, new_dim, pad_type='half', crop=False):
+    def __init__(self, real_filters_tnsr, imag_filters_tnsr, new_dim, pad_type='half', padding_mode='circular', crop=False):
         super(GaborFeatExtractor, self).__init__()
         
         self.real_filters_tnsr = real_filters_tnsr
         self.imag_filters_tnsr = imag_filters_tnsr
         self.pad_type = pad_type
+        self.padding_mode = padding_mode
         self.crop = crop
         
         #this will be the stimulus resampling function 
         self.resam = torch.nn.Upsample(new_dim, mode="bilinear")
-        
+      
     def forward(self, minibatch_stim_tnsr):
         
         #resize stimuli
@@ -410,7 +412,7 @@ class GaborFeatExtractor(nn.Module):
         
         #convolve stim with filters (returns feat maps of size [num stim, num orientations, stim pix, stim pix])
         # creating a conv2d layer here because it allows custom padding mode (want reflected mode because it minimizes edge artifacts compared to zero-padding)
-        c = torch.nn.Conv2d(nsamples,nfilters, filter_size,stride=1, padding=pad_sz, padding_mode='reflect').to(device)
+        c = torch.nn.Conv2d(nsamples,nfilters, filter_size,stride=1, padding=pad_sz, padding_mode=self.padding_mode).to(device)
         c.weight.data = self.real_filters_tnsr
         c.bias.data.fill_(0)
         real_feature_map_tnsr = c(resampled_stim_stack)    
@@ -420,7 +422,7 @@ class GaborFeatExtractor(nn.Module):
         if self.imag_filters_tnsr is not None:
             
 #             imag_feature_map_tnsr = F.conv2d(resampled_stim_stack, self.imag_filters_tnsr, stride=1, padding=pad_sz)
-            c = torch.nn.Conv2d(nsamples,nfilters, filter_size,stride=1, padding=pad_sz, padding_mode='reflect').to(device)
+            c = torch.nn.Conv2d(nsamples,nfilters, filter_size,stride=1, padding=pad_sz, padding_mode=self.padding_mode).to(device)
             c.weight.data = self.imag_filters_tnsr
             c.bias.data.fill_(0)
             imag_feature_map_tnsr = c(resampled_stim_stack)
@@ -437,5 +439,5 @@ class GaborFeatExtractor(nn.Module):
             sngl_sf_featmap_tnsr = sngl_sf_featmap_tnsr[:, :, crop_start:crop_stop, crop_start:crop_stop]
             
         return sngl_sf_featmap_tnsr
-    
+ 
 

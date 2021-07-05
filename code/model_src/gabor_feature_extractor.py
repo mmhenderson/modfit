@@ -165,12 +165,7 @@ def make_feature_table(num_orientations, cycles_per_stim,
     ##------Construct pandas table of features 
     feature_table = pd.DataFrame([])
 
-    if not complex_cell:
-        feature_table['phase'] = 0
-        other_feature_table = feature_table.copy()
-        other_feature_table['phase'] = np.pi/2.
-        feature_table = pd.concat([feature_table,other_feature_table],axis=0,ignore_index=True)
-
+    
     # the order of these matches the order in full feature map - loops over sf at highest level, loops over orientation within each SF
     feature_table['cycles per stimulus'] = np.repeat(cycles_per_stim, num_orientations)
     feature_table['pix per stimulus']  = np.repeat(pix_per_stim, num_orientations)
@@ -180,6 +175,16 @@ def make_feature_table(num_orientations, cycles_per_stim,
     feature_table['cycles per filter'] = cycles_per_filter*np.ones(np.shape(feature_table['orientation']))
     feature_table['pix per filter'] = pix_per_filter*np.ones(np.shape(feature_table['orientation']))
     feature_table['gauss. env. radius (pix)'] = envelope_radius_pix*np.ones(np.shape(feature_table['orientation']))
+    
+    if not complex_cell:
+        # if simple cells, need to have twice as many orientation filters because considering odd/even parts separately.
+        feature_table = feature_table.iloc[np.repeat(np.arange(len(feature_table)), 2)]        
+        feature_table['phase'] = np.tile([0, np.pi/2.], len(cycles_per_stim)*num_orientations)
+        feature_table.index = np.arange(len(feature_table.index))
+#         other_feature_table = feature_table.copy()
+#         other_feature_table['phase'] = np.pi/2.
+#         feature_table = pd.concat([feature_table,other_feature_table],axis=0,ignore_index=True)
+
     
     return (feature_table,
             pix_per_filter,     
@@ -312,8 +317,8 @@ class Gaborizer(nn.Module):
                                                        complex_cell=self.complex_cell)
         
 
-        #narrow filter stack down to only unique filters (should = num_orientations)
-        uniq_filters = self.filter_stack_expanded[0:num_orientations,:,:,:]
+        #narrow filter stack down to only unique filters (should = num_orientations, or 2*num if these are simple cells w even and odd separate).        
+        uniq_filters = self.filter_stack_expanded[self.feature_table['cycles per stimulus']==cycles_per_stim[0],:,:,:]
         self.orient_filters = uniq_filters
                                                         
         # Making tuning masks       
@@ -331,7 +336,7 @@ class Gaborizer(nn.Module):
 
         self.orients_deg = unique_orients/np.pi*180
         self.cyc_per_stim = unique_sfs         
-            
+    
         #split into real and imag gabor filters and represent ea. as tensor 
         if complex_cell:
             self.real_filters_tnsr = nn.Parameter(torch.tensor(np.real(uniq_filters), dtype=torch.float32, requires_grad=True))
@@ -339,7 +344,8 @@ class Gaborizer(nn.Module):
         else:
             self.real_filters_tnsr = nn.Parameter(torch.tensor(uniq_filters, dtype=torch.float32, requires_grad=True))
             self.imag_filters_tnsr = None
-    
+            self.phase_values = np.unique(np.array(self.feature_table['phase']))
+            
         #from table, get unique stim resolutions (corresponds to the diff. spatial frequencies being extracted)
         stim_sizes = self.feature_table['pix per stimulus'].unique()       
         
@@ -387,7 +393,7 @@ class GaborFeatExtractor(nn.Module):
         self.crop = crop
         
         #this will be the stimulus resampling function 
-        self.resam = torch.nn.Upsample(new_dim, mode="bilinear")
+        self.resam = torch.nn.Upsample(new_dim, mode="bilinear", align_corners=True)
       
     def forward(self, minibatch_stim_tnsr):
         
@@ -409,7 +415,9 @@ class GaborFeatExtractor(nn.Module):
         nfilters = self.real_filters_tnsr.shape[0]
         filter_size = self.real_filters_tnsr.shape[2]
         device = minibatch_stim_tnsr.get_device()
-        
+        if device<0:
+            device = minibatch_stim_tnsr.device
+
         #convolve stim with filters (returns feat maps of size [num stim, num orientations, stim pix, stim pix])
         # creating a conv2d layer here because it allows custom padding mode (want reflected mode because it minimizes edge artifacts compared to zero-padding)
         c = torch.nn.Conv2d(nsamples,nfilters, filter_size,stride=1, padding=pad_sz, padding_mode=self.padding_mode).to(device)

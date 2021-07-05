@@ -90,7 +90,7 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
     return holdout_size, lambdas
 
 
-def get_prf_models():
+def get_prf_models(aperture_rf_range=1.1):
 
     # sizes/centers; hard coded, taken from OSF code for fwrf fitting
     
@@ -99,8 +99,11 @@ def get_prf_models():
     n_sizes = 8
 
     # models is three columns, x, y, sigma
-    models = rf_grid.model_space_pyramid(rf_grid.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=1.1*aperture)    
-
+    models = rf_grid.model_space_pyramid(rf_grid.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range*aperture)  
+    print('most extreme RF positions:')
+    print(models[0,:])
+    print(models[-1,:])
+    
     return aperture, models
 
 def get_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
@@ -120,6 +123,32 @@ def get_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
         _fmaps_fn = _gaborizer
     
     return  _gaborizer, _fmaps_fn
+
+def get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
+    
+    cyc_per_stim = rf_grid.logspace(n_sf)(3., 72.) # Which SF values are we sampling here?
+    _gaborizer_complex = gabor_feature_extractor.Gaborizer(num_orientations=n_ori, cycles_per_stim=cyc_per_stim,
+          pix_per_cycle=4.13, cycles_per_radius=.7, 
+          radii_per_filter=4, complex_cell=True, pad_type='half', padding_mode=padding_mode,
+          crop=False).to(device)
+    
+    _gaborizer_simple = gabor_feature_extractor.Gaborizer(num_orientations=n_ori, cycles_per_stim=cyc_per_stim,
+              pix_per_cycle=4.13, cycles_per_radius=.7, 
+              radii_per_filter=4, complex_cell=False, pad_type='half', padding_mode=padding_mode,
+              crop=False).to(device)
+
+    assert(np.all(_gaborizer_simple.cyc_per_stim==cyc_per_stim))
+    
+    if nonlin_fn:
+        # adding a nonlinearity to the filter activations
+        print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
+        _fmaps_fn_complex = gabor_feature_extractor.add_nonlinearity(_gaborizer_complex, lambda x: torch.log(1+torch.sqrt(x)))
+        _fmaps_fn_simple = gabor_feature_extractor.add_nonlinearity(_gaborizer_simple, lambda x: torch.log(1+torch.sqrt(x)))       
+    else:
+        _fmaps_fn_complex = _gaborizer_complex
+        _fmaps_fn_simple = _gaborizer_simple
+    
+    return  _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple
 
 
 def get_data_splits(nsd_root, beta_root, stim_root, subject, voxel_mask, up_to_sess, shuffle_images=False, random_images=False, random_voxel_data=False):
@@ -195,62 +224,150 @@ def get_image_data(nsd_root, stim_root, subject, shuffle_images=False, random_im
         
     return image_data, image_order
 
+def get_voxel_info(mask_root, beta_root, subject, roi=None):
 
-def get_voxel_info(mask_root, beta_root, subject, roi):
-       
-    # Define which ROIs/set of voxels to use here. If roi=None, using all voxels.
+    assert(roi==None)# this only works for all rois together, can't specify one.
+    
+    # first loading each roi definitions file - 3D niftis with diff numbers for each ROI.
+    prf_labels_full  = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/prf-visualrois.nii.gz"%subject)
+    kast_labels_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/Kastner2015.nii.gz"%(subject))
+    face_labels_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/floc-faces.nii.gz"%(subject))
+    place_labels_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/floc-places.nii.gz"%(subject))
 
-    group_names = ['V1', 'V2', 'V3', 'hV4', 'V3ab', 'LO', 'IPS', 'VO', 'PHC', 'MT', 'MST', 'other']
-    group = [[1,2],[3,4],[5,6], [7], [16, 17], [14, 15], [18,19,20,21,22,23], [8, 9], [10,11], [13], [12], [24,25,0]]
+    # boolean masks of which voxels had definitions in each of these naming schemes
+    has_prf_label = (prf_labels_full>0).flatten().astype(bool)
+    has_kast_label = (kast_labels_full>0).flatten().astype(bool)
+    has_face_label = (face_labels_full>0).flatten().astype(bool)
+    has_place_label = (place_labels_full>0).flatten().astype(bool)
 
-    # using full brain mask.
-    voxel_mask_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/brainmask.nii.gz"%subject)
-    voxel_roi_full  = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/prf-visualrois.nii.gz"%subject)
-    voxel_kast_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/Kastner2015.nii.gz"%(subject))
-    general_mask_full  = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/nsdgeneral.nii.gz"%(subject))
+    # going to grab these values of ncsnr for each voxel too.
     ncsnr_full = file_utility.load_mask_from_nii(beta_root + "subj%02d/func1pt8mm/betas_fithrf_GLMdenoise_RR/ncsnr.nii.gz"%subject)
-    brain_nii_shape = voxel_roi_full.shape
 
-    voxel_roi_mask_full = (voxel_roi_full>0).flatten().astype(bool)
-    voxel_joined_roi_full = np.copy(voxel_kast_full.flatten())  # load kastner rois
-    voxel_joined_roi_full[voxel_roi_mask_full] = voxel_roi_full.flatten()[voxel_roi_mask_full] # overwrite with prf rois
-    # the ROIs defined here are mostly based on pRF mapping - but any voxels which weren't given an ROI definition during the 
-    # prf mapping, will be given a definition based on Kastner atlas.
+    # save the shape, so we can project back to volume space later.
+    brain_nii_shape = prf_labels_full.shape
 
-    ###
-    voxel_mask  = np.nan_to_num(voxel_mask_full).flatten().astype(bool)
+    # To combine all regions, first starting with the kastner atlas for retinotopic ROIs.
+    roi_labels_retino = np.copy(kast_labels_full.flatten())
+    print('%d voxels of overlap between kastner and prf definitions, using prf defs'%np.sum(has_kast_label & has_prf_label))
+    roi_labels_retino[has_prf_label] = prf_labels_full.flatten()[has_prf_label] # overwrite with prf rois
+    print('unique values in retino labels:')
+    print(np.unique(roi_labels_retino))
 
-    # taking out the voxels in "other" to reduce the size a bit
-    voxel_mask_adj = np.copy(voxel_mask)
-    voxel_mask_adj[np.isin(voxel_joined_roi_full, group[-1])] = False
-    voxel_mask_adj[np.isin(voxel_joined_roi_full, [-1])] = False
-    voxel_mask  = voxel_mask_adj
+    # Next, re-numbering the face/place ROIs so that they have unique numbers not overlapping w retino...
+    max_ret_label = np.max(roi_labels_retino)
+    face_labels_renumbered = np.copy(face_labels_full.flatten())
+    face_labels_renumbered[has_face_label] = face_labels_renumbered[has_face_label] + max_ret_label
+    max_face_label = np.max(face_labels_renumbered)
+    place_labels_renumbered = np.copy(place_labels_full.flatten())
+    place_labels_renumbered[has_place_label] = place_labels_renumbered[has_place_label] + max_face_label
 
-    voxel_idx   = np.arange(len(voxel_mask))[voxel_mask]
-    voxel_roi   = voxel_joined_roi_full[voxel_mask]
-    voxel_ncsnr = ncsnr_full.flatten()[voxel_mask]
+    # Now going to make a separate volume for labels of the category-selective ROIs. 
+    # These overlap with the retinotopic defs quite a bit, so want to save both for greater flexibility later on.
+    roi_labels_categ = np.copy(face_labels_renumbered.flatten())
+    print('%d voxels of overlap between face and place definitions, using place defs'%np.sum(has_face_label & has_place_label))
+    roi_labels_categ[has_place_label] = place_labels_renumbered.flatten()[has_place_label] # overwrite with prf rois
+    print('unique values in categ labels:')
+    print(np.unique(roi_labels_categ))
+
+    # how much overlap between these sets of roi definitions?
+    print('%d voxels are defined (differently) in both retinotopic areas and category areas'%np.sum((has_kast_label | has_prf_label) & (has_face_label | has_place_label)))
+
+    # Now masking out all voxels that have any definition, and using them for the analysis. 
+    voxel_mask = np.logical_or(roi_labels_retino>0, roi_labels_categ>0)
+    voxel_idx = np.where(voxel_mask) # numerical indices into the big 3D array
+    print('\n%d voxels are defined across all areas, and will be used for analysis\n'%np.size(voxel_idx))
+
+    # Now going to print out some more information about these rois and their individual sizes...
+    print('Loading numerical label/name mappings for all ROIs:')
+    nsd_root, stim_root, beta_root, mask_root = get_paths()
+    ret, face, place = roi_utils.load_roi_label_mapping(nsd_root, subject, verbose=True)
 
     print('\nSizes of all defined ROIs in this subject:')
-    vox_total = 0
-    for roi_mask, roi_name in roi_utils.iterate_roi(group, voxel_roi, roi_utils.roi_map, group_name=group_names):
-        vox_total = vox_total + np.sum(roi_mask)
-        print ("%d \t: %s" % (np.sum(roi_mask), roi_name))
+    ret_vox_total = 0
+    ret_group_names = roi_utils.ret_group_names
+    ret_group_inds =  roi_utils.ret_group_inds
+    
+    # checking these grouping labels to make sure we have them correct (print which subregions go to which label)
+    for gi, group in enumerate(ret_group_inds):
+        n_this_region = np.sum(np.isin(roi_labels_retino, group))
+        print('Region %s has %d voxels. Includes subregions:'%(ret_group_names[gi],n_this_region))
+        inds = np.where(np.isin(ret[0],group))[0]
+        print(list(np.array(ret[1])[inds]))
+        ret_vox_total = ret_vox_total + n_this_region
 
-    print ("%d \t: Total" % (vox_total))
+    assert(np.sum(roi_labels_retino>0)==ret_vox_total)
+    print('\n')
+    categ_vox_total = 0
+    categ_group_names = list(np.concatenate((np.array(face[1]), np.array(place[1])), axis=0))
+    categ_group_inds = [[ii+26] for ii in range(len(categ_group_names))]
 
-    # Now decide if we want to use a single ROI, or all
-    voxel_mask_this_roi = np.zeros(np.shape(voxel_mask)).astype('bool')
-    if roi==None:     
-        voxel_mask_this_roi[np.isin(voxel_joined_roi_full,np.concatenate(group[0:11],axis=0))] = True
-        roi2print = 'allROIs'        
-    else:
-        groupind = [ii for ii in range(len(group_names)) if group_names[ii]==roi]
-        groupind = groupind[0]
-        voxel_mask_this_roi[np.isin(voxel_joined_roi_full, group[groupind])] = True
-        roi2print = roi
+    # checking these grouping labels to make sure we have them correct (print which subregions go to which label)
+    for gi, group in enumerate(categ_group_inds):
+        n_this_region = np.sum(np.isin(roi_labels_categ, group))
+        print('Region %s has %d voxels.'%(categ_group_names[gi],n_this_region))   
+        categ_vox_total = categ_vox_total + n_this_region
 
-    print('\nRunning model for %s, %d voxels\n'%(roi2print, np.sum(voxel_mask_this_roi)))
-    voxel_idx_this_roi = np.arange(len(voxel_mask_this_roi))[voxel_mask_this_roi]
+    assert(np.sum(roi_labels_categ>0)==categ_vox_total)
+    
+    return voxel_mask, voxel_idx, [roi_labels_retino, roi_labels_categ], ncsnr_full, np.array(brain_nii_shape)
 
-    return voxel_mask_this_roi, voxel_idx_this_roi, voxel_roi, voxel_ncsnr, np.array(brain_nii_shape)
+
+
+# def get_voxel_info_OLD(mask_root, beta_root, subject, roi):
+       
+#     # Define which ROIs/set of voxels to use here. If roi=None, using all voxels.
+
+#     group_names = ['V1', 'V2', 'V3', 'hV4', 'V3ab', 'LO', 'IPS', 'VO', 'PHC', 'MT', 'MST', 'other']
+#     group = [[1,2],[3,4],[5,6], [7], [16, 17], [14, 15], [18,19,20,21,22,23], [8, 9], [10,11], [13], [12], [24,25,0]]
+
+#     # using full brain mask.
+#     voxel_mask_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/brainmask.nii.gz"%subject)
+#     voxel_roi_full  = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/prf-visualrois.nii.gz"%subject)
+#     voxel_kast_full = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/Kastner2015.nii.gz"%(subject))
+#     general_mask_full  = file_utility.load_mask_from_nii(mask_root + "subj%02d/func1pt8mm/roi/nsdgeneral.nii.gz"%(subject))
+#     ncsnr_full = file_utility.load_mask_from_nii(beta_root + "subj%02d/func1pt8mm/betas_fithrf_GLMdenoise_RR/ncsnr.nii.gz"%subject)
+#     brain_nii_shape = voxel_roi_full.shape
+
+#     voxel_roi_mask_full = (voxel_roi_full>0).flatten().astype(bool)
+#     voxel_joined_roi_full = np.copy(voxel_kast_full.flatten())  # load kastner rois
+#     voxel_joined_roi_full[voxel_roi_mask_full] = voxel_roi_full.flatten()[voxel_roi_mask_full] # overwrite with prf rois
+#     # the ROIs defined here are mostly based on pRF mapping - but any voxels which weren't given an ROI definition during the 
+#     # prf mapping, will be given a definition based on Kastner atlas.
+
+#     ###
+#     voxel_mask  = np.nan_to_num(voxel_mask_full).flatten().astype(bool)
+
+#     # taking out the voxels in "other" to reduce the size a bit
+#     voxel_mask_adj = np.copy(voxel_mask)
+#     voxel_mask_adj[np.isin(voxel_joined_roi_full, group[-1])] = False
+#     voxel_mask_adj[np.isin(voxel_joined_roi_full, [-1])] = False
+#     voxel_mask  = voxel_mask_adj
+
+#     voxel_idx   = np.arange(len(voxel_mask))[voxel_mask]
+#     voxel_roi   = voxel_joined_roi_full[voxel_mask]
+#     voxel_ncsnr = ncsnr_full.flatten()[voxel_mask]
+
+#     print('\nSizes of all defined ROIs in this subject:')
+#     vox_total = 0
+#     for roi_mask, roi_name in roi_utils.iterate_roi(group, voxel_roi, roi_utils.roi_map, group_name=group_names):
+#         vox_total = vox_total + np.sum(roi_mask)
+#         print ("%d \t: %s" % (np.sum(roi_mask), roi_name))
+
+#     print ("%d \t: Total" % (vox_total))
+
+#     # Now decide if we want to use a single ROI, or all
+#     voxel_mask_this_roi = np.zeros(np.shape(voxel_mask)).astype('bool')
+#     if roi==None:     
+#         voxel_mask_this_roi[np.isin(voxel_joined_roi_full,np.concatenate(group[0:11],axis=0))] = True
+#         roi2print = 'allROIs'        
+#     else:
+#         groupind = [ii for ii in range(len(group_names)) if group_names[ii]==roi]
+#         groupind = groupind[0]
+#         voxel_mask_this_roi[np.isin(voxel_joined_roi_full, group[groupind])] = True
+#         roi2print = roi
+
+#     print('\nRunning model for %s, %d voxels\n'%(roi2print, np.sum(voxel_mask_this_roi)))
+#     voxel_idx_this_roi = np.arange(len(voxel_mask_this_roi))[voxel_mask_this_roi]
+
+#     return voxel_mask_this_roi, voxel_idx_this_roi, voxel_roi, voxel_ncsnr, np.array(brain_nii_shape)
 

@@ -29,6 +29,7 @@ nonlin_fn=0
 padding_mode=circular
 
 
+
 # n_ori=8
 # n_sf=4
 # up_to_sess=1
@@ -42,7 +43,7 @@ debug=0
 
 fitting_type=texture
 include_crosscorrs=1
-include_autocorrs=0
+include_autocorrs=1
 
 cd $ROOT/code/model_fitting
 

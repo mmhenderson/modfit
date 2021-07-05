@@ -109,7 +109,331 @@ def fit_gabor_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_
     'nonlin_fn': nonlin_fn,
     'padding_mode': padding_mode,
     'debug': debug
-    }, fn2save)
+    }, fn2save, pickle_protocol=4)
+  
+  
+def fit_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_batch_size=50, voxel_batch_size=100, include_autocorrs=True, include_crosscorrs=True, zscore_features=True, nonlin_fn=False, ridge=True, padding_mode = 'circular', 
+                   debug=False, shuffle_images=False, random_images=False, random_voxel_data=False):
+    
+    """ 
+    Fit linear mapping from various textural features (within specified pRF) to voxel response.
+    """
+    
+    
+    device = initialize_fitting.init_cuda()
+    nsd_root, stim_root, beta_root, mask_root = initialize_fitting.get_paths()
+
+    
+    if ridge==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'texture_ridge_%dori_%dsf'%(n_ori, n_sf)
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'texture_OLS_%dori_%dsf'%(n_ori, n_sf)
+        
+    if include_autocorrs==False:
+        print('Skipping autocorrs\n')
+        model_name = model_name+'_no_autocorrelations'
+    else:
+        print('Will compute autocorrs\n')
+        
+    if include_crosscorrs==False:
+        print('Skipping crosscorrs\n')
+        model_name = model_name+'_no_crosscorrelations'
+    else:
+        print('Will compute crosscorrs\n')   
+        
+    output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, model_name, shuffle_images, random_images, random_voxel_data, debug)
+       
+    # decide what voxels to use  
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = initialize_fitting.get_voxel_info(mask_root, beta_root, subject, roi)
+
+    # get all data and corresponding images, in two splits. always fixed set that gets left out
+    trn_stim_data, trn_voxel_data, val_stim_single_trial_data, val_voxel_single_trial_data, \
+        n_voxels, n_trials_val, image_order = initialize_fitting.get_data_splits(nsd_root, beta_root, stim_root, subject, voxel_mask, up_to_sess, 
+                                                                                 shuffle_images=shuffle_images, random_images=random_images, random_voxel_data=random_voxel_data)
+
+    # Set up the filters
+    _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple = initialize_fitting.get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, nonlin_fn=nonlin_fn)
+
+    # Params for the spatial aspect of the model (possible pRFs)
+#     aperture_rf_range=0.8 # using smaller range here because not sure what to do with RFs at edges...
+    aperture_rf_range = 1.1
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    
+    # More params for fitting
+    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
+
+    #### DO THE ACTUAL MODEL FITTING HERE ####
+    gc.collect()
+    torch.cuda.empty_cache()
+    autocorr_output_pix=5
+    n_prf_sd_out=2
+    best_losses, best_lambdas, best_params, feature_info = fwrf_fit.fit_texture_model_ridge(
+        trn_stim_data, trn_voxel_data, _fmaps_fn_complex, _fmaps_fn_simple, models, lambdas, \
+        aperture=aperture, include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, zscore=zscore_features, sample_batch_size=sample_batch_size, \
+        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, shuffle=True, add_bias=True, debug=debug)
+    # note there's also a shuffle param in the above fn call, that determines the nested heldout data for lambda and param selection. always using true.
+    print('\nDone with training\n')
+
+    # Validate model on held-out test set
+    gc.collect()
+    torch.cuda.empty_cache()
+    val_cc, val_r2 = fwrf_predict.validate_texture_model(best_params, val_voxel_single_trial_data, val_stim_single_trial_data, _fmaps_fn_complex, _fmaps_fn_simple, \
+                                                         sample_batch_size, include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out,aperture=aperture, debug=debug, dtype=fpX)
+    
+    features_each_model_val=None;
+    voxel_feature_correlations_val=None;
+    
+    ### SAVE THE RESULTS TO DISK #########
+    print('\nSaving result to %s'%fn2save)
+    
+    torch.save({
+    'feature_table_simple': _gaborizer_simple.feature_table,
+    'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
+    'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
+    'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
+    'orients_deg_simple': _gaborizer_simple.orients_deg,
+    'orient_filters_simple': _gaborizer_simple.orient_filters,  
+    'feature_table_complex': _gaborizer_complex.feature_table,
+    'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
+    'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
+    'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
+    'orients_deg_complex': _gaborizer_complex.orients_deg,
+    'orient_filters_complex': _gaborizer_complex.orient_filters,  
+    'aperture': aperture,
+    'aperture_rf_range': aperture_rf_range,
+    'models': models,
+    'include_autocorrs': include_autocorrs,
+    'feature_info':feature_info,
+    'voxel_mask': voxel_mask,
+    'brain_nii_shape': brain_nii_shape,
+    'image_order': image_order,
+    'voxel_index': voxel_index,
+    'voxel_roi': voxel_roi,
+    'voxel_ncsnr': voxel_ncsnr, 
+    'best_params': best_params,
+    'lambdas': lambdas, 
+    'best_lambdas': best_lambdas,
+    'best_losses': best_losses,
+    'val_cc': val_cc,
+    'val_r2': val_r2,   
+    'features_each_model_val': features_each_model_val,
+    'voxel_feature_correlations_val': voxel_feature_correlations_val,
+    'zscore_features': zscore_features,
+    'nonlin_fn': nonlin_fn,
+    'padding_mode': padding_mode,
+    'n_prf_sd_out':n_prf_sd_out,
+    'autocorr_output_pix':autocorr_output_pix,
+    'debug': debug
+    }, fn2save, pickle_protocol=4)
+    
+#     # As a less model-sensitive way of assessing tuning, directly measure each voxel's correlation with each feature channel.
+#     # Using validation set data. 
+#     gc.collect()
+#     torch.cuda.empty_cache()
+#     features_each_model_val, voxel_feature_correlations_val =  fwrf_predict.get_voxel_texture_feature_corrs(best_params, models, _fmaps_fn_complex, _fmaps_fn_simple, \
+#                                                                                     val_voxel_single_trial_data, val_stim_single_trial_data, sample_batch_size, \
+#                                                                                     include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, aperture=aperture, device=device, debug=debug, dtype=fpX)
+ 
+    
+#     ### SAVE THE RESULTS TO DISK #########
+#     print('\nSaving result to %s'%fn2save)
+    
+#     torch.save({
+#     'feature_table_simple': _gaborizer_simple.feature_table,
+#     'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
+#     'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
+#     'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
+#     'orients_deg_simple': _gaborizer_simple.orients_deg,
+#     'orient_filters_simple': _gaborizer_simple.orient_filters,  
+#     'feature_table_complex': _gaborizer_complex.feature_table,
+#     'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
+#     'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
+#     'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
+#     'orients_deg_complex': _gaborizer_complex.orients_deg,
+#     'orient_filters_complex': _gaborizer_complex.orient_filters,  
+#     'aperture': aperture,
+#     'aperture_rf_range': aperture_rf_range,
+#     'models': models,
+#     'include_autocorrs': include_autocorrs,
+#     'feature_info':feature_info,
+#     'voxel_mask': voxel_mask,
+#     'brain_nii_shape': brain_nii_shape,
+#     'image_order': image_order,
+#     'voxel_index': voxel_index,
+#     'voxel_roi': voxel_roi,
+#     'voxel_ncsnr': voxel_ncsnr, 
+#     'best_params': best_params,
+#     'lambdas': lambdas, 
+#     'best_lambdas': best_lambdas,
+#     'best_losses': best_losses,
+#     'val_cc': val_cc,
+#     'val_r2': val_r2,   
+#     'features_each_model_val': features_each_model_val,
+#     'voxel_feature_correlations_val': voxel_feature_correlations_val,
+#     'zscore_features': zscore_features,
+#     'nonlin_fn': nonlin_fn,
+#     'padding_mode': padding_mode,
+#     'n_prf_sd_out':n_prf_sd_out,
+#     'autocorr_output_pix':autocorr_output_pix,
+#     'debug': debug
+#     }, fn2save, pickle_protocol=4)
+  
+def fit_simple_complex_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_batch_size=50, voxel_batch_size=100, zscore_features=True, nonlin_fn=False, ridge=True, padding_mode = 'circular', 
+                   debug=False, shuffle_images=False, random_images=False, random_voxel_data=False):
+    
+    """ 
+    Fit linear mapping from various textural features (within specified pRF) to voxel response.
+    """
+    
+    
+    device = initialize_fitting.init_cuda()
+    nsd_root, stim_root, beta_root, mask_root = initialize_fitting.get_paths()
+
+    
+    if ridge==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'simple_complex_ridge_%dori_%dsf'%(n_ori, n_sf)
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'simple_complex_OLS_%dori_%dsf'%(n_ori, n_sf)
+   
+    output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, model_name, shuffle_images, random_images, random_voxel_data, debug)
+       
+    # decide what voxels to use  
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = initialize_fitting.get_voxel_info(mask_root, beta_root, subject, roi)
+
+    # get all data and corresponding images, in two splits. always fixed set that gets left out
+    trn_stim_data, trn_voxel_data, val_stim_single_trial_data, val_voxel_single_trial_data, \
+        n_voxels, n_trials_val, image_order = initialize_fitting.get_data_splits(nsd_root, beta_root, stim_root, subject, voxel_mask, up_to_sess, 
+                                                                                 shuffle_images=shuffle_images, random_images=random_images, random_voxel_data=random_voxel_data)
+
+    # Set up the filters
+    _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple = initialize_fitting.get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, nonlin_fn=nonlin_fn)
+
+    # Params for the spatial aspect of the model (possible pRFs)
+#     aperture_rf_range=0.8 # using smaller range here because not sure what to do with RFs at edges...
+    aperture_rf_range = 1.1
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    
+    # More params for fitting
+    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
+
+    #### DO THE ACTUAL MODEL FITTING HERE ####
+    gc.collect()
+    torch.cuda.empty_cache()
+    include_autocorrs=False
+    include_crosscorrs=False
+    autocorr_output_pix=5
+    n_prf_sd_out=2
+    best_losses, best_lambdas, best_params, feature_info = fwrf_fit.fit_texture_model_ridge(
+        trn_stim_data, trn_voxel_data, _fmaps_fn_complex, _fmaps_fn_simple, models, lambdas, \
+        aperture=aperture, include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, zscore=zscore_features, sample_batch_size=sample_batch_size, \
+        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, shuffle=True, add_bias=True, debug=debug)
+    # note there's also a shuffle param in the above fn call, that determines the nested heldout data for lambda and param selection. always using true.
+    print('\nDone with training\n')
+
+    # Validate model on held-out test set
+    val_cc, val_r2 = fwrf_predict.validate_texture_model(best_params, val_voxel_single_trial_data, val_stim_single_trial_data, _fmaps_fn_complex, _fmaps_fn_simple, \
+                                                         sample_batch_size, include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out,aperture=aperture, debug=debug, dtype=fpX)
+    
+    features_each_model_val=None;
+    voxel_feature_correlations_val=None;
+    
+    ### SAVE THE RESULTS TO DISK #########
+    print('\nSaving result to %s'%fn2save)
+    
+    torch.save({
+    'feature_table_simple': _gaborizer_simple.feature_table,
+    'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
+    'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
+    'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
+    'orients_deg_simple': _gaborizer_simple.orients_deg,
+    'orient_filters_simple': _gaborizer_simple.orient_filters,  
+    'feature_table_complex': _gaborizer_complex.feature_table,
+    'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
+    'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
+    'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
+    'orients_deg_complex': _gaborizer_complex.orients_deg,
+    'orient_filters_complex': _gaborizer_complex.orient_filters,  
+    'aperture': aperture,
+    'aperture_rf_range': aperture_rf_range,
+    'models': models,
+    'include_autocorrs': include_autocorrs,
+    'include_crosscorrs': include_crosscorrs,
+    'feature_info':feature_info,
+    'voxel_mask': voxel_mask,
+    'brain_nii_shape': brain_nii_shape,
+    'image_order': image_order,
+    'voxel_index': voxel_index,
+    'voxel_roi': voxel_roi,
+    'voxel_ncsnr': voxel_ncsnr, 
+    'best_params': best_params,
+    'lambdas': lambdas, 
+    'best_lambdas': best_lambdas,
+    'best_losses': best_losses,
+    'val_cc': val_cc,
+    'val_r2': val_r2,   
+    'features_each_model_val': features_each_model_val,
+    'voxel_feature_correlations_val': voxel_feature_correlations_val,
+    'zscore_features': zscore_features,
+    'nonlin_fn': nonlin_fn,
+    'padding_mode': padding_mode,
+    'n_prf_sd_out':n_prf_sd_out,
+    'autocorr_output_pix':autocorr_output_pix,
+    'debug': debug
+    }, fn2save, pickle_protocol=4)
+    
+#     # As a less model-sensitive way of assessing tuning, directly measure each voxel's correlation with each feature channel.
+#     # Using validation set data. 
+#     features_each_model_val, voxel_feature_correlations_val =  fwrf_predict.get_voxel_texture_feature_corrs(best_params, models, _fmaps_fn_complex, _fmaps_fn_simple, \
+#                                                                                     val_voxel_single_trial_data, val_stim_single_trial_data, sample_batch_size, \
+#                                                                                     include_autocorrs = include_autocorrs, include_crosscorrs = include_crosscorrs, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, aperture=aperture, device=device, debug=debug, dtype=fpX)
+ 
+#     ### SAVE THE RESULTS TO DISK #########
+#     print('\nSaving result to %s'%fn2save)
+    
+#     torch.save({
+#     'feature_table_simple': _gaborizer_simple.feature_table,
+#     'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
+#     'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
+#     'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
+#     'orients_deg_simple': _gaborizer_simple.orients_deg,
+#     'orient_filters_simple': _gaborizer_simple.orient_filters,  
+#     'feature_table_complex': _gaborizer_complex.feature_table,
+#     'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
+#     'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
+#     'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
+#     'orients_deg_complex': _gaborizer_complex.orients_deg,
+#     'orient_filters_complex': _gaborizer_complex.orient_filters,  
+#     'aperture': aperture,
+#     'aperture_rf_range': aperture_rf_range,
+#     'models': models,
+#     'include_autocorrs': include_autocorrs,
+#     'include_crosscorrs': include_crosscorrs,
+#     'feature_info':feature_info,
+#     'voxel_mask': voxel_mask,
+#     'brain_nii_shape': brain_nii_shape,
+#     'image_order': image_order,
+#     'voxel_index': voxel_index,
+#     'voxel_roi': voxel_roi,
+#     'voxel_ncsnr': voxel_ncsnr, 
+#     'best_params': best_params,
+#     'lambdas': lambdas, 
+#     'best_lambdas': best_lambdas,
+#     'best_losses': best_losses,
+#     'val_cc': val_cc,
+#     'val_r2': val_r2,   
+#     'features_each_model_val': features_each_model_val,
+#     'voxel_feature_correlations_val': voxel_feature_correlations_val,
+#     'zscore_features': zscore_features,
+#     'nonlin_fn': nonlin_fn,
+#     'padding_mode': padding_mode,
+#     'n_prf_sd_out':n_prf_sd_out,
+#     'autocorr_output_pix':autocorr_output_pix,
+#     'debug': debug
+#     }, fn2save, pickle_protocol=4)
   
 
 
@@ -194,7 +518,7 @@ def fit_gabor_pca(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_b
     'nonlin_fn': nonlin_fn,
     'padding_mode': padding_mode,
     'debug': debug
-    }, fn2save)
+    }, fn2save, pickle_protocol=4)
 
  
 def fit_gabor_combinations(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_batch_size=50, voxel_batch_size=100, zscore_features=True, nonlin_fn=False,  ridge=True, padding_mode = 'circular', 
@@ -231,7 +555,8 @@ def fit_gabor_combinations(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12,
     
     # More params for fitting
     # note that these lambda values never get used in my pca fitting code (since pca already should reduce overfitting)
-    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)    
+    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=ridge)    
+#     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)    
 
     #### DO THE ACTUAL MODEL FITTING HERE ####
     gc.collect()
@@ -245,14 +570,21 @@ def fit_gabor_combinations(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12,
     print('size of final weight params matrix is:')
     print(np.shape(best_params[1]))
     # Validate model on held-out test set
+    print('\nvalidating model')
+    gc.collect()
+    torch.cuda.empty_cache()
     val_cc, val_r2 = fwrf_predict.validate_model(best_params, val_voxel_single_trial_data, val_stim_single_trial_data, _fmaps_fn, sample_batch_size, voxel_batch_size, aperture, dtype=fpX, combs_zstats = combs_zstats)
-    
+    print('\ndone validating')
     # As a less model-sensitive way of assessing tuning, directly measure each voxel's correlation with each feature channel.
     # Using validation set data. 
-    features_each_model_val, voxel_feature_correlations_val, features_pca_each_model_val, voxel_pca_feature_correlations_val =  fwrf_predict.get_voxel_feature_corrs(best_params, models, _fmaps_fn, val_voxel_single_trial_data, 
+    print('\ngetting voxel/feat corrs')
+    gc.collect()
+    torch.cuda.empty_cache()
+    features_each_model_val, voxel_feature_correlations_val, ignore1, ignore2 =  fwrf_predict.get_voxel_feature_corrs(best_params, models, _fmaps_fn, val_voxel_single_trial_data, 
                                                                                                     val_stim_single_trial_data, sample_batch_size, aperture, device, debug=False, dtype=fpX, combs_zstats = combs_zstats)
- 
+    print('\ndone getting voxel/feat corrs')
     ### SAVE THE RESULTS TO DISK #########
+    print('\nabout to save')
     print('\nSaving result to %s'%fn2save)
     
     torch.save({
@@ -284,9 +616,10 @@ def fit_gabor_combinations(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12,
     'nonlin_fn': nonlin_fn,
     'padding_mode': padding_mode,
     'debug': debug
-    }, fn2save)
-    
+    }, fn2save, pickle_protocol=4)
+    print('\ndone saving')
  
+    
 def fit_gabor_combinations_pca(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_batch_size=50, voxel_batch_size=100, zscore_features=True, nonlin_fn=False, padding_mode = 'circular', 
                    debug=False, shuffle_images=False, random_images=False, random_voxel_data=False):
     
@@ -370,7 +703,7 @@ def fit_gabor_combinations_pca(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf
     'nonlin_fn': nonlin_fn,
     'padding_mode': padding_mode,
     'debug': debug
-    }, fn2save)
+    }, fn2save, pickle_protocol=4)
 
            
 
@@ -387,6 +720,10 @@ if __name__ == '__main__':
                     help="what kind of fitting are we doing? opts are 'gabor','gabor_pca','gabor_combs','gabor_combs_pca'")
     parser.add_argument("--ridge", type=int,default=1,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
+    parser.add_argument("--include_autocorrs", type=int,default=1,
+                    help="want to include autocorrelations (only used for texture model)? 1 for yes, 0 for no")
+    parser.add_argument("--include_crosscorrs", type=int,default=1,
+                    help="want to include crosscorrelations (only used for texture model)? 1 for yes, 0 for no")
     parser.add_argument("--shuffle_images", type=int,default=0,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_images", type=int,default=0,
@@ -449,7 +786,15 @@ if __name__ == '__main__':
     if args.fitting_type=='gabor':       
         fit_gabor_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size,
                        args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1)
-        
+     
+    elif args.fitting_type=='texture':       
+        fit_texture_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size, args.include_autocorrs==1, args.include_crosscorrs==1,
+                       args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1)        
+
+    elif args.fitting_type=='simple_complex':       
+        fit_simple_complex_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size,
+                       args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1)        
+
     elif args.fitting_type=='gabor_pca':       
         fit_gabor_pca(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size,
                        args.zscore_features==1, args.nonlin_fn==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1)

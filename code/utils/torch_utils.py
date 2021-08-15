@@ -12,4 +12,3 @@ def set_value(_x, x):
         _x.resize_(x.shape)
     _x.data.copy_(torch.from_numpy(x))
     
-    

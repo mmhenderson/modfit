@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
+#SBATCH --nodelist=mind-1-23
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=1
@@ -40,8 +41,8 @@ fitting_type=texture
 include_pixel=1
 include_simple=1
 include_complex=1
-include_autocorrs=0
-include_crosscorrs=1
+include_autocorrs=1
+include_crosscorrs=0
 
 do_fitting=1
 do_val=1

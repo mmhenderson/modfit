@@ -44,7 +44,7 @@ def get_paths():
     
     return nsd_root, stim_root, beta_root, mask_root
 
-def get_save_path(root_dir, subject, model_name, shuffle_images, random_images, random_voxel_data, debug):
+def get_save_path(root_dir, subject, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str=None):
     
     # choose where to save results of fitting - always making a new file w current timestamp.
     
@@ -56,21 +56,88 @@ def get_save_path(root_dir, subject, model_name, shuffle_images, random_images, 
     if random_voxel_data==True:
         model_name = model_name + '_RANDOMVOXELDATA'
     
-    timestamp = time.strftime('%b-%d-%Y_%H%M', time.localtime())
+    if date_str is None:
+        timestamp = time.strftime('%b-%d-%Y_%H%M', time.localtime())
+        make_new_folder = True
+    else:
+        # if you specified an existing timestamp, then won't try to make new folder, need to find existing one.
+        timestamp = date_str
+        make_new_folder = False
+        
     print ("Time Stamp: %s" % timestamp)  
     root_dir = os.path.dirname(root_dir)
     if debug==True:
         output_dir = os.path.join(root_dir, "model_fits/S%02d/%s/%s_DEBUG/" % (subject,model_name,timestamp) )
     else:
         output_dir = os.path.join(root_dir, "model_fits/S%02d/%s/%s/" % (subject,model_name,timestamp) )
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if not os.path.exists(output_dir): 
+        if make_new_folder:
+            os.makedirs(output_dir)
+        else:
+            raise ValueError('the path at %s does not exist yet!!'%output_dir)
         
     fn2save = os.path.join(output_dir,'all_fit_params')
     print('\nWill save final output file to %s\n'%output_dir)
     
     return output_dir, fn2save
  
+    
+def get_pyramid_model_name(ridge, n_ori, n_sf):
+
+    if ridge==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'texture_pyramid_ridge_%dori_%dsf'%(n_ori, n_sf)
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
+
+    feature_types_exclude = []
+#     if not include_pixel:
+#         feature_types_exclude.append('pixel')
+#         model_name = model_name+'_no_pixel'
+#     if not include_simple:
+#         feature_types_exclude.append('simple_feature_means')
+#         model_name = model_name+'_no_simple'
+#     if not include_complex:
+#         feature_types_exclude.append('complex_feature_means')
+#         model_name = model_name+'_no_complex'
+#     if not include_autocorrs:
+#         feature_types_exclude.append('autocorrs')
+#         model_name = model_name+'_no_autocorrelations'
+#     if not include_crosscorrs:
+#         feature_types_exclude.append('crosscorrs')
+#         model_name = model_name+'_no_crosscorrelations'
+
+    return model_name, feature_types_exclude    
+
+def get_model_name(ridge, n_ori, n_sf, include_pixel, include_simple, include_complex, include_autocorrs, include_crosscorrs):
+    
+        if ridge==True:       
+            # ridge regression, testing several positive lambda values (default)
+            model_name = 'texture_ridge_%dori_%dsf'%(n_ori, n_sf)
+        else:        
+            # fixing lambda at zero, so it turns into ordinary least squares
+            model_name = 'texture_OLS_%dori_%dsf'%(n_ori, n_sf)
+
+        feature_types_exclude = []
+        if not include_pixel:
+            feature_types_exclude.append('pixel')
+            model_name = model_name+'_no_pixel'
+        if not include_simple:
+            feature_types_exclude.append('simple_feature_means')
+            model_name = model_name+'_no_simple'
+        if not include_complex:
+            feature_types_exclude.append('complex_feature_means')
+            model_name = model_name+'_no_complex'
+        if not include_autocorrs:
+            feature_types_exclude.append('autocorrs')
+            model_name = model_name+'_no_autocorrelations'
+        if not include_crosscorrs:
+            feature_types_exclude.append('crosscorrs')
+            model_name = model_name+'_no_crosscorrelations'
+
+        return model_name, feature_types_exclude    
+
 def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10):
 
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))

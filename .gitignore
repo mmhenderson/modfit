@@ -1,7 +1,0 @@
-
-*.ipynb_checkpoints*
-*__pycache__*
-/fwrf_code_from_osf/output
-/code/run/sbatch_output
-/gabor_model_fits
-/model_fits

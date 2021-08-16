@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=1
@@ -38,7 +38,7 @@ fitting_type=pyramid_texture
 
 do_fitting=1
 do_val=1
-do_partial=1
+do_varpart=1
 
 date_str='None'
 # date_str='Jul-21-2021_0533'
@@ -50,4 +50,4 @@ date_str='None'
 
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --roi $roi --up_to_sess $up_to_sess --n_ori $n_ori --n_sf $n_sf --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --nonlin_fn $nonlin_fn --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --ridge $ridge --do_fitting $do_fitting --do_val $do_val --do_partial $do_partial --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed
+python3 fit_model.py --subject $subj --roi $roi --up_to_sess $up_to_sess --n_ori $n_ori --n_sf $n_sf --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --nonlin_fn $nonlin_fn --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --ridge $ridge --do_fitting $do_fitting --do_val $do_val --do_varpart $do_varpart --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed

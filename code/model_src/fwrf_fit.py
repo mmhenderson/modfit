@@ -138,7 +138,8 @@ def get_features_in_prf(prf_params, _fmaps_fn, images, sample_batch_size, apertu
     return features
 
 def fit_texture_model_ridge(images, voxel_data, _texture_fn, models, lambdas, zscore=False, voxel_batch_size=100, 
-                            holdout_size=100, shuffle=True, add_bias=False, debug=False, shuff_rnd_seed=0, device=None):
+                            holdout_size=100, shuffle=True, add_bias=False, debug=False, shuff_rnd_seed=0, 
+                            device=None, do_varpart=True):
    
     """
     Solve for encoding model weights using ridge regression.
@@ -199,15 +200,32 @@ def fit_texture_model_ridge(images, voxel_data, _texture_fn, models, lambdas, zs
     out_data = voxel_data[trn_size:]
 
     n_features_total = _texture_fn.n_features_total
-        
-    # Create full model value buffers    
-    best_models = np.full(shape=(n_voxels,), fill_value=-1, dtype=int)   
-    best_lambdas = np.full(shape=(n_voxels,), fill_value=-1, dtype=int)
-    best_losses = np.full(fill_value=np.inf, shape=(n_voxels), dtype=dtype)
-    best_w_params = np.zeros(shape=(n_voxels, n_features_total), dtype=dtype)
+    n_feature_types = len(_texture_fn.feature_types_include)
+    if do_varpart:
+        n_partial_versions = n_feature_types+1
+        partial_version_names = ['full_model']+['leave_out_%s'%ff for ff in _texture_fn.feature_types_include]
+        masks = np.concatenate([np.expand_dims(np.array(_texture_fn.feature_column_labels!=ff).astype('int'), axis=0) for ff in np.arange(-1,n_feature_types)], axis=0)
+    else:
+        n_partial_versions = 1;  
+        partial_version_names = ['full_model']
+        masks = np.ones([1,n_features_total])
+    # "partial versions" will be listed as: [full model, leave out first set of features, leave out second set of features...]
 
     if add_bias:
-        best_w_params = np.concatenate([best_w_params, np.ones(shape=(len(best_w_params),1), dtype=dtype)], axis=1)
+        masks = np.concatenate([masks, np.ones([masks.shape[0],1])], axis=1) # always include intercept 
+    masks = np.transpose(masks)
+    # masks is [n_features_total (including intercept) x n_partial_versions]
+
+    # Create full model value buffers    
+    best_models = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)   
+    best_lambdas = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)
+    best_losses = np.full(fill_value=np.inf, shape=(n_voxels,n_partial_versions), dtype=dtype)
+    # creating a third dim here, listing the "partial" versions of the model (setting to zero a subset of features at a time)
+    best_w_params = np.zeros(shape=(n_voxels, n_features_total,n_partial_versions), dtype=dtype)
+
+    if add_bias:
+        best_w_params = np.concatenate([best_w_params, np.ones(shape=(n_voxels,1,n_partial_versions), dtype=dtype)], axis=1)
+
     features_mean = None
     features_std = None
     if zscore:
@@ -225,7 +243,8 @@ def fit_texture_model_ridge(images, voxel_data, _texture_fn, models, lambdas, zs
         for m,(x,y,sigma) in enumerate(models):
             if debug and m>1:
                 break
-            print('\nmodel %d\n'%m)
+            print('\nGetting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(m, models[m,0],  models[m,1],  models[m,2] ))
+            
             t = time.time()   
             
             # Get features for the desired pRF, across all trn set image   
@@ -255,62 +274,71 @@ def fit_texture_model_ridge(images, voxel_data, _texture_fn, models, lambdas, zs
                 for ff in range(len(feature_info[1])):
                     if np.sum(zero_columns[feature_info[0]==ff])>0:
                         print('   %d columns are %s'%(np.sum(zero_columns[feature_info[0]==ff]), feature_info[1][ff]))
-                      
-            
-            # Send matrices to gpu
-            _xtrn = torch_utils._to_torch(trn_features, device=device)
-            _xout = torch_utils._to_torch(out_features, device=device)   
-            
-            # Do part of the matrix math involved in ridge regression optimization out of the loop, 
-            # because this part will be same for all the voxels.
-            _cof = _cofactor_fn_cpu(_xtrn, lambdas)
-            
-            # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
-            vox_start = time.time()
-            for rv,lv in numpy_utility.iterate_range(0, n_voxels, voxel_batch_size):
-                sys.stdout.write('\rfitting model %4d of %-4d, voxels [%6d:%-6d] of %d' % (m, n_prfs, rv[0], rv[-1], n_voxels))
+
+            # Looping over versions of model w different features set to zero (variance partition)
+            for pp in range(n_partial_versions):
+                
+                print('\nFitting version %d of %d: %s, '%(pp, n_partial_versions, partial_version_names[pp]))
+
+                nonzero_inds = masks[:,pp]==1
+                best_w_tmp = best_w_params[:,nonzero_inds,pp] # chunk of the full weights matrix to work with for this partial model
 
                 # Send matrices to gpu
-                _vtrn = torch_utils._to_torch(trn_data[:,rv], device=device)
-                _vout = torch_utils._to_torch(out_data[:,rv], device=device)
+                _xtrn = torch_utils._to_torch(trn_features[:,nonzero_inds], device=device)
+                _xout = torch_utils._to_torch(out_features[:,nonzero_inds], device=device)   
 
-                # Here is where optimization happens - relatively simple matrix math inside loss fn.
-                _betas, _loss = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel]
-                # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
-                # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
-                
-                # first choose best lambda value and the loss that went with it.
-                _values, _select = torch.min(_loss, dim=0)
-                betas = torch_utils.get_value(_betas)
-                values, select = torch_utils.get_value(_values), torch_utils.get_value(_select)
+                # Do part of the matrix math involved in ridge regression optimization out of the loop, 
+                # because this part will be same for all the voxels.
+                _cof = _cofactor_fn_cpu(_xtrn, lambdas)
 
-                # comparing this loss to the other models for each voxel (e.g. the other RF position/sizes)
-                imp = values<best_losses[rv]
-                
-                if np.sum(imp)>0:                    
-                    # for whichever voxels had improvement relative to previous models, save parameters now
-                    # this means we won't have to save all params for all models, just best.
-                    arv = np.array(rv)[imp]
-                    li = select[imp]
-                    best_lambdas[arv] = li
-                    best_losses[arv] = values[imp]
-                    best_models[arv] = m
-                    if zscore:
-                        features_mean[arv] = features_m # broadcast over updated voxels
-                        features_std[arv]  = features_s
-                    # taking the weights associated with the best lambda value
-                    best_w_params[arv,:] = numpy_utility.select_along_axis(betas[:,:,imp], li, run_axis=2, choice_axis=0).T
-              
-            vox_loop_time += (time.time() - vox_start)
-            elapsed = (time.time() - vox_start)
-            sys.stdout.flush()
-            
+                # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
+                vox_start = time.time()
+                for rv,lv in numpy_utility.iterate_range(0, n_voxels, voxel_batch_size):
+                    sys.stdout.write('\rVoxels [%6d:%-6d] of %d' % (rv[0], rv[-1], n_voxels))
+
+                    # Send matrices to gpu
+                    _vtrn = torch_utils._to_torch(trn_data[:,rv], device=device)
+                    _vout = torch_utils._to_torch(out_data[:,rv], device=device)
+
+                    # Here is where optimization happens - relatively simple matrix math inside loss fn.
+                    _betas, _loss = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel]
+                    # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
+                    # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
+
+                    # first choose best lambda value and the loss that went with it.
+                    _values, _select = torch.min(_loss, dim=0)
+                    betas = torch_utils.get_value(_betas)
+                    values, select = torch_utils.get_value(_values), torch_utils.get_value(_select)
+
+                    # comparing this loss to the other models for each voxel (e.g. the other RF position/sizes)
+                    imp = values<best_losses[rv,pp]
+
+                    if np.sum(imp)>0:                    
+                        # for whichever voxels had improvement relative to previous models, save parameters now
+                        # this means we won't have to save all params for all models, just best.
+                        arv = np.array(rv)[imp]
+                        li = select[imp]
+                        best_lambdas[arv,pp] = li
+                        best_losses[arv,pp] = values[imp]
+                        best_models[arv,pp] = m
+                        if zscore:
+                            features_mean[arv] = features_m # broadcast over updated voxels
+                            features_std[arv]  = features_s
+                        # taking the weights associated with the best lambda value
+                        best_w_tmp[arv,:] = numpy_utility.select_along_axis(betas[:,:,imp], li, run_axis=2, choice_axis=0).T
+
+                best_w_params[:,nonzero_inds,pp] = best_w_tmp
+
+                vox_loop_time += (time.time() - vox_start)
+                elapsed = (time.time() - vox_start)
+                sys.stdout.flush()
+
     # Print information about how fitting went...
     total_time = time.time() - start_time
     inv_time = total_time - vox_loop_time
-    return_params = [best_w_params[:,:n_features_total],]
+    return_params = [best_w_params[:,:n_features_total,:]]
     if add_bias:
-        return_params += [best_w_params[:,-1],]
+        return_params += [best_w_params[:,-1,:]]
     else: 
         return_params += [None,]
     print ('\n---------------------------------------')
@@ -320,7 +348,7 @@ def fit_texture_model_ridge(images, voxel_data, _texture_fn, models, lambdas, zs
     print ('setup throughput = %fs/model' % (inv_time / n_prfs))
     sys.stdout.flush()
     
-    best_params = [models[best_models],]+return_params+[features_mean, features_std]+[best_models]
+    best_params = [models[best_models],]+return_params+[features_mean, features_std]+[best_models]+[partial_version_names]
     
     return best_losses, best_lambdas, best_params, feature_info
 

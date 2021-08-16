@@ -29,7 +29,8 @@ fpX = np.float32
 
 def fit_pyramid_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12, sample_batch_size=50, voxel_batch_size=100, \
                     zscore_features=True, nonlin_fn=False, ridge=True, \
-                   debug=False, shuffle_images=False, random_images=False, random_voxel_data=False, do_fitting=True, do_val=True, do_partial=True, date_str=None, shuff_rnd_seed=0):
+                   debug=False, shuffle_images=False, random_images=False, random_voxel_data=False, do_fitting=True, do_val=True, \
+                             do_varpart=True, date_str=None, shuff_rnd_seed=0):
     
     """ 
     Fit linear mapping from various textural features (within specified pRF) to voxel response.
@@ -66,11 +67,7 @@ def fit_pyramid_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=1
         'best_lambdas': best_lambdas,
         'best_losses': best_losses,
         'val_cc': val_cc,
-        'val_r2': val_r2,   
-        'val_cc_partial': val_cc_partial,
-        'val_r2_partial': val_r2_partial,   
-        'features_each_model_val': features_each_model_val,
-        'voxel_feature_correlations_val': voxel_feature_correlations_val,
+        'val_r2': val_r2,     
         'zscore_features': zscore_features,
         'nonlin_fn': nonlin_fn,
         'n_prf_sd_out': n_prf_sd_out,
@@ -117,17 +114,13 @@ def fit_pyramid_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=1
         if shuff_rnd_seed==0:
             shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
         best_losses, best_lambdas, best_params, feature_info = fwrf_fit.fit_texture_model_ridge(trn_stim_data, trn_voxel_data, _texture_fn, models, lambdas, \
-            zscore=zscore_features, voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, shuffle=True, add_bias=True, debug=debug, shuff_rnd_seed=shuff_rnd_seed,device=device)
+            zscore=zscore_features, voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, shuffle=True, add_bias=True, debug=debug, shuff_rnd_seed=shuff_rnd_seed,device=device, do_varpart=do_varpart)
         # note there's also a shuffle param in the above fn call, that determines the nested heldout data for lambda and param selection. always using true.
         print('\nDone with training\n')
         
         val_cc=None
         val_r2=None
-        val_cc_partial=None
-        val_r2_partial=None
-        features_each_model_val=None;
-        voxel_feature_correlations_val=None;
-        
+       
         save_all()
     
     else:
@@ -139,10 +132,6 @@ def fit_pyramid_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=1
         feature_info = out['feature_info']
         val_cc = out['val_cc']
         val_r2 = out['val_r2']
-        val_cc_partial = out['val_cc_partial']
-        val_r2_partial = out['val_r2_partial']
-        features_each_model_val=out['features_each_model_val'];
-        voxel_feature_correlations_val=out['voxel_feature_correlations_val'];
         if 'shuff_rnd_seed' in list(out.keys()):
             shuff_rnd_seed=out['shuff_rnd_seed']
         else:
@@ -165,31 +154,16 @@ def fit_pyramid_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=1
     if val_cc is not None:
         do_val=False
         print('\nValidation is already done! not going to run it again.')       
-    if val_cc_partial is not None:
-        do_partial=False
-        print('\nVariance partition is already done! not going to run it again.')
-
+   
     ## Validate model on held-out test set #####
     sys.stdout.flush()
     if do_val: 
         gc.collect()
         torch.cuda.empty_cache()
-        val_cc, val_r2 = fwrf_predict.validate_texture_model(best_params, models, val_voxel_single_trial_data, val_stim_single_trial_data, _texture_fn, sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
+        val_cc, val_r2 = fwrf_predict.validate_texture_model_varpart(best_params, models, val_voxel_single_trial_data, val_stim_single_trial_data, _texture_fn, sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
                                                        
         save_all()
   
-    ## Validate model, including subsets of features  #####
-
-    sys.stdout.flush()
-    if do_partial:
-        if len(_texture_fn.feature_types_include)>1:
-            gc.collect()
-            torch.cuda.empty_cache()
-            val_cc_partial, val_r2_partial = fwrf_predict.validate_texture_model_partial(best_params, models, val_voxel_single_trial_data, val_stim_single_trial_data, _texture_fn, sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
-        else:
-            print('Model only has one feature type, so will not do variance partition.')
-            
-        save_all()
       
     
 
@@ -409,7 +383,7 @@ if __name__ == '__main__':
                     help="want to do model training? 1 for yes, 0 for no")
     parser.add_argument("--do_val", type=int,default=1,
                     help="want to do model validation? 1 for yes, 0 for no")
-    parser.add_argument("--do_partial", type=int,default=1,
+    parser.add_argument("--do_varpart", type=int,default=1,
                     help="want to do variance partition? 1 for yes, 0 for no")
     parser.add_argument("--date_str", type=str,default='None',
                     help="what date was the model fitting done (only if you're starting from validation step.)")
@@ -475,11 +449,11 @@ if __name__ == '__main__':
     if args.fitting_type=='texture':       
         fit_gabor_texture_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size, args.include_pixel==1, args.include_simple==1, args.include_complex==1, args.include_autocorrs==1, args.include_crosscorrs==1,
                          args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1,
-                         args.do_fitting==1, args.do_val==1, args.do_partial==1, date_str, args.shuff_rnd_seed)   
+                         args.do_fitting==1, args.do_val==1, args.do_varpart==1, date_str, args.shuff_rnd_seed)   
     elif args.fitting_type=='pyramid_texture':
         fit_pyramid_texture_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size, 
                          args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1,
-                         args.do_fitting==1, args.do_val==1, args.do_partial==1, date_str, args.shuff_rnd_seed)   
+                         args.do_fitting==1, args.do_val==1, args.do_varpart==1, date_str, args.shuff_rnd_seed)   
   
     else:
         print('fitting for %s not implemented currently!!'%args.fitting_type)

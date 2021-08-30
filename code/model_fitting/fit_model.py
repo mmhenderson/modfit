@@ -19,7 +19,9 @@ root_dir   = os.path.dirname(os.getcwd())
 sys.path.append(os.path.join(root_dir))
 from model_src import fwrf_fit as fwrf_fit
 from model_src import fwrf_predict as fwrf_predict
-from model_src import texture_statistics_gabor, texture_statistics_pyramid
+from model_src import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features
+
+bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
 
 import initialize_fitting
 
@@ -343,7 +345,178 @@ def fit_gabor_texture_fwrf(subject=1, roi='V1', up_to_sess=1, n_ori=36, n_sf=12,
             print('Model only has one feature type, so will not do variance partition.')
             
         save_all()
+ 
+
+def fit_bdcn_fwrf(subject=1, roi='V1', up_to_sess=1, sample_batch_size=50, voxel_batch_size=100, \
+                    zscore_features=True, ridge=False, do_pca = True, min_pct_var=95, max_pc_to_retain=100, map_ind=-1, n_prf_sd_out=2, \
+                   mult_patch_by_prf=True, debug=False, shuffle_images=False, random_images=False, random_voxel_data=False, \
+                  do_fitting=True, do_val=True, date_str=None, shuff_rnd_seed=0):
+    
+    """ 
+    Fit linear mapping from various textural features (within specified pRF) to voxel response.
+    """
+    
+    print('do_pca=%s'%do_pca)
+    print('ridge=%s'%ridge)
+    print('min_pct_var=%s'%min_pct_var)
+    print('max_pc_to_retain=%s'%max_pc_to_retain)
+    print('map_ind=%s'%map_ind)
+    print('n_prf_sd_out=%s'%n_prf_sd_out)
+    print('mult_patch_by_prf=%s'%mult_patch_by_prf)
+        
+    device = initialize_fitting.init_cuda()
+    nsd_root, stim_root, beta_root, mask_root = initialize_fitting.get_paths()
+    model_name = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
+    
+    if do_fitting==False and date_str is None:
+        raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
+
+    if do_fitting==False and do_pca==True:
+        raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing pca, because the pca weight matrix is not saved in between trn/val.')
+       
+    if do_fitting==True and date_str is not None:
+        raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
+
+    output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
+    
+    def save_all():
+        print('\nSaving to %s\n'%fn2save)
+        torch.save({
+        'aperture': aperture,
+        'aperture_rf_range': aperture_rf_range,
+        'models': models,
+        'voxel_mask': voxel_mask,
+        'brain_nii_shape': brain_nii_shape,
+        'image_order': image_order,
+        'voxel_index': voxel_index,
+        'voxel_roi': voxel_roi,
+        'voxel_ncsnr': voxel_ncsnr, 
+        'best_params': best_params,
+        'pc': pc2save,
+        'lambdas': lambdas, 
+        'best_lambdas': best_lambdas,
+        'best_losses': best_losses,
+        'val_cc': val_cc,
+        'val_r2': val_r2,     
+        'zscore_features': zscore_features,        
+        'n_prf_sd_out': n_prf_sd_out,
+        'mult_patch_by_prf': mult_patch_by_prf,
+        'ridge': ridge,
+        'do_pca': do_pca,
+        'debug': debug,
+        'up_to_sess': up_to_sess,
+        'shuff_rnd_seed': shuff_rnd_seed
+        }, fn2save, pickle_protocol=4)
             
+            
+    # decide what voxels to use  
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = initialize_fitting.get_voxel_info(mask_root, beta_root, subject, roi)
+
+    # get all data and corresponding images, in two splits. always fixed set that gets left out
+    trn_stim_data, trn_voxel_data, val_stim_single_trial_data, val_voxel_single_trial_data, \
+        n_voxels, n_trials_val, image_order = initialize_fitting.get_data_splits(nsd_root, beta_root, stim_root, subject, voxel_mask, up_to_sess, 
+                                                                                 shuffle_images=shuffle_images, random_images=random_images, random_voxel_data=random_voxel_data)
+
+
+    # Set up the pRFs to test
+    aperture_rf_range = 1.1
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+
+    # Set up the contour feature extractor
+    pretrained_model_file = os.path.join(bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
+    _feature_extractor = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture_rf_range, n_prf_sd_out, \
+                                               batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf)
+
+    # More params for fitting
+    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
+
+    
+    #### DO THE ACTUAL MODEL FITTING HERE ####
+    
+    if do_fitting:
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('\nStarting training...\n')
+        if shuff_rnd_seed==0:
+            shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
+        
+        if debug:
+            print('flipping the models upside down to start w biggest pRFs')
+            models = np.flipud(models)
+
+        best_losses, best_lambdas, best_params, pc = fwrf_fit.fit_bdcn_model(trn_stim_data, trn_voxel_data, _feature_extractor, models, \
+                                                    lambdas, 
+                                                    do_pca=do_pca, min_pct_var = min_pct_var, max_pc_to_retain=max_pc_to_retain, \
+                                                    aperture=aperture, zscore=zscore_features, \
+                                                    voxel_batch_size=voxel_batch_size, \
+                                                    holdout_size=holdout_size, shuffle=True, \
+                                                    shuff_rnd_seed=shuff_rnd_seed, add_bias=True, device=device,\
+                                                    debug=debug)
+        # The first thing in "pc" is the entire weights matrix for pca transformation - don't want to save this because very large.
+        # We do need it for validation, so keeping it in memory for now but not saving.
+        pc2save = pc[1:4]
+        sys.stdout.flush()
+    
+        # note there's also a shuffle param in the above fn call, that determines the nested heldout data for lambda and param selection. always using true.
+        print('\nDone with training\n')
+        
+        sys.stdout.flush()
+        
+        val_cc=None
+        val_r2=None
+       
+        print('\nStarting saving\n')
+        
+        sys.stdout.flush()
+        
+        save_all()
+        
+        print('\nDone with saving\n')
+        
+        sys.stdout.flush()
+    
+    else:
+        print('\nLoading the results of training from %s\n'%fn2save)
+        out = torch.load(fn2save)
+        best_losses = out['best_losses']
+        best_lambdas = out['best_lambdas']
+        best_params = out['best_params']
+        feature_info = out['feature_info']
+        val_cc = out['val_cc']
+        val_r2 = out['val_r2']
+        pc = out['pc']
+        pc2save = pc
+        if 'shuff_rnd_seed' in list(out.keys()):
+            shuff_rnd_seed=out['shuff_rnd_seed']
+        else:
+            shuff_rnd_seed=0
+            
+        # some checks to make sure we're resuming same process...        
+        assert(np.all(models==out['models']))
+        assert(out['n_prf_sd_out']== n_prf_sd_out)
+        assert(out['zscore_features']==zscore_features)
+        assert(out['up_to_sess']==up_to_sess)
+        assert(out['best_params'][1].shape[1]==feature_info[0].shape[0])
+        assert(out['best_params'][1].shape[0]==voxel_index[0].shape[0])
+   
+    if val_cc is not None:
+        do_val=False
+        print('\nValidation is already done! not going to run it again.')       
+   
+    ## Validate model on held-out test set #####
+    sys.stdout.flush()
+    if do_val: 
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start validation')
+        sys.stdout.flush()
+        
+        val_cc, val_r2 = fwrf_predict.validate_bdcn_model(best_params, models, val_voxel_single_trial_data, val_stim_single_trial_data,\
+                                             _feature_extractor, pc=pc, sample_batch_size=sample_batch_size, \
+                                                             voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)                                         
+        save_all()
+  
+
 
 if __name__ == '__main__':
     
@@ -367,6 +540,19 @@ if __name__ == '__main__':
                     help="want to include autocorrelations (only used for texture model)? 1 for yes, 0 for no")
     parser.add_argument("--include_crosscorrs", type=int,default=1,
                     help="want to include crosscorrelations (only used for texture model)? 1 for yes, 0 for no")
+    
+    parser.add_argument("--do_pca", type=int, default=1,
+                    help="want to do PCA before fitting only works for BDCN model for now. 1 for yes, 0 for no")
+    parser.add_argument("--min_pct_var", type=int,default=95,
+                    help="minimum percent var to use when choosing num pcs to retain, default 95")
+    parser.add_argument("--max_pc_to_retain", type=int,default=100,
+                    help="maximum number of pcs to retain, default 100")
+    parser.add_argument("--map_ind", type=int, default=-1, 
+                    help="which map to use in BDCN model? Default is -1 which gives fused map")
+    parser.add_argument("--n_prf_sd_out", type=int, default=2, 
+                    help="How many pRF stddevs to use in patch for BDCN model? Default is 2")
+    parser.add_argument("--mult_patch_by_prf", type=int, default=1,
+                    help="In BDCN model, want to multiply the feature map patch by pRF gaussian?. 1 for yes, 0 for no")
     
     parser.add_argument("--shuffle_images", type=int,default=0,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
@@ -449,12 +635,19 @@ if __name__ == '__main__':
     if args.fitting_type=='texture':       
         fit_gabor_texture_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size, args.include_pixel==1, args.include_simple==1, args.include_complex==1, args.include_autocorrs==1, args.include_crosscorrs==1,
                          args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.padding_mode, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1,
-                         args.do_fitting==1, args.do_val==1, args.do_varpart==1, date_str, args.shuff_rnd_seed)   
+                         args.do_fitting==1, args.do_val==1, args.do_varpart==1, date_str, args.shuff_rnd_seed) 
+        
     elif args.fitting_type=='pyramid_texture':
         fit_pyramid_texture_fwrf(args.subject, roi, args.up_to_sess, args.n_ori, args.n_sf, args.sample_batch_size, args.voxel_batch_size, 
                          args.zscore_features==1, args.nonlin_fn==1, args.ridge==1, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1,
                          args.do_fitting==1, args.do_val==1, args.do_varpart==1, date_str, args.shuff_rnd_seed)   
   
+    elif args.fitting_type=='bdcn':
+       
+        fit_bdcn_fwrf(args.subject, roi, args.up_to_sess, args.sample_batch_size, args.voxel_batch_size, args.zscore_features==1, args.ridge==1, args.do_pca==1, args.min_pct_var, args.max_pc_to_retain, args.map_ind, args.n_prf_sd_out, args.mult_patch_by_prf==1, args.debug==1, args.shuffle_images==1, args.random_images==1, args.random_voxel_data==1,
+                         args.do_fitting==1, args.do_val==1, date_str, args.shuff_rnd_seed)  
+
+
     else:
         print('fitting for %s not implemented currently!!'%args.fitting_type)
         exit()

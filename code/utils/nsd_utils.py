@@ -10,6 +10,17 @@ from torch.utils.data import Dataset
 
 from utils import default_paths, torch_utils
 
+def ncsnr_to_nc(ncsnr, n=1):
+    
+    """
+    From Allen, E. J., St-yves, G., Wu, Y., & Kay, K. N. (2021). A massive 7T fMRI dataset to bridge cognitive and computational neuroscience. BioRxiv, 1–70.
+    Equation on page 47 of preprint.
+    """
+    
+    noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)
+    
+    return noise_ceiling
+
 class nsd_dataset(Dataset):
     
     """

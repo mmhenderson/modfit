@@ -66,6 +66,9 @@ def validate_texture_model_varpart(best_params, prf_models, val_voxel_single_tri
     with torch.no_grad():
         
         # First gather texture features for all pRFs.
+        
+        _texture_fn.clear_maps()
+        
         for mm in range(n_prfs):
             if mm>1 and debug:
                 break
@@ -74,6 +77,7 @@ def validate_texture_model_varpart(best_params, prf_models, val_voxel_single_tri
             
             pred_models[:,:,mm] = torch_utils.get_value(all_feat_concat)
         
+        _texture_fn.clear_maps()
     
         vv=-1
         ## Looping over voxels here in batches, will eventually go through all.
@@ -304,4 +308,143 @@ def get_predictions_texture_model(images, _texture_fn, params, prf_models, sampl
     sys.stdout.flush()
     return pred
 
+   
+def validate_bdcn_model(best_params, prf_models, val_voxel_single_trial_data, \
+                            val_stim_single_trial_data, _feature_extractor, pc=None, sample_batch_size=100, \
+                            voxel_batch_size=100, debug=False, dtype=np.float32):
+    
+    """ 
+    Evaluate trained model, leaving out a subset of features at a time.
+    """
+    print('starting validation function')
+    sys.stdout.flush()
+        
+    images = val_stim_single_trial_data
+    params = best_params
+    dtype = images.dtype.type
+    device = _feature_extractor.device
+    
+    n_trials, n_voxels = len(images), len(params[0])
+    n_prfs = prf_models.shape[0]
+    n_features = params[1].shape[1]  
 
+    best_models, weights, bias, features_mt, features_st, best_model_inds = params
+    if pc is not None:
+        pca_wts, pct_var_expl, min_pct_var, n_comp_needed, pca_pre_mean = pc
+    
+    n_voxels = np.shape(val_voxel_single_trial_data)[1]
+    print('starting to initialize big arrays')
+    sys.stdout.flush()
+        
+    val_cc  = np.zeros(shape=(n_voxels, 1), dtype=dtype)
+    val_r2 = np.zeros(shape=(n_voxels, 1), dtype=dtype)
+    n_features_actual = np.zeros(shape=(n_prfs,), dtype=int)
+
+    pred_models = np.full(fill_value=0, shape=(n_trials, n_features, n_prfs), dtype=dtype)
+    
+    print('about to start loop')
+    sys.stdout.flush()
+        
+    start_time = time.time()    
+    with torch.no_grad():
+        
+        # First gather features for all pRFs.
+        
+        _feature_extractor.clear_maps()
+        
+        sys.stdout.flush()
+        
+        
+        for mm in range(n_prfs):
+            if mm>1 and debug:
+                break
+            print('Getting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(mm, prf_models[mm,0],  prf_models[mm,1],  prf_models[mm,2] ))
+            
+            features = _feature_extractor(images, prf_models[mm,:]).detach().cpu().numpy()   
+
+            if pc is not None:
+                print('Applying pre-computed PCA matrix')
+                # Apply the PCA transformation, just as it was done during training
+                nfeat = features.shape[1]
+                features_submean = features - np.tile(np.expand_dims(pca_pre_mean[mm][0:nfeat], axis=0), [n_trials, 1])
+                features_reduced = features_submean @ np.transpose(pca_wts[mm][0:n_comp_needed[mm],0:nfeat])                                               
+                features = features_reduced
+
+            n_features_actual[mm] = features.shape[1]
+
+            pred_models[:,0:n_features_actual[mm],mm] = features
+            
+            sys.stdout.flush()
+        
+                
+        _feature_extractor.clear_maps()
+        
+        sys.stdout.flush()
+        
+    
+        vv=-1
+        ## Looping over voxels here in batches, will eventually go through all.
+        for rv, lv in numpy_utility.iterate_range(0, n_voxels, voxel_batch_size):
+            vv=vv+1
+            print('Getting predictions for voxels [%d-%d] of %d'%(rv[0],rv[-1],n_voxels))
+
+            if vv>1 and debug:
+                break
+            
+            # [trials x features x voxels]
+            # to keep this from being huge, just keep the maximum number of features needed for any voxel
+            # there will be some zeros still, but they are also zero in the weights so not a problem.
+            feat2use = np.max(n_features_actual[best_model_inds[rv]])
+            features = pred_models[:,0:feat2use,best_model_inds[rv]]
+
+            print('size of feature matrix to use is:')
+            print(features.shape)
+            
+            _weights = torch_utils._to_torch(weights[rv,0:feat2use]) 
+            _bias = torch_utils._to_torch(bias[rv])
+
+            if features_mt is not None:
+                _features_m = torch_utils._to_torch(features_mt[rv,0:feat2use])
+            if features_st is not None:
+                _features_s = torch_utils._to_torch(features_st[rv,0:feat2use])
+
+            pred_block = np.full(fill_value=0, shape=(n_trials, lv), dtype=dtype)
+
+            # Now looping over validation set trials in batches
+            for rt, lt in numpy_utility.iterate_range(0, n_trials, sample_batch_size):
+
+                _features = torch_utils._to_torch(features[rt,:,:]) # trials x features x voxels
+                if features_mt is not None:    
+                    # features_m is [nvoxels x nfeatures] - need [trials x features x voxels]
+                    _features = _features - torch.tile(torch.unsqueeze(_features_m, dim=0), [_features.shape[0], 1, 1]).moveaxis([1],[2])
+
+                if features_st is not None:
+                    _features = _features/torch.tile(torch.unsqueeze(_features_s, dim=0), [_features.shape[0], 1, 1]).moveaxis([1],[2])
+                    _features[torch.isnan(_features)] = 0.0 # this applies in the pca case when last few columns of features are missing
+
+                # features is [#samples, #features, #voxels] - swap dims to [#voxels, #samples, features]
+                _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
+                # weights is [#voxels, #features]
+                # _r will be [#voxels, #samples, 1] - then [#samples, #voxels]
+
+                _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
+
+                if _bias is not None:
+                    _r = _r + torch.tile(torch.unsqueeze(_bias, 0), [_r.shape[0],1])
+
+                pred_block[rt] = torch_utils.get_value(_r) 
+
+            # Now for this batch of voxels and this partial version of the model, measure performance.
+#                 print('\nEvaluating correlation coefficient on validation set...\n')
+            for vi in range(lv):   
+                val_cc[rv[vi],0] = np.corrcoef(val_voxel_single_trial_data[:,rv[vi]], pred_block[:,vi])[0,1]  
+                val_r2[rv[vi],0] = get_r2(val_voxel_single_trial_data[:,rv[vi]], pred_block[:,vi])
+
+            sys.stdout.flush()
+        
+    val_cc = np.nan_to_num(val_cc)
+    val_r2 = np.nan_to_num(val_r2) 
+    
+    return val_cc, val_r2
+
+    

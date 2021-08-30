@@ -57,7 +57,7 @@ def get_save_path(root_dir, subject, model_name, shuffle_images, random_images, 
         model_name = model_name + '_RANDOMVOXELDATA'
     
     if date_str is None:
-        timestamp = time.strftime('%b-%d-%Y_%H%M', time.localtime())
+        timestamp = time.strftime('%b-%d-%Y_%H%M_%S', time.localtime())
         make_new_folder = True
     else:
         # if you specified an existing timestamp, then won't try to make new folder, need to find existing one.
@@ -138,6 +138,25 @@ def get_model_name(ridge, n_ori, n_sf, include_pixel, include_simple, include_co
 
         return model_name, feature_types_exclude    
 
+
+def get_bdcn_model_name(do_pca, map_ind):
+
+    if do_pca==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'bdcn_pca'
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'bdcn'
+    
+    if map_ind==-1:
+        model_name += '_fused'
+    else:
+        model_name += '_map%d'%map_ind
+        
+    return model_name
+
+        
+    
 def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10):
 
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))

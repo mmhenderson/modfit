@@ -78,7 +78,7 @@ class bdcn_feature_extractor(nn.Module):
             maxval = torch.max(prf-minval)
             prf_scaled = (prf - minval)/maxval
             # Multiply the feature map by gaussian pRF weights, before cropping
-            maps_sig = maps_sig * prf
+            maps_sig = maps_sig * prf_scaled
         
         # Crop the patch +/- n SD away from center
         bbox = texture_utils.get_bbox_from_prf(prf_params, prf.shape, self.n_prf_sd_out, min_pix=None, verbose=False, force_square=False)

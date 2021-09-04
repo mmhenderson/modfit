@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=96G
+#SBATCH --mem=100G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -13,10 +13,10 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
-subj=1
+subj=2
+roi=None
 
 ridge=1
-volume_space=0
 
 shuffle_images=0
 random_images=0
@@ -50,4 +50,4 @@ date_str='None'
 
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --n_ori $n_ori --n_sf $n_sf --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --nonlin_fn $nonlin_fn --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --ridge $ridge --do_fitting $do_fitting --do_val $do_val --do_varpart $do_varpart --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed
+python3 fit_model.py --subject $subj --roi $roi --up_to_sess $up_to_sess --n_ori $n_ori --n_sf $n_sf --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --nonlin_fn $nonlin_fn --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --ridge $ridge --do_fitting $do_fitting --do_val $do_val --do_varpart $do_varpart --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed

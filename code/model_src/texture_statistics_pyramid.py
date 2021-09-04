@@ -4,7 +4,7 @@ import time
 from collections import OrderedDict
 import torch.nn as nn
 import pyrtools as pt
-from utils import numpy_utility, torch_utils, texture_utils
+from utils import numpy_utils, torch_utils, texture_utils, prf_utils
 
 class texture_feature_extractor(nn.Module):
     
@@ -19,7 +19,8 @@ class texture_feature_extractor(nn.Module):
         
         super(texture_feature_extractor, self).__init__()
         
-        self.fmaps_fn = _fmaps_fn               
+        self.fmaps_fn = _fmaps_fn   
+        self.fmaps = None
         self.n_sf = _fmaps_fn.pyr_height
         self.n_ori =  _fmaps_fn.n_ori
        
@@ -67,8 +68,28 @@ class texture_feature_extractor(nn.Module):
         self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
 
+    def get_maps(self, images):
     
+        print('Running steerable pyramid feature extraction...')
+        print('Images array shape is:')
+        print(images.shape)
+        t = time.time()
+        fmaps = self.fmaps_fn(images, to_torch=False, device=self.device)        
+        self.fmaps = fmaps
+        elapsed =  time.time() - t
+        print('time elapsed = %.5f'%elapsed)
+
+    def clear_maps(self):
+        
+        print('Clearing steerable pyramid features from memory.')
+        self.fmaps = None
+        
     def forward(self, images, prf_params):
+        
+        if self.fmaps is None:
+            self.get_maps(images)
+        else:
+            assert(images.shape[0]==self.fmaps[0][0].shape[0])
         
         if isinstance(prf_params, torch.Tensor):
             prf_params = torch_utils.get_value(prf_params)
@@ -84,7 +105,7 @@ class texture_feature_extractor(nn.Module):
             magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
             magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
             real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs =  \
-                    get_higher_order_features(self.fmaps_fn, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
+                    get_higher_order_features(self.fmaps, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
         
         
         elapsed =  time.time() - t
@@ -232,7 +253,7 @@ class steerable_pyramid_extractor(nn.Module):
             
             
         elapsed = time.time() - t
-        print('time elapsed: %.5f s'%elapsed)
+#         print('time elapsed: %.5f s'%elapsed)
 
         if to_torch:            
             fmaps_complex = [torch.from_numpy(fm).to(device) for fm in fmaps_complex]            
@@ -245,7 +266,7 @@ class steerable_pyramid_extractor(nn.Module):
    
 
 
-def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=20, n_prf_sd_out=2, aperture=1.0, device=None):
+def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n_prf_sd_out=2, aperture=1.0, device=None):
 
     """
     Compute higher order texture features for a batch of images.
@@ -255,11 +276,13 @@ def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=2
     https://github.com/freeman-lab/metamers
     """
 
-    n_trials = np.shape(images)[0]
+    fmaps_complex_all, fmaps_resid_all, fmaps_lowpass_recon_all, fmaps_coarser_upsampled_all = fmaps
+   
+    n_trials = fmaps_complex_all[0].shape[0]
     x,y,sigma = prf_params
 
-    n_sf = _fmaps_fn.pyr_height
-    n_ori = _fmaps_fn.n_ori
+    n_sf = len(fmaps_complex_all)
+    n_ori = fmaps_complex_all[0].shape[1]
         
     # all pairs of different orientation channels.
     ori_pairs = np.vstack([[[oo1, oo2] for oo2 in np.arange(oo1+1, n_ori)] for oo1 in range(n_ori) if oo1<n_ori-1])
@@ -313,19 +336,22 @@ def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=2
 
     # Looping over batches of trials to compute everything of interest.
     bb=-1
-    for batch_inds, batch_size_actual in numpy_utility.iterate_range(0, n_trials, sample_batch_size):
+    for batch_inds, batch_size_actual in numpy_utils.iterate_range(0, n_trials, sample_batch_size):
         bb=bb+1
 
-        fmaps_complex, fmaps_resid, fmaps_lowpass_recon, fmaps_coarser_upsampled = _fmaps_fn(images[batch_inds], to_torch=True, device=device)
+        fmaps_complex = [torch.from_numpy(fmaps_complex_all[ii][batch_inds,:,:,:]).to(device) for ii in range(len(fmaps_complex_all))]
+        fmaps_resid = [torch.from_numpy(fmaps_resid_all[ii][batch_inds,:,:,:]).float().to(device) for ii in range(len(fmaps_resid_all))]
+        fmaps_lowpass_recon = [torch.from_numpy(fmaps_lowpass_recon_all[ii][batch_inds,:,:,:]).float().to(device) for ii in range(len(fmaps_lowpass_recon_all))]
+        fmaps_coarser_upsampled = [torch.from_numpy(fmaps_coarser_upsampled_all[ii][batch_inds,:,:,:]).to(device) for ii in range(len(fmaps_coarser_upsampled_all))]
 
         if bb==0:
-            npix_each_scale = [_fmaps_fn.pyr.pyr_size[(sc,0)][0] for sc in range(n_sf)]
-            npix_each_scale.append(_fmaps_fn.pyr.pyr_size['residual_lowpass'][0])
+            npix_each_scale = [fmaps_complex_all[sc].shape[2] for sc in np.arange(n_sf-1,-1,-1)]
+            npix_each_scale.append(fmaps_resid_all[0].shape[2])
             npix_each_scale.reverse()
-            
+
         # First working with the finest scale (original image)
         n_pix = npix_each_scale[-1]      
-        g = numpy_utility.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
+        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
         spatial_weights = g[2][0]
         patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[-1])
 
@@ -349,7 +375,7 @@ def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=2
 
         # Next work with the low-pass reconstruction (most coarse scale, smallest npix)
         n_pix = npix_each_scale[0]       
-        g = numpy_utility.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
+        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
         spatial_weights = g[2][0]
         patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[0])
 
@@ -370,7 +396,7 @@ def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=2
          
             # Scale specific things - get the prf at this resolution of interest    
             n_pix = npix_each_scale[ff+1]           
-            g = numpy_utility.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
+            g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
             spatial_weights = g[2][0]
             patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[1+ff])
 
@@ -511,4 +537,5 @@ def get_higher_order_features(_fmaps_fn, images, prf_params, sample_batch_size=2
             magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
             magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
             real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs
+
 

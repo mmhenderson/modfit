@@ -1,8 +1,11 @@
 
-
+import os
 # Path to the full NSD data repository (includes data and stimuli)
 # http://naturalscenesdataset.org/
 nsd_path = '/lab_data/tarrlab/common/datasets/NSD'
+nsd_root = nsd_path
+stim_root = '/user_data/mmhender/nsd_stimuli/stimuli/nsd/'     
+beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
 
 # Path to the COCO API toolbox
 # https://github.com/cocodataset/cocoapi

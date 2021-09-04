@@ -4,7 +4,7 @@ import time
 from collections import OrderedDict
 import torch.nn as nn
 
-from utils import numpy_utility, torch_utils, texture_utils
+from utils import numpy_utils, torch_utils, texture_utils, prf_utils
 from model_src import fwrf_fit as fwrf_fit
 
 class texture_feature_extractor(nn.Module):
@@ -85,7 +85,7 @@ class texture_feature_extractor(nn.Module):
         t=time.time()
         x,y,sigma = prf_params
         n_pix=np.shape(images)[2]
-        g = numpy_utility.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
+        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
         spatial_weights = g[2][0]
         wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
         elapsed =  time.time() - t
@@ -203,7 +203,7 @@ def get_higher_order_features(_fmaps_fn_complex, _fmaps_fn_simple, images, prf_p
         x,y,sigma = prf_params
 
         bb=-1
-        for batch_inds, batch_size_actual in numpy_utility.iterate_range(0, n_trials, sample_batch_size):
+        for batch_inds, batch_size_actual in numpy_utils.iterate_range(0, n_trials, sample_batch_size):
             bb=bb+1
 
             fmaps_complex = _fmaps_fn_complex(torch_utils._to_torch(images[batch_inds],device=device))   
@@ -214,7 +214,7 @@ def get_higher_order_features(_fmaps_fn_complex, _fmaps_fn_simple, images, prf_p
 
                 # Scale specific things - get the prf at this resolution of interest
                 n_pix = fmaps_rez[ff]
-                g = numpy_utility.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
+                g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
                 spatial_weights = g[2][0]
 
                 patch_bbox_rect = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=False)

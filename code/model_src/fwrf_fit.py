@@ -18,6 +18,8 @@ import torch.optim as optim
 
 from utils import numpy_utils, torch_utils, texture_utils
 
+# comment to indicate that we are on the new branch
+
 def _cofactor_fn_cpu(_x, lambdas):
     '''
     Generating a matrix needed to solve ridge regression model for each lambda value.

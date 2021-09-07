@@ -15,7 +15,8 @@ class texture_feature_extractor(nn.Module):
     Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma]
     """
     
-    def __init__(self,_fmaps_fn, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, aperture=1.0, device=None):
+    def __init__(self,_fmaps_fn, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
+                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
@@ -28,8 +29,22 @@ class texture_feature_extractor(nn.Module):
         self.n_prf_sd_out = n_prf_sd_out
         self.aperture = aperture
         self.device = device       
-       
+        
+        self.do_varpart = do_varpart
+        self.group_all_hl_feats = group_all_hl_feats
+        
         self.update_feature_list(feature_types_exclude)
+        self.do_pca = False
+       
+    def init_for_fitting(self, image_size, models, dtype):
+
+        """
+        Additional initialization operations.
+        """
+       
+        self.max_features = self.n_features_total            
+        self.clear_maps()
+        
        
     def update_feature_list(self, feature_types_exclude):
         
@@ -67,6 +82,42 @@ class texture_feature_extractor(nn.Module):
         # numbers that define which feature types are in which column
         self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
+        
+        if self.group_all_hl_feats:
+            # In this case pretend there are just two groups of features - the 'mean_magnitudes' which are first-level gabor-like
+            # and all other features combined into a second group. Makes it simpler to do variance partition analysis.
+            # if do_varpart=False, this does nothing.
+            self.feature_column_labels[self.feature_column_labels != 1] = -1
+            self.feature_column_labels[self.feature_column_labels==1] = 0
+            self.feature_column_labels[self.feature_column_labels==-1] = 1
+            self.feature_group_names = ['mean_magnitudes', 'all_other_texture_feats']
+        else:
+            self.feature_group_names = self.feature_types_include
+            
+    def get_partial_versions(self):
+        
+        if not hasattr(self, 'max_features'):
+            raise RuntimeError('need to run init_for_fitting first')
+            
+        n_feature_types = len(self.feature_group_names)
+        partial_version_names = ['full_model'] 
+        masks = np.ones([1,self.n_features_total])
+        
+        if self.do_varpart:
+            
+            # "Partial versions" will be listed as: [full model, model w only first set of features, model w only second set, ...             
+            partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]
+            masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+            masks = np.concatenate((masks, masks2), axis=0)
+            
+            if n_feature_types > 2:
+                # if more than two types, also include models where we leave out first set of features, leave out second set of features...]
+                partial_version_names += ['leave_out_%s'%ff for ff in self.feature_group_names]           
+                masks3 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels!=ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+                masks = np.concatenate((masks, masks3), axis=0)           
+        
+        # masks always goes [n partial versions x n total features]
+        return masks, partial_version_names
 
     def get_maps(self, images):
     
@@ -84,7 +135,7 @@ class texture_feature_extractor(nn.Module):
         print('Clearing steerable pyramid features from memory.')
         self.fmaps = None
         
-    def forward(self, images, prf_params):
+    def forward(self, images, prf_params, prf_model_index, fitting_mode=True):
         
         if self.fmaps is None:
             self.get_maps(images)
@@ -120,6 +171,7 @@ class texture_feature_extractor(nn.Module):
 
         feature_names_full = list(all_feat.keys())
         feature_names = [fname for fname in feature_names_full if fname in self.feature_types_include]
+        self.feature_names = feature_names
         assert(feature_names==self.feature_types_include) # double check here that the order is correct
         
         for ff, feature_name in enumerate(feature_names):   
@@ -140,7 +192,10 @@ class texture_feature_extractor(nn.Module):
             print('\nWARNING THERE ARE ZEROS IN FEATURES MATRIX\n')
             print('zeros for columns:')
             print(np.where(torch.sum(all_feat_concat, axis=0)==0))
-        return all_feat_concat, [self.feature_column_labels, feature_names]
+            
+        feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
+        
+        return all_feat_concat, feature_inds_defined
     
 
 class steerable_pyramid_extractor(nn.Module):

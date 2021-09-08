@@ -36,7 +36,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     
     params = best_params
     dtype = images.dtype.type
-    device = _texture_fn.device
+    device = _feature_extractor.device
     
     n_trials, n_voxels = len(images), len(params[0])
     n_prfs = prf_models.shape[0]

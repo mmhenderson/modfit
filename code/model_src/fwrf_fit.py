@@ -61,7 +61,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
 
 def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, \
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
-                       shuffle=True, shuff_rnd_seed=0, device=None, do_varpart=False, debug=False):
+                       shuffle=True, shuff_rnd_seed=0, device=None, debug=False):
     
     """
     Solve for encoding model weights using ridge regression.
@@ -78,7 +78,6 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         shuffle: do we shuffle training data order before holding trials out?      
         shuff_rnd_seed: if we do shuffle training data (shuffle=True), what random seed to use? if zero, choose a new random seed in this code.
         device: what device to use? cpu/cuda
-        do_varpart: perform variance partition by leaving out subsets of features at a time?
         debug: want to run a shortened version of this, to test it?
     Outputs:
         best_losses: loss value for each voxel (with best pRF and best lambda), eval on held out set

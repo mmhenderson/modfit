@@ -24,7 +24,7 @@ from utils import nsd_utils, roi_utils
 
 bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
 
-import initialize_fitting, merge_features
+import initialize_fitting, merge_features, arg_parser
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()
@@ -39,161 +39,88 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
-             do_fitting = True, do_val = True, do_varpart = True, 
+             do_fitting = True, do_val = True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              do_pca = True, min_pct_var = 99, max_pc_to_retain = 400, map_ind = -1, \
              n_prf_sd_out = 2, mult_patch_by_prf = True, \
              downsample_factor = 1.0, do_nms = False):
     
-    
-    def save_fn_bdcn(fn2save):
-        print('\nSaving to %s\n'%fn2save)
-        torch.save({
-        'aperture': aperture,
-        'aperture_rf_range': aperture_rf_range,
-        'models': models,
+    def save_all(fn2save, fitting_type):
+        """
+        Define all the important parameters that have to be saved
+        """
+        dict2save = {
         'voxel_mask': voxel_mask,
         'brain_nii_shape': brain_nii_shape,
         'image_order': image_order,
         'voxel_index': voxel_index,
         'voxel_roi': voxel_roi,
         'voxel_ncsnr': voxel_ncsnr, 
-        'best_params': best_params,
-        'pc': pc2save,
-        'lambdas': lambdas, 
+        'aperture': aperture,
+        'aperture_rf_range': aperture_rf_range,
+        'models': models,        
+        'n_prf_sd_out': n_prf_sd_out,
+        'best_losses': best_losses,           
         'best_lambdas': best_lambdas,
-        'best_losses': best_losses,
+        'best_params': best_params,       
+        'lambdas': lambdas, 
         'val_cc': val_cc,
         'val_r2': val_r2,    
         'partial_masks': partial_masks, 
         'partial_version_names': partial_version_names,
         'zscore_features': zscore_features,        
-        'n_prf_sd_out': n_prf_sd_out,
-        'mult_patch_by_prf': mult_patch_by_prf,
-        'do_nms': do_nms, 
-        'downsample_factor': downsample_factor,
         'ridge': ridge,
-        'do_pca': do_pca,
         'debug': debug,
         'up_to_sess': up_to_sess,
         'shuff_rnd_seed': shuff_rnd_seed
-        }, fn2save, pickle_protocol=4)
-
-
-
-    def save_fn_pyramid(fn2save):
+        }
+        # Might be some more things to save, depending what kind of fitting this is
+        if 'bdcn' in fitting_type:
+            dict2save.update({
+            'pc': pc,
+            'min_pct_var': min_pct_var,
+            'max_pc_to_retain': max_pc_to_retain,           
+            'mult_patch_by_prf': mult_patch_by_prf,
+            'do_nms': do_nms, 
+            'downsample_factor': downsample_factor,
+            })
+            
+        if 'pyramid' in fitting_type:
+            dict2save.update({
+                'feature_info':feature_info,
+            })
+            
+        if 'gabor' in fitting_type:
+            dict2save.update({
+            'feature_table_simple': _gaborizer_simple.feature_table,
+            'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
+            'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
+            'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
+            'orients_deg_simple': _gaborizer_simple.orients_deg,
+            'orient_filters_simple': _gaborizer_simple.orient_filters,  
+            'feature_table_complex': _gaborizer_complex.feature_table,
+            'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
+            'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
+            'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
+            'orients_deg_complex': _gaborizer_complex.orients_deg,
+            'orient_filters_complex': _gaborizer_complex.orient_filters, 
+            'include_autocorrs': include_autocorrs,
+            'val_cc_partial': val_cc_partial,
+            'val_r2_partial': val_r2_partial,
+            'feature_info': feature_info,
+            'features_each_model_val': features_each_model_val,
+            'voxel_feature_correlations_val': voxel_feature_correlations_val,
+            'nonlin_fn': nonlin_fn,
+            'padding_mode': padding_mode,
+            'autocorr_output_pix': autocorr_output_pix,
+            })
+            
         print('\nSaving to %s\n'%fn2save)
-        torch.save({
-        'aperture': aperture,
-        'aperture_rf_range': aperture_rf_range,
-        'models': models,
-        'feature_info':feature_info,
-        'voxel_mask': voxel_mask,
-        'brain_nii_shape': brain_nii_shape,
-        'image_order': image_order,
-        'voxel_index': voxel_index,
-        'voxel_roi': voxel_roi,
-        'voxel_ncsnr': voxel_ncsnr, 
-        'best_params': best_params,
-        'lambdas': lambdas, 
-        'best_lambdas': best_lambdas,
-        'best_losses': best_losses,
-        'val_cc': val_cc,
-        'val_r2': val_r2,
-        'partial_masks': partial_masks, 
-        'partial_version_names': partial_version_names,
-        'zscore_features': zscore_features,
-        'n_prf_sd_out': n_prf_sd_out,
-        'debug': debug,
-        'up_to_sess': up_to_sess,
-        'shuff_rnd_seed': shuff_rnd_seed
-        }, fn2save, pickle_protocol=4)
+        torch.save(dict2save, fn2save, pickle_protocol=4)
 
-
-    def save_fn_pyramid_bdcn(fn2save):
-        print('\nSaving to %s\n'%fn2save)
-        torch.save({
-        'aperture': aperture,
-        'aperture_rf_range': aperture_rf_range,
-        'models': models,
-        'feature_info':feature_info,
-        'voxel_mask': voxel_mask,
-        'brain_nii_shape': brain_nii_shape,
-        'image_order': image_order,
-        'voxel_index': voxel_index,
-        'voxel_roi': voxel_roi,
-        'voxel_ncsnr': voxel_ncsnr, 
-        'best_params': best_params,
-        'pc': pc2save,
-        'lambdas': lambdas, 
-        'best_lambdas': best_lambdas,
-        'best_losses': best_losses,
-        'val_cc': val_cc,
-        'val_r2': val_r2,    
-        'partial_masks': partial_masks, 
-        'partial_version_names': partial_version_names,
-        'zscore_features': zscore_features,        
-        'n_prf_sd_out': n_prf_sd_out,
-        'mult_patch_by_prf': mult_patch_by_prf,
-        'do_nms': do_nms, 
-        'downsample_factor': downsample_factor,
-        'ridge': ridge,
-        'do_pca': do_pca,
-        'debug': debug,
-        'up_to_sess': up_to_sess,
-        'shuff_rnd_seed': shuff_rnd_seed
-        }, fn2save, pickle_protocol=4)
-
-
-    def save_fn_gabor(fn2save):
-        print('\nSaving to %s\n'%fn2save)
-        torch.save({
-        'feature_table_simple': _gaborizer_simple.feature_table,
-        'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
-        'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
-        'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
-        'orients_deg_simple': _gaborizer_simple.orients_deg,
-        'orient_filters_simple': _gaborizer_simple.orient_filters,  
-        'feature_table_complex': _gaborizer_complex.feature_table,
-        'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
-        'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
-        'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
-        'orients_deg_complex': _gaborizer_complex.orients_deg,
-        'orient_filters_complex': _gaborizer_complex.orient_filters,  
-        'aperture': aperture,
-        'aperture_rf_range': aperture_rf_range,
-        'models': models,
-        'include_autocorrs': include_autocorrs,
-        'feature_info':feature_info,
-        'voxel_mask': voxel_mask,
-        'brain_nii_shape': brain_nii_shape,
-        'image_order': image_order,
-        'voxel_index': voxel_index,
-        'voxel_roi': voxel_roi,
-        'voxel_ncsnr': voxel_ncsnr, 
-        'best_params': best_params,
-        'lambdas': lambdas, 
-        'best_lambdas': best_lambdas,
-        'best_losses': best_losses,
-        'val_cc': val_cc,
-        'val_r2': val_r2,   
-        'val_cc_partial': val_cc_partial,
-        'val_r2_partial': val_r2_partial,
-        'partial_masks': partial_masks, 
-        'partial_version_names': partial_version_names,
-        'feature_info': feature_info,
-        'features_each_model_val': features_each_model_val,
-        'voxel_feature_correlations_val': voxel_feature_correlations_val,
-        'zscore_features': zscore_features,
-        'nonlin_fn': nonlin_fn,
-        'padding_mode': padding_mode,
-        'n_prf_sd_out': n_prf_sd_out,
-        'autocorr_output_pix': autocorr_output_pix,
-        'debug': debug,
-        'up_to_sess': up_to_sess,
-        'shuff_rnd_seed': shuff_rnd_seed
-        }, fn2save, pickle_protocol=4)
-  
+    if date_str==0:
+        date_str = None
+        
     if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
 
@@ -209,18 +136,12 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         if 'plus_bdcn' in fitting_type:
             model_name2 = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
             model_name = model_name + '_plus_' + model_name2
-            save_all = save_fn_pyramid_bdcn
-        else:
-            save_all = save_fn_pyramid
-            
+        
     elif 'bdcn' in fitting_type:
         model_name = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
-        save_all = save_fn_bdcn
         
     elif 'gabor' in fitting_type:
         model_name, feature_types_exclude = initialize_fitting.get_model_name(ridge, n_ori, n_sf, include_pixel, include_simple, include_complex, include_autocorrs, include_crosscorrs)
-        save_all = save_fn_gabor
-    
         
     output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
@@ -251,19 +172,20 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if 'pyramid' in fitting_type:
         
         # Set up the pyramid
-        _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height=n_sf, n_ori = n_ori)
+        _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
-        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=sample_batch_size, feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out, aperture=aperture, device=device, \
-                                      group_all_hl_feats = group_all_hl_feats, do_varpart = do_varpart)
+        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=sample_batch_size, feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out, aperture=aperture, do_varpart = do_varpart, \
+                                      group_all_hl_feats = group_all_hl_feats, device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
         if 'plus_bdcn' in fitting_type:
              # Set up the contour feature extractor
             pretrained_model_file = os.path.join(bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
-            _feature_extractor2 = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture_rf_range, \
-                                                                      n_prf_sd_out, \
+            _feature_extractor2 = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
+                                                                      n_prf_sd_out = n_prf_sd_out, \
                                                        batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
-                                                    downsample_factor = downsample_factor, do_nms = do_nms)
+                                                    downsample_factor = downsample_factor, do_nms = do_nms, \
+                                              do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
             
             _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            ['pyramid','bdcn'], do_varpart = do_varpart)
@@ -273,19 +195,23 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
          # Set up the contour feature extractor
         pretrained_model_file = os.path.join(bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
-        _feature_extractor = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture_rf_range, n_prf_sd_out, \
+        _feature_extractor = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
+                                                                  n_prf_sd_out = n_prf_sd_out, \
                                                    batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
-                                                downsample_factor = downsample_factor, do_nms = do_nms)
+                                                downsample_factor = downsample_factor, do_nms = do_nms, \
+                                             do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
         
     elif 'gabor' in fitting_type:
         
          # Set up the filters
         _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                initialize_fitting.get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, nonlin_fn=nonlin_fn)
+                initialize_fitting.get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, \
+                                                                     nonlin_fn=nonlin_fn)
         # Params for the spatial aspect of the model (possible pRFs)
          # Initialize the "texture" model which builds on first level feature maps
         autocorr_output_pix=5
-        _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, sample_batch_size=sample_batch_size, \
+        _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
+                                                                                sample_batch_size=sample_batch_size, \
                          feature_types_exclude=feature_types_exclude, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, \
                                                                          aperture=aperture, device=device)
 
@@ -311,7 +237,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                        lambdas, zscore=zscore_features, add_bias=add_bias, \
                                                        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
                                                        shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
-                                                                                       do_varpart=do_varpart, debug=debug)
+                                                                                       debug=debug)
         
         if do_pca and 'bdcn' in fitting_type:
             if 'pyramid_plus_bdcn' in fitting_type:
@@ -328,7 +254,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         val_cc=None
         val_r2=None
        
-        save_all(fn2save)       
+        save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
         sys.stdout.flush()
     
@@ -373,127 +299,15 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         val_cc, val_r2 = fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, _feature_extractor, \
                                    sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
                                      
-        save_all(fn2save)
+        save_all(fn2save, fitting_type)
    
 
     ########## SUPPORT FUNCTIONS HERE ###############
 
 if __name__ == '__main__':
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--subject", type=int,default=1,
-                    help="number of the subject, 1-8")
-    parser.add_argument("--volume_space", type=int, default=1,
-                    help="want to do fitting with volume space or surface space data? 1 for volume, 0 for surface.")
-    
-    
-    parser.add_argument("--fitting_type", type=str,default='texture',
-                    help="what kind of fitting are we doing? opts are 'texture' for now, use '--include_XX' flags for more specific versions")
-    parser.add_argument("--ridge", type=int,default=1,
-                    help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
-    parser.add_argument("--include_pixel", type=int,default=1,
-                    help="want to include pixel-level stats (only used for texture model)? 1 for yes, 0 for no")
-    parser.add_argument("--include_simple", type=int,default=1,
-                    help="want to include simple cell-like resp (only used for texture model)? 1 for yes, 0 for no")
-    parser.add_argument("--include_complex", type=int,default=1,
-                    help="want to include complex cell-like resp (only used for texture model)? 1 for yes, 0 for no")
-    parser.add_argument("--include_autocorrs", type=int,default=1,
-                    help="want to include autocorrelations (only used for texture model)? 1 for yes, 0 for no")
-    parser.add_argument("--include_crosscorrs", type=int,default=1,
-                    help="want to include crosscorrelations (only used for texture model)? 1 for yes, 0 for no")
-    parser.add_argument("--group_all_hl_feats", type=int,default=1,
-                    help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
-    
-    parser.add_argument("--do_pca", type=int, default=1,
-                    help="want to do PCA before fitting only works for BDCN model for now. 1 for yes, 0 for no")
-    parser.add_argument("--min_pct_var", type=int,default=95,
-                    help="minimum percent var to use when choosing num pcs to retain, default 95")
-    parser.add_argument("--max_pc_to_retain", type=int,default=100,
-                    help="maximum number of pcs to retain, default 100")
-    
-    parser.add_argument("--map_ind", type=int, default=-1, 
-                    help="which map to use in BDCN model? Default is -1 which gives fused map")
-    parser.add_argument("--n_prf_sd_out", type=int, default=2, 
-                    help="How many pRF stddevs to use in patch for BDCN model? Default is 2")
-    parser.add_argument("--mult_patch_by_prf", type=int, default=1,
-                    help="In BDCN model, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
-    parser.add_argument("--do_nms", type=int, default=1,
-                    help="In BDCN model, want to apply non-maximal suppression to thin edge maps? 1 for yes, 0 for no")
-    parser.add_argument("--downsample_factor", type=np.float32, default=1,
-                    help="In BDCN model, downsample edge maps before getting feautures? 1 for yes, 0 for no")
-    
-    parser.add_argument("--shuffle_images", type=int,default=0,
-                    help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
-    parser.add_argument("--random_images", type=int,default=0,
-                    help="want to use random gaussian values for images (control analysis)? 1 for yes, 0 for no")
-    parser.add_argument("--random_voxel_data", type=int,default=0,
-                    help="want to use random gaussian values for voxel data (control analysis)? 1 for yes, 0 for no")
-    
-    parser.add_argument("--debug", type=int,default=0,
-                    help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
-    
-    
-    parser.add_argument("--do_fitting", type=int,default=1,
-                    help="want to do model training? 1 for yes, 0 for no")
-    parser.add_argument("--do_val", type=int,default=1,
-                    help="want to do model validation? 1 for yes, 0 for no")
-    parser.add_argument("--do_varpart", type=int,default=1,
-                    help="want to do variance partition? 1 for yes, 0 for no")
-    parser.add_argument("--date_str", type=str,default='None',
-                    help="what date was the model fitting done (only if you're starting from validation step.)")
-    
-    
-    parser.add_argument("--up_to_sess", type=int,default=1,
-                    help="analyze sessions 1-#")
-    parser.add_argument("--n_ori", type=int,default=36,
-                    help="number of orientation channels to use")
-    parser.add_argument("--n_sf", type=int,default=12,
-                    help="number of spatial frequency channels to use")
-    parser.add_argument("--sample_batch_size", type=int,default=50,
-                    help="number of trials to analyze at once when making features (smaller will help with out-of-memory errors)")
-    parser.add_argument("--voxel_batch_size", type=int,default=100,
-                    help="number of voxels to analyze at once when fitting weights (smaller will help with out-of-memory errors)")
-    parser.add_argument("--zscore_features", type=int,default=1,
-                    help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
-    parser.add_argument("--nonlin_fn", type=int,default=0,
-                    help="want to apply a nonlinearity to each feature before fitting encoding model? 1 for yes, 0 for no")
-    parser.add_argument("--padding_mode", type=str,default='circular',
-                    help="how to pad when doing convolution during gabor feature generation? opts are 'circular','reflect','constant','replicate'; default is circular.")
-    parser.add_argument("--shuff_rnd_seed", type=int,default=0,
-                    help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
-    
-    
-    args = parser.parse_args()
-   
-    if args.date_str=='None':
-        date_str=None
-    else:
-        date_str = args.date_str
-        
-    # print values of a few key things to the command line...
-    if args.debug==1:
-        print('USING DEBUG MODE...')
-    if args.ridge==1 and 'pca' not in args.fitting_type:
-        print('will perform ridge regression for a range of positive lambdas.')
-    else:
-        print('will fix ridge parameter at 0.0')    
-        
-    if args.zscore_features==1:
-        print('will perform z-scoring of features')
-    else:
-        print('skipping z-scoring of features')
-    if args.nonlin_fn==1:
-        print('will use log(1+sqrt(x)) as nonlinearity fn')
-    else:
-        print('skipping nonlinearity fn')
-    print('padding mode is %s'%args.padding_mode)   
-    
-    if args.shuffle_images==1:
-        print('\nWILL RANDOMLY SHUFFLE IMAGES\n')
-    if args.random_images==1:
-        print('\nWILL USE RANDOM NOISE IMAGES\n')
-    if args.random_voxel_data==1:
-        print('\nWILL USE RANDOM DATA\n')
+    # get all the arguments (in separate file because there are many)
+    args = arg_parser.get_args()
 
     # now actually call the function to execute fitting...
 
@@ -509,6 +323,7 @@ if __name__ == '__main__':
              zscore_features = args.zscore_features==1, ridge = args.ridge==1, \
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, random_voxel_data = args.random_voxel_data==1, \
              do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_varpart = args.do_varpart==1, 
+             date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca = args.do_pca==1, min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
              n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \

@@ -93,23 +93,12 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         if 'gabor' in fitting_type:
             dict2save.update({
             'feature_table_simple': _gaborizer_simple.feature_table,
-            'sf_tuning_masks_simple': _gaborizer_simple.sf_tuning_masks, 
-            'ori_tuning_masks_simple': _gaborizer_simple.ori_tuning_masks,
-            'cyc_per_stim_simple': _gaborizer_simple.cyc_per_stim,
-            'orients_deg_simple': _gaborizer_simple.orients_deg,
+            'filter_pars_simple': _gaborizer_simple.gabor_filter_pars,
             'orient_filters_simple': _gaborizer_simple.orient_filters,  
             'feature_table_complex': _gaborizer_complex.feature_table,
-            'sf_tuning_masks_complex': _gaborizer_complex.sf_tuning_masks, 
-            'ori_tuning_masks_complex': _gaborizer_complex.ori_tuning_masks,
-            'cyc_per_stim_complex': _gaborizer_complex.cyc_per_stim,
-            'orients_deg_complex': _gaborizer_complex.orients_deg,
+            'filter_pars_complex': _gaborizer_complex.gabor_filter_pars,
             'orient_filters_complex': _gaborizer_complex.orient_filters, 
-            'include_autocorrs': include_autocorrs,
-            'val_cc_partial': val_cc_partial,
-            'val_r2_partial': val_r2_partial,
-            'feature_info': feature_info,
-            'features_each_model_val': features_each_model_val,
-            'voxel_feature_correlations_val': voxel_feature_correlations_val,
+            'feature_info':feature_info,
             'nonlin_fn': nonlin_fn,
             'padding_mode': padding_mode,
             'autocorr_output_pix': autocorr_output_pix,
@@ -214,7 +203,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                                 sample_batch_size=sample_batch_size, \
                          feature_types_exclude=feature_types_exclude, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, \
                                                                          aperture=aperture, device=device)
-
+        feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+        
      
     #### DO THE ACTUAL MODEL FITTING HERE ####
     

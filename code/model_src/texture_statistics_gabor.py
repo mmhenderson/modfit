@@ -9,70 +9,133 @@ from model_src import fwrf_fit as fwrf_fit
 
 class texture_feature_extractor(nn.Module):
     """
-    Module to compute higher-order texture statistics of input images (similar to Portilla & Simoncelli style texture model), within specified area of space.
-    Builds off lower-level feature maps for various orientation/spatial frequency bands, extracted using the modules specified in '_fmaps_fn_complex' and '_fmaps_fn_simple'
-    Can specify different subsets of features to include (i.e. pixel-level stats, simple/complex cells, cross-correlations, auto-correlations)
-    Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma]
+    Module to compute higher-order texture statistics of input images (similar to Portilla & Simoncelli style texture model), 
+    within specified area of space.
+    Builds off lower-level feature maps for various orientation/spatial frequency bands, extracted using the modules specified 
+    in '_fmaps_fn_complex' and '_fmaps_fn_simple' (which should be Gabor filtering modules)
+    Can specify different subsets of features to include/exclude (i.e. pixel-level stats, simple/complex cells, cross-correlations, 
+    auto-correlations)
+    
+    Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma].
     """
-    def __init__(self,_fmaps_fn_complex, _fmaps_fn_simple, sample_batch_size=100, feature_types_exclude=None, autocorr_output_pix=3, n_prf_sd_out=2, aperture=1.0, device=None):
+    def __init__(self,_fmaps_fn_complex, _fmaps_fn_simple, sample_batch_size=100, \
+                 autocorr_output_pix=3, n_prf_sd_out=2, aperture=1.0, \
+                 feature_types_exclude=None,  do_varpart=False, group_all_hl_feats=False, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
         self.fmaps_fn_complex = _fmaps_fn_complex
         self.fmaps_fn_simple = _fmaps_fn_simple
-        dtype = torch_utils.get_value(next(_fmaps_fn_complex.parameters())).dtype
-        n_features_complex, fmaps_rez = fwrf_fit.get_fmaps_sizes(_fmaps_fn_complex, np.zeros([2,1,2,2]).astype(dtype), device)  
-        n_features_simple, fmaps_rez = fwrf_fit.get_fmaps_sizes(_fmaps_fn_simple, np.zeros([2,1,2,2]).astype(dtype), device)    
-        self.n_sf = len(fmaps_rez)
-        self.n_ori = int(n_features_complex/self.n_sf)
-        self.n_phases = int(n_features_simple/self.n_sf/self.n_ori)
+#         dtype = torch_utils.get_value(next(_fmaps_fn_complex.parameters())).dtype 
+        self.n_sf = _fmaps_fn_simple.n_sf
+        self.n_ori = _fmaps_fn_simple.n_ori
+        self.n_phases = _fmaps_fn_simple.n_phases
 
         self.sample_batch_size = sample_batch_size
         self.autocorr_output_pix = autocorr_output_pix
         self.n_prf_sd_out = n_prf_sd_out
         self.aperture = aperture
-        self.device = device       
+        self.device = device      
         
-        self.update_feature_list(feature_types_exclude)
+        self.do_varpart = do_varpart
+        self.group_all_hl_feats = group_all_hl_feats       
         
-    def update_feature_list(self, feature_types_exclude):
+        self.feature_types_exclude = feature_types_exclude
+        self.update_feature_list()
+        self.do_pca = False
         
-        feature_types_all = ['wmean','wvar','wskew','wkurt', 'complex_feature_means', 'simple_feature_means',\
+        
+    def init_for_fitting(self, image_size, models=None, dtype=None):
+
+        """
+        Additional initialization operations.
+        """
+        # These two methods make sure that the 'resolutions_each_sf' property of the two feature extractors
+        # are populated with the correct feature maps sizes for this image size.
+        self.fmaps_fn_complex.get_fmaps_sizes(image_size)
+        self.fmaps_fn_simple.get_fmaps_sizes(image_size)      
+        self.max_features = self.n_features_total            
+
+    def update_feature_list(self):
+        
+        feature_types_all = ['pixel_stats', 'complex_feature_means', 'simple_feature_means',\
                          'complex_feature_autocorrs','simple_feature_autocorrs',\
                          'complex_within_scale_crosscorrs','simple_within_scale_crosscorrs',\
                          'complex_across_scale_crosscorrs','simple_across_scale_crosscorrs']
        
         ori_pairs = np.vstack([[[oo1, oo2] for oo2 in np.arange(oo1+1, self.n_ori)] for oo1 in range(self.n_ori) if oo1<self.n_ori-1])
         n_ori_pairs = np.shape(ori_pairs)[0]
-        feature_type_dims = [1,1,1,1,self.n_ori*self.n_sf, self.n_ori*self.n_sf*self.n_phases, \
+        feature_type_dims = [4,self.n_ori*self.n_sf, self.n_ori*self.n_sf*self.n_phases, \
                               self.n_ori*self.n_sf*self.autocorr_output_pix**2, self.n_ori*self.n_sf*self.n_phases*self.autocorr_output_pix**2, \
                               self.n_sf*n_ori_pairs, self.n_sf*n_ori_pairs*self.n_phases, (self.n_sf-1)*self.n_ori**2, (self.n_sf-1)*self.n_ori**2*self.n_phases]
         
         # decide which features to ignore, or use all features
-        self.feature_types_exclude = feature_types_exclude
-
+        
         # a few shorthands for ignoring sets of features at a time
-        if 'crosscorrs' in feature_types_exclude:
-            feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs','complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
-        if 'autocorrs' in feature_types_exclude:
-            feature_types_exclude.extend(['complex_feature_autocorrs','simple_feature_autocorrs'])
-        if 'pixel' in feature_types_exclude:
-            feature_types_exclude.extend(['wmean','wvar','wskew','wkurt'])
+        if 'crosscorrs' in self.feature_types_exclude:
+            self.feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs','complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
+        if 'autocorrs' in self.feature_types_exclude:
+            self.feature_types_exclude.extend(['complex_feature_autocorrs','simple_feature_autocorrs'])
+        if 'pixel' in self.feature_types_exclude:
+            self.feature_types_exclude.extend(['pixel_stats'])
 
-        self.feature_types_include  = [ff for ff in feature_types_all if not ff in feature_types_exclude]
+        self.feature_types_include  = [ff for ff in feature_types_all if not ff in self.feature_types_exclude]
         if len(self.feature_types_include)==0:
             raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
             
-        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in feature_types_exclude]
+        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
         # how many features will be needed, in total?
         self.n_features_total = np.sum(feature_dims_include)
         
         # numbers that define which feature types are in which column
         self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
+        
+        if self.group_all_hl_feats and len(self.feature_types_exclude)==0:
+            # In this case pretend there are just two groups of features - the 'mean_magnitudes' which are first-level gabor-like
+            # and all other features combined into a second group. Makes it simpler to do variance partition analysis.
+            # if do_varpart=False, this does nothing.
+            self.feature_column_labels[self.feature_column_labels != 1] = -1
+            self.feature_column_labels[self.feature_column_labels==1] = 0
+            self.feature_column_labels[self.feature_column_labels==-1] = 1
+            self.feature_group_names = ['mean_magnitudes', 'all_other_texture_feats']
+        else:
+            self.feature_group_names = self.feature_types_include
 
-    
-    def forward(self, images, prf_params):
+    def get_partial_versions(self):
+        
+        if not hasattr(self, 'max_features'):
+            raise RuntimeError('need to run init_for_fitting first')
+            
+        n_feature_types = len(self.feature_group_names)
+        partial_version_names = ['full_model'] 
+        masks = np.ones([1,self.n_features_total])
+        
+        if self.do_varpart and n_feature_types>1:
+            
+            # "Partial versions" will be listed as: [full model, model w only first set of features, model w only second set, ...             
+            partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]
+            masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+            masks = np.concatenate((masks, masks2), axis=0)
+            
+            if n_feature_types > 2:
+                # if more than two types, also include models where we leave out first set of features, leave out second set of features...]
+                partial_version_names += ['leave_out_%s'%ff for ff in self.feature_group_names]           
+                masks3 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels!=ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+                masks = np.concatenate((masks, masks3), axis=0)           
+        
+        # masks always goes [n partial versions x n total features]
+        return masks, partial_version_names
+        
+    def clear_maps(self):
+        
+        """
+        Note this doesn't really do much here, but this method needs to exist for this module to work w fitting code.
+        """
+        print('Clear maps fn')
+        
+        
+    def forward(self, images, prf_params, prf_model_index, fitting_mode=True):
         
         if isinstance(prf_params, torch.Tensor):
             prf_params = torch_utils.get_value(prf_params)
@@ -80,29 +143,47 @@ class texture_feature_extractor(nn.Module):
         prf_params = np.squeeze(prf_params)
         if isinstance(images, torch.Tensor):
             images = torch_utils.get_value(images)
-
-        print('Computing pixel-level statistics...')    
-        t=time.time()
-        x,y,sigma = prf_params
-        n_pix=np.shape(images)[2]
-        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
-        spatial_weights = g[2][0]
-        wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
-        elapsed =  time.time() - t
-        print('time elapsed = %.5f'%elapsed)
-
-        print('Computing complex cell features...')
-        t = time.time()
-        complex_feature_means = fwrf_fit.get_features_in_prf(prf_params, self.fmaps_fn_complex , images=images, sample_batch_size=self.sample_batch_size, aperture=self.aperture, device=self.device, to_numpy=False)
-        elapsed =  time.time() - t
-        print('time elapsed = %.5f'%elapsed)
-
-        print('Computing simple cell features...')
-        t = time.time()
-        simple_feature_means = fwrf_fit.get_features_in_prf(prf_params,  self.fmaps_fn_simple, images=images, sample_batch_size=self.sample_batch_size, aperture=self.aperture,  device=self.device, to_numpy=False)
-        elapsed =  time.time() - t
-        print('time elapsed = %.5f'%elapsed)
-
+            
+        if not hasattr(self.fmaps_fn_simple, 'resolutions_each_sf'):
+            raise RuntimeError('Need to run init_for_fitting first')
+                
+       
+        if 'pixel_stats' in self.feature_types_include:
+            print('Computing pixel-level statistics...')    
+            t=time.time()
+            x,y,sigma = prf_params
+            n_pix=np.shape(images)[2]
+            g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
+            spatial_weights = g[2][0]
+            wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
+            pix_feat = torch.cat((wmean, wvar, wskew, wkurt), axis=1)
+            elapsed =  time.time() - t
+            print('time elapsed = %.5f'%elapsed)
+        else:
+            pix_feat = None
+            
+        if 'complex_feature_means' in self.feature_types_include:
+            print('Computing complex cell features...')
+            t = time.time()
+            complex_feature_means = get_avg_features_in_prf(self.fmaps_fn_complex, images, prf_params,\
+                                                            sample_batch_size=self.sample_batch_size, \
+                                                            aperture=self.aperture, device=self.device, to_numpy=False)
+            elapsed =  time.time() - t
+            print('time elapsed = %.5f'%elapsed)
+        else:
+            complex_feature_means = None
+            
+        if 'simple_feature_means' in self.feature_types_include:
+            print('Computing simple cell features...')
+            t = time.time()
+            simple_feature_means = get_avg_features_in_prf(self.fmaps_fn_simple, images,  prf_params,\
+                                                           sample_batch_size=self.sample_batch_size, \
+                                                           aperture=self.aperture,  device=self.device, to_numpy=False)
+            elapsed =  time.time() - t
+            print('time elapsed = %.5f'%elapsed)
+        else:
+            simple_feature_means = None
+            
         # To save time, decide now whether any autocorrelation or cross-correlation features are desired. If not, will skip a bunch of the slower computations.     
         self.include_crosscorrs = np.any(['crosscorr' in ff for ff in self.feature_types_include])
         self.include_autocorrs = np.any(['autocorr' in ff for ff in self.feature_types_include])
@@ -118,14 +199,18 @@ class texture_feature_extractor(nn.Module):
         t = time.time()
         complex_feature_autocorrs, simple_feature_autocorrs, \
         complex_within_scale_crosscorrs, simple_within_scale_crosscorrs, \
-        complex_across_scale_crosscorrs, simple_across_scale_crosscorrs = get_higher_order_features(self.fmaps_fn_complex, self.fmaps_fn_simple, images, prf_params=prf_params, 
-                                                                                                    sample_batch_size=self.sample_batch_size, include_autocorrs=self.include_autocorrs, include_crosscorrs=self.include_crosscorrs, 
-                                                                                                    autocorr_output_pix=self.autocorr_output_pix, n_prf_sd_out=self.n_prf_sd_out, 
+        complex_across_scale_crosscorrs, simple_across_scale_crosscorrs = get_higher_order_features(self.fmaps_fn_complex, self.fmaps_fn_simple, \
+                                                                                                    images, prf_params=prf_params, 
+                                                                                                    sample_batch_size=self.sample_batch_size, \
+                                                                                                    include_autocorrs=self.include_autocorrs, \
+                                                                                                    include_crosscorrs=self.include_crosscorrs, 
+                                                                                                    autocorr_output_pix=self.autocorr_output_pix, \
+                                                                                                    n_prf_sd_out=self.n_prf_sd_out, 
                                                                                                     aperture=self.aperture,  device=self.device)
         elapsed =  time.time() - t
         print('time elapsed = %.5f'%elapsed)
 
-        all_feat = OrderedDict({'wmean': wmean, 'wvar':wvar, 'wskew':wskew, 'wkurt':wkurt, 'complex_feature_means':complex_feature_means, 'simple_feature_means':simple_feature_means, 
+        all_feat = OrderedDict({'pixel_stats': pix_feat, 'complex_feature_means':complex_feature_means, 'simple_feature_means':simple_feature_means, 
                     'complex_feature_autocorrs': complex_feature_autocorrs, 'simple_feature_autocorrs': simple_feature_autocorrs, 
                     'complex_within_scale_crosscorrs': complex_within_scale_crosscorrs, 'simple_within_scale_crosscorrs':simple_within_scale_crosscorrs,
                     'complex_across_scale_crosscorrs': complex_across_scale_crosscorrs, 'simple_across_scale_crosscorrs':simple_across_scale_crosscorrs})
@@ -149,10 +234,65 @@ class texture_feature_extractor(nn.Module):
         if torch.any(torch.isnan(all_feat_concat)):
             print('\nWARNING THERE ARE NANS IN FEATURES MATRIX\n')
 
-        return all_feat_concat, [self.feature_column_labels, feature_names]
+        feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
+            
+        return all_feat_concat, feature_inds_defined
     
     
+
+def get_avg_features_in_prf(_fmaps_fn, images, prf_params, sample_batch_size, aperture, device, to_numpy=True):
     
+    """
+    For a given set of images and a specified pRF position and size, compute the mean (weighted by pRF)
+    in each feature map channel. Returns [nImages x nFeatures]
+    This could be done inside the get_higher_order_features fn, but it is nice to keep them separate in case
+    we just want to run this (faster) part.
+    """
+    
+    dtype = images.dtype.type    
+    x,y,sigma = prf_params
+    n_trials = images.shape[0]
+    n_features = _fmaps_fn.n_features
+    fmaps_rez = _fmaps_fn.resolutions_each_sf
+
+    features = np.zeros(shape=(n_trials, n_features), dtype=dtype)
+    if to_numpy==False:
+         features = torch_utils._to_torch(features, device=device)
+
+    # Define the RF for this "model" version - at several resolutions.
+    _prfs = [torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
+                              dtype=dtype)[2], device=device) for n_pix in fmaps_rez]
+
+    # To make full design matrix for all trials, first looping over trials in batches to get the features
+    # Only reason to loop is memory constraints, because all trials is big matrices.
+    t = time.time()
+    n_batches = np.ceil(n_trials/sample_batch_size)
+    bb=-1
+    for rt,rl in numpy_utils.iterate_range(0, n_trials, sample_batch_size):
+
+        bb=bb+1
+
+        # Multiplying feature maps by RFs here. 
+        # Feature maps in _fm go [nTrials x nFeatures(orientations) x nPixels x nPixels]
+        # Spatial RFs in _prfs go [nPixels x nPixels]
+        # Once we multiply, get [nTrials x nFeatures]
+        # note this is concatenating SFs together from low (smallest maps) to high (biggest maps). 
+        # Cycles through all orient channels in order for first SF, then again for next SF, etc.
+        _features = torch.cat([torch.tensordot(_fm, _prf, dims=[[2,3], [0,1]]) \
+                               for _fm,_prf in zip(_fmaps_fn(torch_utils._to_torch(images[rt], \
+                                       device=device)), _prfs)], dim=1) # [#samples, #features]
+
+        # Add features for this batch to full design matrix over all trials
+        if to_numpy:
+            features[rt] = torch_utils.get_value(_features)
+        else:
+            features[rt] = _features
+
+        elapsed = time.time() - t
+
+    return features
+
+ 
 
 def get_higher_order_features(_fmaps_fn_complex, _fmaps_fn_simple, images, prf_params, sample_batch_size=20, include_autocorrs=True, include_crosscorrs=True, autocorr_output_pix=7, n_prf_sd_out=2, aperture=1.0, device=None):
 
@@ -169,8 +309,9 @@ def get_higher_order_features(_fmaps_fn_complex, _fmaps_fn_simple, images, prf_p
     
     assert(np.mod(autocorr_output_pix,2)==1) # must be odd!
 
-    n_features_simple, fmaps_rez = fwrf_fit.get_fmaps_sizes(_fmaps_fn_simple, images[0:sample_batch_size], device)
-    n_features_complex, fmaps_rez = fwrf_fit.get_fmaps_sizes(_fmaps_fn_complex, images[0:sample_batch_size], device)
+    n_features_simple = _fmaps_fn_simple.n_features
+    n_features_complex = _fmaps_fn_complex.n_features 
+    fmaps_rez = _fmaps_fn_simple.resolutions_each_sf
     
     n_sf = len(fmaps_rez)
     n_ori = int(n_features_complex/n_sf)
@@ -462,4 +603,3 @@ def weighted_cross_corr_2d(images1, images2, spatial_weights, patch_bbox=None, s
         cross_corr = torch.squeeze(cross_corr)
         
     return cross_corr
-

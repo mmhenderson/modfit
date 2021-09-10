@@ -19,6 +19,17 @@ import torch.optim as optim
 
 from utils import numpy_utils, torch_utils, texture_utils
 
+"""
+General code for fitting a 'feature weighted receptive field' model to fmri data - looping over many candidate pRF 
+models for each voxel, find a set of weights that best predict its responses based on feature space of interest.
+Can work for many different types of feature spaces, feature extraction implemented with nn.Module.
+
+Original source of some of this code is the github repository:
+https://github.com/styvesg/nsd
+It was modified by MH to work for this project.
+"""
+
+
 def _cofactor_fn_cpu(_x, lambdas):
     '''
     Generating a matrix needed to solve ridge regression model for each lambda value.
@@ -28,7 +39,7 @@ def _cofactor_fn_cpu(_x, lambdas):
     So once we have that, can just multiply by training data (Y) to get weights.
     returned size is [nLambdas x nFeatures x nTrials]
     This version makes sure that the torch inverse operation is done on the cpu, and in floating point-64 precision.
-    Otherwise get bad results for small lambda values. This seems to be a torch-specific bug.
+    Otherwise get bad results for small lambda values. This seems to be a torch-specific bug, noted around May 2021.
     
     '''
     device_orig = _x.device

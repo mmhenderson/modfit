@@ -103,7 +103,7 @@ class texture_feature_extractor(nn.Module):
         partial_version_names = ['full_model'] 
         masks = np.ones([1,self.n_features_total])
         
-        if self.do_varpart:
+        if self.do_varpart and n_feature_types>1:
             
             # "Partial versions" will be listed as: [full model, model w only first set of features, model w only second set, ...             
             partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]

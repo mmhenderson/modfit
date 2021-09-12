@@ -171,7 +171,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
     print ('---------------------------------------\n')
     
-    with torch.no_grad():
+    with torch.no_grad(): # make sure local gradients are off to save memory
         
         # Looping over prf_models (here prf_models are different spatial RF definitions)
         for m,(x,y,sigma) in enumerate(prf_models):

@@ -80,9 +80,8 @@ def get_pyramid_model_name(ridge, n_ori, n_sf):
     else:        
         # fixing lambda at zero, so it turns into ordinary least squares
         model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
-
-    feature_types_exclude = []
-    return model_name, feature_types_exclude    
+        
+    return model_name
 
 def get_gabor_texture_model_name(ridge, n_ori, n_sf):
     

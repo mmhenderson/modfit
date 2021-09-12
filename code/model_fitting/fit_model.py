@@ -121,7 +121,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing pca, because the pca weight matrix is not saved in between trn/val.')
         
     if 'pyramid' in fitting_type:
-        model_name, feature_types_exclude = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf)
+        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf)
+        feature_types_exclude = []
         
         if 'plus_bdcn' in fitting_type:
             model_name2 = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)

@@ -57,7 +57,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     feature_inds_defined_each_prf = np.full(fill_value=0, shape=(n_features_max, n_prfs), dtype=bool)
     
     start_time = time.time()    
-    with torch.no_grad():
+    with torch.no_grad(): # make sure local gradients are off to save memory
         
         # First gather texture features for all pRFs.
         

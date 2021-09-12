@@ -67,6 +67,9 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             if mm>1 and debug:
                 break
             print('Getting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(mm, prf_models[mm,0],  prf_models[mm,1],  prf_models[mm,2] ))
+            # all_feat_concat is size [ntrials x nfeatures]
+            # nfeatures may be less than n_features_max, because n_features_max is the largest number possible for any pRF.
+            # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
             all_feat_concat, feature_inds_defined = _feature_extractor(images, prf_models[mm,:], mm, fitting_mode=False)
             
             pred_models[:,feature_inds_defined,mm] = torch_utils.get_value(all_feat_concat)
@@ -86,11 +89,10 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             # Looping over versions of model w different features set to zero (variance partition)
             for pp in range(n_partial_versions):
 
-        #         nonzero_inds_full = np.logical_and(masks[:,pp], feature_inds_defined[:,mm])             
-        #         nonzero_inds_short = masks[feature_inds_defined,pp]==1
-
                 print('\nEvaluating version %d of %d: %s'%(pp, n_partial_versions, partial_version_names[pp]))
 
+                # masks describes the indices of the features that are included in this partial model
+                # n_features_max in length
                 features_to_use = masks[:,pp]==1
                 print('Includes %d features'%np.sum(features_to_use))
 

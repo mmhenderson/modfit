@@ -70,6 +70,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
     return _beta, _loss
 
 
+
 def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, \
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
                        shuffle=True, shuff_rnd_seed=0, device=None, debug=False):
@@ -156,7 +157,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
     # Additional params that are optional
     if add_bias:
-        best_w_params = np.concatenate([best_w_params, np.ones(shape=(n_voxels,1,n_partial_versions), dtype=dtype)], axis=1)
+        best_w_params = np.concatenate([best_w_params, np.zeros(shape=(n_voxels,1,n_partial_versions), dtype=dtype)], axis=1)
 
     if zscore:
         features_mean = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
@@ -181,7 +182,10 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
             t = time.time()            
 
-            # Get features for the desired pRF, across all trn set image            
+            # Get features for the desired pRF, across all trn set image  
+            # Features is size [ntrials x nfeatures]
+            # nfeatures may be less than max_features, because max_features is the largest number possible for any pRF.
+            # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
             features, feature_inds_defined = _feature_extractor(images, (x,y,sigma), m, fitting_mode=True)
             features = features.detach().cpu().numpy() 
             
@@ -213,10 +217,13 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
                 print('\nFitting version %d of %d: %s, '%(pp, n_partial_versions, partial_version_names[pp]))
 
+                # nonzero_inds_full is length max_features (or max_features+1 if bias=True)
+                # same size as the final params matrices will be.
                 nonzero_inds_full = np.logical_and(masks[:,pp], feature_inds_defined)             
-               
-                # Send matrices to gpu
+                # nonzero_inds_full is restricted to just indices that are defined for this prf - ie same size as features.
                 nonzero_inds_short = masks[feature_inds_defined,pp]==1
+        
+                # Send matrices to gpu    
                 _xtrn = torch_utils._to_torch(trn_features[:, nonzero_inds_short], device=device)
                 _xout = torch_utils._to_torch(out_features[:, nonzero_inds_short], device=device)   
 
@@ -270,8 +277,9 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         best_lambdas[arv,pp] = lambda_inds
                         best_losses[arv,pp] = loss_values[imp]
                         best_prf_models[arv,pp] = m
-                        if zscore:
+                        if zscore and pp==0:
                             
+                            # only need to update the mean/std if we're working with the full model, because those will be same for all partial versions.
                             fmean_tmp = copy.deepcopy(features_mean[arv,:])
                             fstd_tmp = copy.deepcopy(features_std[arv,:])
                             fmean_tmp[:,nonzero_inds_full[0:-1]] = features_m[0,nonzero_inds_short[0:-1]] # broadcast over updated voxels
@@ -286,10 +294,6 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         best_w_tmp = copy.deepcopy(best_w_params[arv,:,pp])
                         best_w_tmp[:,nonzero_inds_full] = numpy_utils.select_along_axis(betas[:,:,imp], lambda_inds, run_axis=2, choice_axis=0).T
                         best_w_tmp[:,~nonzero_inds_full] = 0.0 # make sure to fill zeros here
-
-#                         # bias is always last value, even if zeros for some other features
-#                         if add_bias:
-#                             best_w_tmp[:,-1] = numpy_utils.select_along_axis(betas[:,-1,imp], lambda_inds, run_axis=1, choice_axis=0).T
 
                         best_w_params[arv,:,pp] = best_w_tmp
                 

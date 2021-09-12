@@ -24,7 +24,8 @@ from utils import nsd_utils, roi_utils
 
 bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
 
-import initialize_fitting, merge_features, arg_parser
+import initialize_fitting as initialize_fitting
+import merge_features, arg_parser
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()
@@ -34,8 +35,7 @@ device = initialize_fitting.init_cuda()
     
 def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              n_ori = 4, n_sf = 4, nonlin_fn = False,  padding_mode = 'circular', \
-             include_simple = True, include_complex = True, \
-             include_autocorrs = True, include_crosscorrs = True, group_all_hl_feats = False, \
+             group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
@@ -92,12 +92,13 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             
         if 'gabor' in fitting_type:
             dict2save.update({
-            'feature_table_simple': _gaborizer_simple.feature_table,
-            'filter_pars_simple': _gaborizer_simple.gabor_filter_pars,
-            'orient_filters_simple': _gaborizer_simple.orient_filters,  
-            'feature_table_complex': _gaborizer_complex.feature_table,
-            'filter_pars_complex': _gaborizer_complex.gabor_filter_pars,
-            'orient_filters_complex': _gaborizer_complex.orient_filters, 
+            'feature_table_simple': _gabor_ext_simple.feature_table,
+            'filter_pars_simple': _gabor_ext_simple.gabor_filter_pars,
+            'orient_filters_simple': _gabor_ext_simple.filter_stack,  
+            'feature_table_complex': _gabor_ext_complex.feature_table,
+            'filter_pars_complex': _gabor_ext_complex.gabor_filter_pars,
+            'orient_filters_complex': _gabor_ext_complex.filter_stack, 
+            'feature_types_exclude': feature_types_exclude,
             'feature_info':feature_info,
             'nonlin_fn': nonlin_fn,
             'padding_mode': padding_mode,
@@ -129,8 +130,17 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     elif 'bdcn' in fitting_type:
         model_name = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
         
-    elif 'gabor' in fitting_type:
-        model_name, feature_types_exclude = initialize_fitting.get_model_name(ridge, n_ori, n_sf, include_pixel, include_simple, include_complex, include_autocorrs, include_crosscorrs)
+    elif 'gabor_texture' in fitting_type:
+        
+        model_name = initialize_fitting.get_gabor_texture_model_name(ridge, n_ori, n_sf)
+        feature_types_exclude = []
+        
+    elif 'gabor_solo' in fitting_type:
+        
+        model_name = initialize_fitting.get_gabor_solo_model_name(ridge, n_ori, n_sf)
+        feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
+    else:     
+        raise ValueError('your string for fitting_type was not recognized')
         
     output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
@@ -192,17 +202,17 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
     elif 'gabor' in fitting_type:
         
-         # Set up the filters
-        _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                initialize_fitting.get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, \
-                                                                     nonlin_fn=nonlin_fn)
-        # Params for the spatial aspect of the model (possible pRFs)
-         # Initialize the "texture" model which builds on first level feature maps
+        # Set up the Gabor filtering modules
+        _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
+                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, \
+                                                                     nonlin_fn=nonlin_fn);    
+        # Initialize the "texture" model which builds on first level feature maps
         autocorr_output_pix=5
         _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
-                                                                                sample_batch_size=sample_batch_size, \
-                         feature_types_exclude=feature_types_exclude, autocorr_output_pix=autocorr_output_pix, n_prf_sd_out=n_prf_sd_out, \
-                                                                         aperture=aperture, device=device)
+                                                sample_batch_size=sample_batch_size, autocorr_output_pix=autocorr_output_pix, \
+                                                n_prf_sd_out=n_prf_sd_out, aperture=aperture, \
+                                                feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
+                                                group_all_hl_feats=group_all_hl_feats, device=device)      
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
      
@@ -300,14 +310,9 @@ if __name__ == '__main__':
     args = arg_parser.get_args()
 
     # now actually call the function to execute fitting...
-
-    if 'gabor' in args.fitting_type:
-        raise RuntimeError('need to update this code before running gabor model!')
-        
+ 
     fit_fwrf(fitting_type = args.fitting_type, subject=args.subject, volume_space = args.volume_space, up_to_sess = args.up_to_sess, \
              n_ori = args.n_ori, n_sf = args.n_sf, nonlin_fn = args.nonlin_fn==1,  padding_mode = args.padding_mode, \
-             include_simple = args.include_simple==1, include_complex = args.include_complex==1, \
-             include_autocorrs = args.include_autocorrs==1, include_crosscorrs = args.include_crosscorrs==1, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, ridge = args.ridge==1, \

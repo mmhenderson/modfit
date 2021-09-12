@@ -82,51 +82,29 @@ def get_pyramid_model_name(ridge, n_ori, n_sf):
         model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
 
     feature_types_exclude = []
-#     if not include_pixel:
-#         feature_types_exclude.append('pixel')
-#         model_name = model_name+'_no_pixel'
-#     if not include_simple:
-#         feature_types_exclude.append('simple_feature_means')
-#         model_name = model_name+'_no_simple'
-#     if not include_complex:
-#         feature_types_exclude.append('complex_feature_means')
-#         model_name = model_name+'_no_complex'
-#     if not include_autocorrs:
-#         feature_types_exclude.append('autocorrs')
-#         model_name = model_name+'_no_autocorrelations'
-#     if not include_crosscorrs:
-#         feature_types_exclude.append('crosscorrs')
-#         model_name = model_name+'_no_crosscorrelations'
-
     return model_name, feature_types_exclude    
 
-def get_model_name(ridge, n_ori, n_sf, include_pixel, include_simple, include_complex, include_autocorrs, include_crosscorrs):
+def get_gabor_texture_model_name(ridge, n_ori, n_sf):
     
-        if ridge==True:       
-            # ridge regression, testing several positive lambda values (default)
-            model_name = 'texture_ridge_%dori_%dsf'%(n_ori, n_sf)
-        else:        
-            # fixing lambda at zero, so it turns into ordinary least squares
-            model_name = 'texture_OLS_%dori_%dsf'%(n_ori, n_sf)
+    if ridge==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'texture_gabor_ridge_%dori_%dsf'%(n_ori, n_sf)
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'texture_gabor_OLS_%dori_%dsf'%(n_ori, n_sf)
 
-        feature_types_exclude = []
-        if not include_pixel:
-            feature_types_exclude.append('pixel')
-            model_name = model_name+'_no_pixel'
-        if not include_simple:
-            feature_types_exclude.append('simple_feature_means')
-            model_name = model_name+'_no_simple'
-        if not include_complex:
-            feature_types_exclude.append('complex_feature_means')
-            model_name = model_name+'_no_complex'
-        if not include_autocorrs:
-            feature_types_exclude.append('autocorrs')
-            model_name = model_name+'_no_autocorrelations'
-        if not include_crosscorrs:
-            feature_types_exclude.append('crosscorrs')
-            model_name = model_name+'_no_crosscorrelations'
+    return model_name
 
-        return model_name, feature_types_exclude    
+def get_gabor_solo_model_name(ridge, n_ori, n_sf):
+    
+    if ridge==True:       
+        # ridge regression, testing several positive lambda values (default)
+        model_name = 'gabor_solo_ridge_%dori_%dsf'%(n_ori, n_sf)
+    else:        
+        # fixing lambda at zero, so it turns into ordinary least squares
+        model_name = 'gabor_solo_OLS_%dori_%dsf'%(n_ori, n_sf)
+
+    return model_name
 
 
 def get_bdcn_model_name(do_pca, map_ind):
@@ -182,46 +160,29 @@ def get_prf_models(aperture_rf_range=1.1):
     
     return aperture, models
 
-def get_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
+def get_gabor_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
     
-    cyc_per_stim = prf_utils.logspace(n_sf)(3., 72.) # Which SF values are we sampling here?
-    _gaborizer = gabor_feature_extractor.Gaborizer(num_orientations=n_ori, cycles_per_stim=cyc_per_stim,
-              pix_per_cycle=4.13, cycles_per_radius=.7, 
-              radii_per_filter=4, complex_cell=True, pad_type='half', padding_mode = padding_mode,
-              crop=False).to(device)
-    assert(np.all(_gaborizer.cyc_per_stim==cyc_per_stim))
+    """
+    Creating first-level feature extractor modules for the Gabor models.
+    If using 'gabor_solo' mode, then only the mean activations for 'complex' module here is actually used.
+    """
+    _gabor_ext_complex = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
+                                                                             log_spacing = True, \
+                 pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, complex_cell=True, \
+                                         padding_mode = 'circular', RGB=False, device = device)
+
+    _gabor_ext_simple = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
+                                                                            log_spacing = True,
+                 pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, complex_cell=False, \
+                                        padding_mode = padding_mode, RGB=False, device = device)
     
     if nonlin_fn:
         # adding a nonlinearity to the filter activations
         print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
-        _fmaps_fn = gabor_feature_extractor.add_nonlinearity(_gaborizer, lambda x: torch.log(1+torch.sqrt(x)))
+        _fmaps_fn_complex = add_nonlinearity(_gabor_ext_complex, lambda x: torch.log(1+torch.sqrt(x)))
+        _fmaps_fn_simple = add_nonlinearity(_gabor_ext_simple, lambda x: torch.log(1+torch.sqrt(x)))       
     else:
-        _fmaps_fn = _gaborizer
+        _fmaps_fn_complex = _gabor_ext_complex
+        _fmaps_fn_simple = _gabor_ext_simple
     
-    return  _gaborizer, _fmaps_fn
-
-def get_feature_map_simple_complex_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
-    
-    cyc_per_stim = prf_utils.logspace(n_sf)(3., 72.) # Which SF values are we sampling here?
-    _gaborizer_complex = gabor_feature_extractor.Gaborizer(num_orientations=n_ori, cycles_per_stim=cyc_per_stim,
-          pix_per_cycle=4.13, cycles_per_radius=.7, 
-          radii_per_filter=4, complex_cell=True, pad_type='half', padding_mode=padding_mode,
-          crop=False).to(device)
-    
-    _gaborizer_simple = gabor_feature_extractor.Gaborizer(num_orientations=n_ori, cycles_per_stim=cyc_per_stim,
-              pix_per_cycle=4.13, cycles_per_radius=.7, 
-              radii_per_filter=4, complex_cell=False, pad_type='half', padding_mode=padding_mode,
-              crop=False).to(device)
-
-    assert(np.all(_gaborizer_simple.cyc_per_stim==cyc_per_stim))
-    
-    if nonlin_fn:
-        # adding a nonlinearity to the filter activations
-        print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
-        _fmaps_fn_complex = gabor_feature_extractor.add_nonlinearity(_gaborizer_complex, lambda x: torch.log(1+torch.sqrt(x)))
-        _fmaps_fn_simple = gabor_feature_extractor.add_nonlinearity(_gaborizer_simple, lambda x: torch.log(1+torch.sqrt(x)))       
-    else:
-        _fmaps_fn_complex = _gaborizer_complex
-        _fmaps_fn_simple = _gaborizer_simple
-    
-    return  _gaborizer_complex, _gaborizer_simple, _fmaps_fn_complex, _fmaps_fn_simple
+    return  _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple

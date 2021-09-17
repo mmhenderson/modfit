@@ -8,7 +8,7 @@ import os
 import numpy as np
 
 # import custom modules
-from model_src import gabor_feature_extractor
+from feature_extraction import gabor_feature_extractor
 from utils import prf_utils, default_paths
 
 def init_cuda():

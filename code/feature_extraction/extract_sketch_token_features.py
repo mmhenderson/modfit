@@ -12,7 +12,7 @@ code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from utils import prf_utils, torch_utils, texture_utils, default_paths
 from model_fitting import initialize_fitting
-from model_src import sketch_token_features
+from feature_extraction import sketch_token_features
 
 device = initialize_fitting.init_cuda()
 

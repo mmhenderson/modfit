@@ -5,7 +5,7 @@ from collections import OrderedDict
 import torch.nn as nn
 
 from utils import numpy_utils, torch_utils, texture_utils, prf_utils
-from model_src import fwrf_fit as fwrf_fit
+from model_fitting import fwrf_fit
 
 class texture_feature_extractor(nn.Module):
     """

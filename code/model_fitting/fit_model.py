@@ -17,13 +17,10 @@ import skimage.transform
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from model_src import fwrf_fit as fwrf_fit
-from model_src import fwrf_predict as fwrf_predict
-from model_src import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
+from feature_extraction import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
 from utils import nsd_utils, roi_utils, default_paths
 
-import initialize_fitting as initialize_fitting
-import merge_features, arg_parser
+import initialize_fitting, merge_features, arg_parser, fwrf_fit, fwrd_predict
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()

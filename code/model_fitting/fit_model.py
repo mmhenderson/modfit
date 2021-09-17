@@ -15,14 +15,12 @@ import argparse
 import skimage.transform
 
 # import custom modules
-root_dir   = os.path.dirname(os.getcwd())
-sys.path.append(os.path.join(root_dir))
+code_dir = '/user_data/mmhender/imStat/code/'
+sys.path.append(code_dir)
 from model_src import fwrf_fit as fwrf_fit
 from model_src import fwrf_predict as fwrf_predict
-from model_src import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features
-from utils import nsd_utils, roi_utils
-
-bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
+from model_src import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
+from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting
 import merge_features, arg_parser
@@ -42,7 +40,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              do_fitting = True, do_val = True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              do_pca = True, min_pct_var = 99, max_pc_to_retain = 400, map_ind = -1, \
-             n_prf_sd_out = 2, mult_patch_by_prf = True, \
+             n_prf_sd_out = 2, mult_patch_by_prf = True, do_avg_pool = True, \
              downsample_factor = 1.0, do_nms = False):
     
     def save_all(fn2save, fitting_type):
@@ -85,9 +83,19 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             'downsample_factor': downsample_factor,
             })
             
+        if 'sketch_tokens' in fitting_type:
+            dict2save.update({
+            'pc': pc,
+            'min_pct_var': min_pct_var,
+            'max_pc_to_retain': max_pc_to_retain,           
+            'mult_patch_by_prf': mult_patch_by_prf,
+            'map_resolution': map_resolution, 
+            'do_avg_pool': do_avg_pool,
+            })
+            
         if 'pyramid' in fitting_type:
             dict2save.update({
-                'feature_info':feature_info,
+            'feature_info':feature_info,
             })
             
         if 'gabor' in fitting_type:
@@ -130,7 +138,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
     elif 'bdcn' in fitting_type:
         model_name = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
-        
+       
+    elif 'sketch_tokens' in fitting_type:
+        model_name = initialize_fitting.get_sketch_tokens_model_name(do_pca)
+       
     elif 'gabor_texture' in fitting_type:
         
         model_name = initialize_fitting.get_gabor_texture_model_name(ridge, n_ori, n_sf)
@@ -143,7 +154,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     else:     
         raise ValueError('your string for fitting_type was not recognized')
         
-    output_dir, fn2save = initialize_fitting.get_save_path(root_dir, subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
+    output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
     # decide what voxels to use  
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space)
@@ -151,18 +162,26 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
     # get all data and corresponding images, in two splits. always fixed set that gets left out
-    trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, image_order = nsd_utils.get_data_splits(subject, sessions=sessions, \
+    trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
+            image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, sessions=sessions, \
                                                                          voxel_mask=voxel_mask, volume_space=volume_space, \
                                                                           zscore_betas_within_sess=zscore_betas_within_sess, \
                                                                           shuffle_images=shuffle_images, random_images=random_images, \
                                                                                              random_voxel_data=random_voxel_data)
-
+    
     if 'pyramid' in fitting_type:
         # Need a multiple of 8
         process_at_size=240
         trn_stim_data = skimage.transform.resize(trn_stim_data, output_shape=(trn_stim_data.shape[0],1,process_at_size, process_at_size))
         val_stim_data = skimage.transform.resize(val_stim_data, output_shape=(val_stim_data.shape[0],1,process_at_size, process_at_size))
-
+    
+    if 'sketch_tokens' in fitting_type:
+        # For this model, the features are pre-computed, so we will just load them rather than passing in images.
+        # Going to pass the image indices (into 10,000 dim array) instead of images to fitting and val functions, 
+        # which will tell which features to load.
+        trn_stim_data = image_order_trn
+        val_stim_data = image_order_val
+        
     # More params for fitting
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
     # Params for the spatial aspect of the model (possible pRFs)
@@ -180,7 +199,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
         if 'plus_bdcn' in fitting_type:
              # Set up the contour feature extractor
-            pretrained_model_file = os.path.join(bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
+            pretrained_model_file = os.path.join(default_paths.bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
             _feature_extractor2 = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
                                                                       n_prf_sd_out = n_prf_sd_out, \
                                                        batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
@@ -190,11 +209,19 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            ['pyramid','bdcn'], do_varpart = do_varpart)
         
+    elif 'sketch_tokens' in fitting_type:
+        
+        map_resolution = 227
+        _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject, device, map_resolution=map_resolution, aperture = aperture, \
+                                                             n_prf_sd_out = n_prf_sd_out, \
+                                             batch_size=sample_batch_size, mult_patch_by_prf=mult_patch_by_prf, do_avg_pool = do_avg_pool, \
+                                             do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+        
         
     elif 'bdcn' in fitting_type:
         
          # Set up the contour feature extractor
-        pretrained_model_file = os.path.join(bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
+        pretrained_model_file = os.path.join(default_paths.bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
         _feature_extractor = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
                                                                   n_prf_sd_out = n_prf_sd_out, \
                                                    batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
@@ -238,9 +265,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                        lambdas, zscore=zscore_features, add_bias=add_bias, \
                                                        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
                                                        shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
-                                                                                       debug=debug)
+                                                       dtype=fpX, debug=debug)
         
-        if do_pca and 'bdcn' in fitting_type:
+        if do_pca and ('bdcn' in fitting_type or 'sketch_tokens' in fitting_type):
             if 'pyramid_plus_bdcn' in fitting_type:
                 m = _feature_extractor.modules[1]
             else:
@@ -322,5 +349,5 @@ if __name__ == '__main__':
              date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca = args.do_pca==1, min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
-             n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \
+             n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, do_avg_pool = args.do_avg_pool==1, \
              downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)

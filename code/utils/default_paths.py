@@ -7,9 +7,19 @@ nsd_root = nsd_path
 stim_root = '/user_data/mmhender/nsd_stimuli/stimuli/nsd/'     
 beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
 
+# Where to save model fits
+save_fits_path = '/user_data/mmhender/imStat/model_fits/'
+
 # Path to the COCO API toolbox
 # https://github.com/cocodataset/cocoapi
 coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
 
 # Path where AlexNet features will be saved
 alexnet_activ_path = '/lab_data/tarrlab/common/datasets/features/NSD/alexnet_full'
+
+# Path where sketch token features will be
+sketch_token_feat_path = '/user_data/mmhender/features/sketch_tokens/'
+sketch_token_feat_path_localnode = '/scratch/mmhender/features/sketch_tokens/'
+
+# Path where all the BDCN code lives
+bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'

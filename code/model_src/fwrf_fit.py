@@ -73,12 +73,13 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
 
 def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, \
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
-                       shuffle=True, shuff_rnd_seed=0, device=None, debug=False):
+                       shuffle=True, shuff_rnd_seed=0, device=None, dtype=np.float32, debug=False):
     
     """
     Solve for encoding model weights using ridge regression.
     Inputs:
         images: the training images, [n_trials x 1 x height x width]
+            OR for models where features were pre-computed, this is a list of indices [n_trials,] into the 10,000 long feature array.
         voxel_data: the training voxel data, [n_trials x n_voxels]
         _feature_extractor_fn: module that maps from images to model features
         prf_models: the list of possible pRFs to test, columns are [x, y, sigma]
@@ -104,7 +105,6 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         
     """
 
-    dtype = images.dtype.type
     if device is None:
         device=torch.device('cpu:0')
 
@@ -137,7 +137,11 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     
     # Here is where any model-specific additional initialization steps are done
     # Includes initializing pca params arrays, if doing pca
-    _feature_extractor.init_for_fitting(images.shape[2:4], prf_models, dtype)
+    if len(images.shape)>1:
+        image_size = images.shape[2:4]
+    else:
+        image_size = None
+    _feature_extractor.init_for_fitting(image_size, prf_models, dtype)
     max_features = _feature_extractor.max_features
 
     # Decide whether to do any "partial" versions of the models (leaving out subsets of features)

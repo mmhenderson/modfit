@@ -53,7 +53,10 @@ def get_args():
     parser.add_argument("--shuff_rnd_seed", type=int,default=0,
                     help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
     
-
+        
+    parser.add_argument("--n_prf_sd_out", type=int, default=2, 
+                    help="How many pRF stddevs to use in patches? Default is 2")
+    
     # Stuff that is specific to 'gabor' or 'texture' models
     parser.add_argument("--n_ori", type=int,default=36,
                     help="number of orientation channels to use")
@@ -77,17 +80,18 @@ def get_args():
     
     # Stuff that is specific to BDCN model
     parser.add_argument("--map_ind", type=int, default=-1, 
-                    help="which map to use in BDCN model? Default is -1 which gives fused map")
-    parser.add_argument("--n_prf_sd_out", type=int, default=2, 
-                    help="How many pRF stddevs to use in patch for BDCN model? Default is 2")
-    parser.add_argument("--mult_patch_by_prf", type=int, default=1,
-                    help="In BDCN model, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
+                    help="which map to use in BDCN model? Default is -1 which gives fused map")    
     parser.add_argument("--do_nms", type=int, default=1,
                     help="In BDCN model, want to apply non-maximal suppression to thin edge maps? 1 for yes, 0 for no")
     parser.add_argument("--downsample_factor", type=np.float32, default=1,
                     help="In BDCN model, downsample edge maps before getting feautures? 1 for yes, 0 for no")
+
+    parser.add_argument("--mult_patch_by_prf", type=int, default=1,
+                    help="For BDCN and sketch tokens, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
     
-    
+    # Specific to sketch tokens
+    parser.add_argument("--do_avg_pool", type=int, default=1,
+                    help="In sketch tokens model, want to apply avg pooling or max pooling across spatial pRF? 1 for avg, 0 for max")
    
     args = parser.parse_args()
     

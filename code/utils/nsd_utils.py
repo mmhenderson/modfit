@@ -193,12 +193,11 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_
         sessions = [sessions]
     sessions = np.array(sessions)
     inds2use = np.isin(session_inds, sessions)
-
+    image_order = image_order[inds2use]
+    
     # Now re-ordering the image data into the real sequence, for just the sessions of interest.
-    image_data_ordered = image_data[image_order[inds2use]]
-    # The values in "image_order" < 1000 are the shared 1000 images, use these as validation set.
-    shared_1000_inds = image_order[inds2use]<1000
-
+    image_data_ordered = image_data[image_order]
+    
     # Now load voxel data (preprocessed beta weights for each trial)
     if random_voxel_data==False:
         # actual data loading here
@@ -215,13 +214,19 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_
         print('\nSize of full data set [nTrials x nVoxels] is:')
         print(voxel_data.shape)
 
+    # Split the data: the values in "image_order" < 1000 are the shared 1000 images, use these as validation set.
+    shared_1000_inds = image_order<1000
+   
     val_voxel_data = voxel_data[shared_1000_inds,:]
     trn_voxel_data = voxel_data[~shared_1000_inds,:]
 
     val_stim_data = image_data_ordered[shared_1000_inds,:,:,:]
     trn_stim_data = image_data_ordered[~shared_1000_inds,:,:,:]
+    
+    image_order_val = image_order[shared_1000_inds]
+    image_order_trn = image_order[~shared_1000_inds]
 
-    return trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, image_order[inds2use]
+    return trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, image_order, image_order_trn, image_order_val
 
 def resize_image_tensor(x, newsize):
         tt = x.transpose((0,2,3,1))

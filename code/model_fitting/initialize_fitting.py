@@ -9,7 +9,7 @@ import numpy as np
 
 # import custom modules
 from model_src import gabor_feature_extractor
-from utils import prf_utils
+from utils import prf_utils, default_paths
 
 def init_cuda():
     
@@ -30,7 +30,7 @@ def init_cuda():
 
     return device
 
-def get_save_path(root_dir, subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str=None):
+def get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str=None):
     
     # choose where to save results of fitting - always making a new file w current timestamp.
     
@@ -51,11 +51,11 @@ def get_save_path(root_dir, subject, volume_space, model_name, shuffle_images, r
         make_new_folder = False
         
     print ("Time Stamp: %s" % timestamp)  
-    root_dir = os.path.dirname(root_dir)
+    save_fits_path = default_paths.save_fits_path
     if volume_space:
-        subject_dir = os.path.join(root_dir, 'model_fits','S%02d'%subject)
+        subject_dir = os.path.join(save_fits_path, 'S%02d'%subject)
     else:
-        subject_dir = os.path.join(root_dir, 'model_fits','S%02d_surface'%subject)
+        subject_dir = os.path.join(save_fits_path,'S%02d_surface'%subject)
     if debug==True:
         output_dir = os.path.join(subject_dir,model_name,'%s_DEBUG/'%timestamp)
     else:
@@ -103,6 +103,15 @@ def get_gabor_solo_model_name(ridge, n_ori, n_sf):
         # fixing lambda at zero, so it turns into ordinary least squares
         model_name = 'gabor_solo_OLS_%dori_%dsf'%(n_ori, n_sf)
 
+    return model_name
+
+def get_sketch_tokens_model_name(do_pca):
+
+    if do_pca==True:       
+        model_name = 'sketch_tokens_pca'
+    else:        
+        model_name = 'sketch_tokens'
+    
     return model_name
 
 

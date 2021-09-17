@@ -6,6 +6,14 @@ import numpy as np
 import copy
 import sys
 import os
+import cortex
+import torch
+
+"""
+General use functions for plotting encoding model fit results.
+Input to most of these functions is 'out', which is a dictionary containing 
+fit results. Created by the model fitting code in model_fitting/fit_model.py
+"""
 
 sys.path.append('/user_data/mmhender/imStat/code/')
 from utils import roi_utils, nsd_utils
@@ -18,6 +26,56 @@ def set_plotting_defaults():
     sns.set_palette("deep")
     plt.rcParams['image.cmap'] = 'viridis'
       
+
+def load_fit_results(subject, volume_space, fitting_type, n_from_end, root, verbose=True):
+       
+    if root is None:
+        root = os.path.dirname(os.path.dirname(os.getcwd()))
+    if volume_space:
+        folder2load = os.path.join(root, 'model_fits','S%02d'%subject, fitting_type)
+    else:
+        folder2load = os.path.join(root, 'model_fits','S%02d_surface'%subject, fitting_type)
+        
+    # within this folder, assuming we want the most recent version that was saved
+    files_in_dir = os.listdir(folder2load)
+    from datetime import datetime
+    my_dates = [f for f in files_in_dir if 'ipynb' not in f and 'DEBUG' not in f]
+    my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M_%S"))
+    
+    # if n from end is not zero, then going back further in time 
+    most_recent_date = my_dates[-1-n_from_end]
+
+    subfolder2load = os.path.join(folder2load, most_recent_date)
+    file2load = os.listdir(subfolder2load)[0]
+    fullfile2load = os.path.join(subfolder2load, file2load)
+
+    if verbose:
+        print('loading from %s\n'%fullfile2load)
+
+    out = torch.load(fullfile2load)
+    
+    if verbose:
+        print(out.keys())
+        
+    fig_save_folder = os.path.join(root,'figures','S%02d'%subject, fitting_type, most_recent_date)
+    
+    return out, fig_save_folder
+
+def print_output_summary(out):
+    """
+    Print all the keys in the saved data file and a summary of each value.
+    """
+    for kk in out.keys():
+        if out[kk] is not None:
+            if np.isscalar(out[kk]):
+                print('%s = %s'%(kk, out[kk]))
+            elif isinstance(out[kk],tuple) or isinstance(out[kk],list):
+                print('%s: len %s'%(kk, len(out[kk])))
+            elif isinstance(out[kk],np.ndarray):
+                print('%s: shape %s'%(kk, out[kk].shape))
+            elif isinstance:
+                print('%s: unknown'%kk)
+
 
 def get_roi_info(subject, out, verbose=False):
     """
@@ -55,6 +113,24 @@ def get_roi_info(subject, out, verbose=False):
     return roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
                 n_rois_ret, n_rois_categ, n_rois
 
+def get_combined_rois(subject, out):
+    
+    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
+        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
+
+    retlabs = np.zeros(np.shape(roi_labels_retino))
+    catlabs = np.zeros(np.shape(roi_labels_retino))
+
+    for rr in range(n_rois_ret):   
+        inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
+        retlabs[inds_this_roi] = rr+1
+
+    for rr in range(n_rois_categ):   
+        inds_this_roi = np.isin(roi_labels_categ, categ_group_inds[rr])
+        catlabs[inds_this_roi] = rr+1
+
+    return retlabs, catlabs, ret_group_names, categ_group_names
+
 
 def get_prf_pars_deg(out, screen_eccen_deg=8.4):
     """
@@ -74,16 +150,15 @@ def get_prf_pars_deg(out, screen_eccen_deg=8.4):
     
     return best_ecc_deg, best_angle_deg, best_size_deg
 
-
-def get_full_surface(values, voxel_mask):
-    """
-    For PyCortex: Put values for voxels that were analyzed back into their correct coordinates in full surface space matrix.
-    """
-    full_vals = copy.deepcopy(voxel_mask).astype('float64')
-    full_vals[voxel_mask==0] = np.nan
-    full_vals[voxel_mask==1] = values
+def get_r2(out):
     
-    return full_vals
+    val_cc = out['val_cc']
+    # Note i'm NOT using the thing that actually is in the field val_r2, 
+    # bc that is coefficient of determination which gives poor results for ridge regression.
+    # instead using the signed squared correlation coefficient for r2/var explained.
+    val_r2 = np.sign(val_cc)*val_cc**2
+
+    return val_r2
 
 def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
     """
@@ -96,10 +171,7 @@ def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
     if len(best_losses.shape)==2:
         best_losses = best_losses[:,0]
     val_cc = out['val_cc'][:,0]
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)[:,0]
     best_lambdas = out['best_lambdas']
     lambdas = out['lambdas']
 
@@ -143,7 +215,114 @@ def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.png'))
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.pdf'))
 
+        
 
+def get_full_surface(values, voxel_mask):
+    """
+    For PyCortex: Put values for voxels that were analyzed back into their correct coordinates in full surface space matrix.
+    """
+    full_vals = copy.deepcopy(voxel_mask).astype('float64')
+    full_vals[voxel_mask==0] = np.nan
+    full_vals[voxel_mask==1] = values
+    
+    return full_vals
+
+def plot_summary_pycortex(subject, fitting_type, out, port):
+
+    """
+    Use pycortex webgl function to plot some summary statistics for encoding model fits, in surface space.
+    Plots pRF spatial parameters, and the model's prediction performance on validation set.
+    """
+    
+    if out['brain_nii_shape'] is not None:
+        raise ValueError('Cannot use this function for data that is in volume space!')
+       
+    substr = 'subj%02d'%subject
+
+    retlabs, catlabs, ret_group_names, categ_group_names = get_combined_rois(subject, out)
+    best_ecc_deg, best_angle_deg, best_size_deg = get_prf_pars_deg(out, screen_eccen_deg=8.4)
+    val_cc = out['val_cc'][:,0]
+    val_r2 = get_r2(out)[:,0]
+    voxel_mask = out['voxel_mask']
+    
+    cmin = 0.0
+    cmax = 0.8
+    rmin = 0.0
+    rmax = 0.6
+    vemin = -0.05
+    vemax = 0.05
+
+    dat2plot = {'ROI labels (retinotopic)': cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
+                                                subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs)), \
+                'ROI labels (category-selective)': cortex.Vertex(data = get_full_surface(catlabs, voxel_mask), \
+                                                subject=substr, cmap='Accent',vmin = 0, vmax = np.max(catlabs)), \
+                'pRF eccentricity': cortex.Vertex(data = get_full_surface(best_ecc_deg, voxel_mask), subject=substr, \
+                                                  cmap='PRGn', vmin=0, vmax=7), \
+                'pRF angle': cortex.Vertex(data = get_full_surface(best_angle_deg, voxel_mask), subject=substr, \
+                                           cmap='Retinotopy_RYBCR', vmin=0, vmax=360), \
+                'pRF size': cortex.Vertex(data = get_full_surface(best_size_deg, voxel_mask), subject=substr, \
+                                          cmap='PRGn', vmin=0, vmax=4), \
+                'Correlation (validation set)': cortex.Vertex(data = get_full_surface(val_cc, voxel_mask), subject=substr, \
+                                                              cmap='PuBu', vmin=cmin, vmax=cmax), \
+                'R2 (validation set)': cortex.Vertex(data = get_full_surface(val_r2, voxel_mask), subject=substr, \
+                                                     cmap='PuBu', vmin=rmin, vmax=rmax), \
+               }
+
+    dat2plot.keys()
+    
+    # Open the webviewer
+    print('navigate browser to: 127.0.0.1:%s'%port)
+    cortex.webshow(dat2plot, open_browser=True, port=port, title = 'S%02d, %s'%(subject, fitting_type))
+    
+
+def plot_texture_pars_pycortex(subject, fitting_type, out, port):
+    """
+    Plots fit parameters for texture model, in surface space using pycortex webgl
+    """
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
+      
+
+    retlabs, catlabs, ret_group_names, categ_group_names = get_combined_rois(subject, out)
+
+    if out['brain_nii_shape'] is not None:
+        raise ValueError('Cannot use this function for data that is in volume space!')
+
+    substr = 'subj%02d'%subject
+
+    val_r2 = get_r2(out)
+    # Compute variance explained by each feature type - how well does the model without that feature type
+    # do, compared to the model with all features? 
+    n_feature_types = len(out['feature_info'][1])
+    var_expl = np.tile(np.expand_dims(val_r2[:,0], axis=1), [1,n_feature_types]) - val_r2[:,1:] 
+
+    # which feature type explains most unique variance, for each voxel?
+    max_ind = np.argmax(var_expl, axis=1)
+    colors = cm.plasma(np.linspace(0,1,n_feature_types))
+    colors = np.flipud(colors)
+
+    voxel_mask = out['voxel_mask']
+
+    vemin = -0.05
+    vemax = 0.05
+
+    dat2plot = {'ROI labels (retinotopic)': cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
+                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs)), \
+                'ROI labels (category-selective)': cortex.Vertex(data = get_full_surface(catlabs, voxel_mask), \
+                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(catlabs)), \
+                'Preferred feature type (based on var expl)': \
+                                    cortex.Vertex(data = get_full_surface(max_ind, voxel_mask), \
+                                                    subject=substr, cmap='plasma_r', vmin=0, vmax=n_feature_types)}
+
+    for fi, ff in enumerate(out['feature_info'][1]):
+        dat2plot['Var expl: %s'%ff] = cortex.Vertex(data = get_full_surface(var_expl[:,fi], voxel_mask), \
+                                                    subject=substr, vmin=vemin, vmax=vemax)
+
+    # Open the webviewer
+    print('navigate browser to: 127.0.0.1:%s'%port)
+    cortex.webshow(dat2plot, open_browser=True, port=port, title = 'S%02d, %s'%(subject, fitting_type))
+
+    
 def plot_fit_summary_volume_space(subject, fitting_type, out, screen_eccen_deg = 8.4, fig_save_folder=None):
 
     """
@@ -293,10 +472,7 @@ def plot_r2_vs_nc(subject, fitting_type,out, fig_save_folder=None):
     noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)
 
     val_cc = out['val_cc'][:,0]
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)[:,0]
     
     cc_cutoff = -100
 
@@ -351,7 +527,7 @@ def plot_r2_vs_nc(subject, fitting_type,out, fig_save_folder=None):
         plt.savefig(os.path.join(fig_save_folder,'r2_vs_noiseceiling.png'))
         plt.savefig(os.path.join(fig_save_folder,'r2_vs_noiseceiling.pdf'))
         
-        
+##### SPATIAL RECEPTIVE FIELD PLOTS #####################        
 
 def plot_spatial_rf_circles(subject, fitting_type, out, cc_cutoff = 0.20, screen_eccen_deg = 8.4, fig_save_folder = None):
 
@@ -516,16 +692,16 @@ def plot_prf_stability_partial_versions(subject, out, cc_cutoff = 0.2, screen_ec
         plt.savefig(os.path.join(fig_save_folder,'prf_stability_holdout.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'prf_stability_holdout.png'))
         
-        
+##### TEXTURE MODEL PARAMETER PLOTS #####################                
 
-def plot_example_weights_texture_pyramid(subject, fitting_type, out, fig_save_folder):
+def plot_example_weights_texture(subject, fitting_type, out, fig_save_folder):
 
     """
     Plotting one example voxel weights, to get an idea of how they are distributed
     """
     
-    if 'texture_pyramid' not in fitting_type:
-        raise ValueError('this plot is just for pyramid texture model')        
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
         
     roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
         n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
@@ -591,16 +767,16 @@ def plot_example_weights_texture_pyramid(subject, fitting_type, out, fig_save_fo
         
         
 
-def plot_uniqvar_violin_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
+def plot_uniqvar_violin_texture(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
 
     """
     Make a violin plot showing the distribution across voxels of the unique variance explained by each feature type.
     Computed by finding difference between R2 for full model and R2 w that feature type removed.
     """
     
-    if 'texture_pyramid' not in fitting_type:
-        raise ValueError('this plot only works for pyramid texture model fits')
-        
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
+          
     assert(out['val_cc'].shape[1]>1)
     
     plt.figure(figsize=(16,8))
@@ -613,10 +789,7 @@ def plot_uniqvar_violin_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.
     n_feature_types = len(feature_type_names)
     
     val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)
 
     # Compute variance explained by each feature type - how well does the model without that feature type
     # do, compared to the model with all features? 
@@ -654,7 +827,7 @@ def plot_uniqvar_violin_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.
         plt.savefig(os.path.join(fig_save_folder,'violin_uniq_var_texturefeat_allrois.png'))
         plt.savefig(os.path.join(fig_save_folder,'violin_uniq_var_texturefeat_allrois.pdf'))
 
-def plot_uniqvar_bars_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
+def plot_uniqvar_bars_texture(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
 
     """
     Make a bar plot showing the distribution (mean +/- SEM) across voxels of the unique variance 
@@ -662,9 +835,9 @@ def plot_uniqvar_bars_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2,
     Computed by finding difference between R2 for full model and R2 w that feature type removed.
     """
     
-    if 'texture_pyramid' not in fitting_type:
-        raise ValueError('this plot only works for pyramid texture model fits')
-        
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
+         
     assert(out['val_cc'].shape[1]>1)
     
     plt.figure(figsize=(16,8))
@@ -677,10 +850,7 @@ def plot_uniqvar_bars_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2,
     n_feature_types = len(feature_type_names)
     
     val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)
 
     # Compute variance explained by each feature type - how well does the model without that feature type
     # do, compared to the model with all features? 
@@ -715,15 +885,15 @@ def plot_uniqvar_bars_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2,
         plt.savefig(os.path.join(fig_save_folder,'bars_uniq_var_texturefeat_allrois.png'))
         plt.savefig(os.path.join(fig_save_folder,'bars_uniq_var_texturefeat_allrois.pdf'))
 
-def plot_uniqvar_bars_eachroi_texture_pyramid(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
+def plot_uniqvar_bars_eachroi_texture(subject, fitting_type, out, cc_cutoff=0.2, fig_save_folder=None):
     """
     Make a bar plot for each ROI, showing the distribution (mean +/- SEM)across voxels of the 
     unique variance explained by each feature type.
     Computed by finding difference between R2 for full model and R2 w that feature type removed.
     """
 
-    if 'texture_pyramid' not in fitting_type:
-        raise ValueError('this plot only works for pyramid texture model fits')
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
         
     assert(out['val_cc'].shape[1]>1)
     
@@ -735,10 +905,7 @@ def plot_uniqvar_bars_eachroi_texture_pyramid(subject, fitting_type, out, cc_cut
     n_feature_types = len(feature_type_names)
     
     val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)
 
     # Compute variance explained by each feature type - how well does the model without that feature type
     # do, compared to the model with all features? 
@@ -753,8 +920,6 @@ def plot_uniqvar_bars_eachroi_texture_pyramid(subject, fitting_type, out, cc_cut
 
     colors = cm.plasma(np.linspace(0,1,n_feature_types))
     colors = np.flipud(colors)
-
-    cc_cutoff = 0.2
 
     for rr in range(n_rois):
 
@@ -797,7 +962,140 @@ def plot_uniqvar_bars_eachroi_texture_pyramid(subject, fitting_type, out, cc_cut
         plt.savefig(os.path.join(fig_save_folder,'uniq_var_texturefeat_eachroi.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'uniq_var_texturefeat_eachroi.png'))
 
+def plot_feature_prefs_uniqvar_texture(subject, fitting_type, out, cc_cutoff = 0.2, fig_save_folder=None):
+    """
+    Plot a histogram showing the distribution of preferred feature type across all voxels -
+    based on unique var explained, i.e. the feature type that leads to biggest reduction in R2 when excluded.
+    """ 
+    
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
+      
+    plt.figure(figsize=(16,8))
+    
+    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
+        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
+
+    npx = np.ceil(np.sqrt(n_rois))
+    npy = np.ceil(n_rois/npx)
+    
+    feature_info = copy.deepcopy(out['feature_info'])
+    feature_type_labels, feature_type_names = feature_info
+    n_feature_types = len(feature_type_names)
+
+    colors = cm.plasma(np.linspace(0,1,n_feature_types))
+    colors = np.flipud(colors)
+
+    val_cc = out['val_cc']
+    val_r2 = get_r2(out)
+
+    # Compute variance explained by each feature type - how well does the model without that feature type
+    # do, compared to the model with all features? 
+    # (subtract later columns from the first column)
+    var_expl = np.tile(np.expand_dims(val_r2[:,0], axis=1), [1,n_feature_types]) - val_r2[:,1:] 
+
+    max_ve  = np.argmax(var_expl, axis=1)
+
+    abv_thresh = val_cc[:,0]>cc_cutoff
+    inds2use = abv_thresh
+
+    unvals = np.arange(0,n_feature_types)
+    counts = [np.sum(np.logical_and(max_ve==ff, inds2use)) for ff in unvals]
+
+    # unvals, counts = np.unique(max_ve[inds2use], return_counts=True)
+    for ff in range(n_feature_types):
+        plt.bar(unvals[ff], counts[ff], color=colors[ff,:])
+
+    plt.xticks(ticks=np.arange(0,n_feature_types),labels=feature_type_names,rotation=45, ha='right',rotation_mode='anchor')
+
+    # plt.xlabel('feature type')
+    plt.ylabel('Number of voxels "preferring"')
+
+    plt.title('Showing all voxels with corr > %.2f, all ROIs (%d vox)'%(cc_cutoff, np.sum(inds2use)))
+    plt.gcf().subplots_adjust(bottom=0.4)
+    plt.suptitle('S%02d, %s\nPreferred feature type based on maximum unique variance explained'%(subject, fitting_type))
+    
+    if fig_save_folder is not None:
+        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_allrois.pdf'))
+        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_allrois.png'))
         
+        
+def plot_feature_prefs_uniqvar_texture_eachroi(subject, fitting_type, out, cc_cutoff = 0.2, fig_save_folder=None):
+    """
+    Plot a histogram showing the distribution of preferred feature type across all voxels -
+    based on unique var explained, i.e. the feature type that leads to biggest reduction in R2 when excluded.
+    """ 
+    
+    if 'texture' not in fitting_type:
+        raise ValueError('this plot is just for texture model')        
+      
+    
+    plt.figure(figsize=(16,16))
+    
+    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
+        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
+
+    npx = np.ceil(np.sqrt(n_rois))
+    npy = np.ceil(n_rois/npx)
+    
+    feature_info = copy.deepcopy(out['feature_info'])
+    feature_type_labels, feature_type_names = feature_info
+    n_feature_types = len(feature_type_names)
+
+    colors = cm.plasma(np.linspace(0,1,n_feature_types))
+    colors = np.flipud(colors)
+
+    val_cc = out['val_cc']
+    val_r2 = get_r2(out)
+
+    # Compute variance explained by each feature type - how well does the model without that feature type
+    # do, compared to the model with all features? 
+    # (subtract later columns from the first column)
+    var_expl = np.tile(np.expand_dims(val_r2[:,0], axis=1), [1,n_feature_types]) - val_r2[:,1:] 
+
+    max_ve  = np.argmax(var_expl, axis=1)
+
+    for rr in range(n_rois):
+
+        if rr<n_rois_ret:
+            inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
+            rname = ret_group_names[rr]
+        else:
+            inds_this_roi = np.isin(roi_labels_categ, categ_group_inds[rr-n_rois_ret])
+            rname = categ_group_names[rr-n_rois_ret]
+
+        abv_thresh = val_cc[:,0]>cc_cutoff
+        inds2use = np.logical_and(inds_this_roi, abv_thresh)
+
+        unvals = np.arange(0,n_feature_types)
+        counts = [np.sum(np.logical_and(max_ve==ff, inds2use)) for ff in unvals]
+
+        plt.subplot(npx,npy,rr+1)
+
+        for ff in range(len(unvals)):
+            plt.bar(unvals[ff], counts[ff], color=colors[ff,:])
+
+        plt.xticks(ticks=np.arange(0,n_feature_types),labels=feature_type_names,rotation=45, ha='right',rotation_mode='anchor')
+
+        if rr==n_rois-4:
+            plt.ylabel('Number of voxels "preferring"')
+        elif rr<n_rois-4:
+            plt.xticks([])
+    #         plt.yticks([])
+
+        plt.title('%s (%d vox)'%(rname, np.sum(inds2use)))
+
+    plt.suptitle('S%02d, %s\nFeature type with highest unique var explained - showing all voxels with corr > %.2f'%(subject, fitting_type, cc_cutoff));
+
+    plt.gcf().subplots_adjust(bottom=0.3)
+    if fig_save_folder:
+        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_eachroi.pdf'))
+        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_eachroi.png'))
+
+        
+        
+        
+              
         
 def scatter_compare_partial_models(subject, fitting_type, out, pp1, pp2, fig_save_folder):
 
@@ -805,27 +1103,23 @@ def scatter_compare_partial_models(subject, fitting_type, out, pp1, pp2, fig_sav
     Make a scatter plot for each ROI, plotting the performance of one partial model versus another
     """
     
-    if 'texture_pyramid' not in fitting_type:
-        raise ValueError('this plot only works for pyramid texture model fits')
-        
+     
     assert(out['val_cc'].shape[1]>1)
-    
-    
+
     roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
         n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
 
-   
-    partial_version_names = out['best_params'][6]
-    
+    if len(out['best_params'])>6:
+        partial_version_names = out['best_params'][6]
+    else:
+        partial_version_names = out['partial_version_names']
+        
     feature_info = copy.deepcopy(out['feature_info'])
     feature_type_labels, feature_type_names = feature_info
     n_feature_types = len(feature_type_names)
     
     val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+    val_r2 = get_r2(out)
 
 
     cc_cutoff = -100
@@ -885,130 +1179,4 @@ def scatter_compare_partial_models(subject, fitting_type, out, pp1, pp2, fig_sav
                                                                                  partial_version_names[pp1])))
 
 
-def plot_feature_prefs_uniqvar_texture(subject, fitting_type, out, cc_cutoff = 0.2, fig_save_folder=None):
-    """
-    Plot a histogram showing the distribution of preferred feature type across all voxels -
-    based on unique var explained, i.e. the feature type that leads to biggest reduction in R2 when excluded.
-    """ 
-    plt.figure(figsize=(16,8))
-    
-    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
-        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
-
-    npx = np.ceil(np.sqrt(n_rois))
-    npy = np.ceil(n_rois/npx)
-    
-    feature_info = copy.deepcopy(out['feature_info'])
-    feature_type_labels, feature_type_names = feature_info
-    n_feature_types = len(feature_type_names)
-
-    colors = cm.plasma(np.linspace(0,1,n_feature_types))
-    colors = np.flipud(colors)
-
-    val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
-
-    # Compute variance explained by each feature type - how well does the model without that feature type
-    # do, compared to the model with all features? 
-    # (subtract later columns from the first column)
-    var_expl = np.tile(np.expand_dims(val_r2[:,0], axis=1), [1,n_feature_types]) - val_r2[:,1:] 
-
-    max_ve  = np.argmax(var_expl, axis=1)
-
-    abv_thresh = val_cc[:,0]>cc_cutoff
-    inds2use = abv_thresh
-
-    unvals = np.arange(0,n_feature_types)
-    counts = [np.sum(np.logical_and(max_ve==ff, inds2use)) for ff in unvals]
-
-    # unvals, counts = np.unique(max_ve[inds2use], return_counts=True)
-    for ff in range(n_feature_types):
-        plt.bar(unvals[ff], counts[ff], color=colors[ff,:])
-
-    plt.xticks(ticks=np.arange(0,n_feature_types),labels=feature_type_names,rotation=45, ha='right',rotation_mode='anchor')
-
-    # plt.xlabel('feature type')
-    plt.ylabel('Number of voxels "preferring"')
-
-    plt.title('Showing all voxels with corr > %.2f, all ROIs (%d vox)'%(cc_cutoff, np.sum(inds2use)))
-    plt.gcf().subplots_adjust(bottom=0.4)
-    plt.suptitle('S%02d, %s\nPreferred feature type based on maximum unique variance explained'%(subject, fitting_type))
-    
-    if fig_save_folder is not None:
-        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_allrois.pdf'))
-        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_allrois.png'))
-        
-        
-def plot_feature_prefs_uniqvar_texture(subject, fitting_type, out, cc_cutoff = 0.2, fig_save_folder=None):
-    """
-    Plot a histogram showing the distribution of preferred feature type across all voxels -
-    based on unique var explained, i.e. the feature type that leads to biggest reduction in R2 when excluded.
-    """ 
-    plt.figure(figsize=(16,16))
-    
-    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
-        n_rois_ret, n_rois_categ, n_rois = plot_utils.get_roi_info(subject, out)
-
-    npx = np.ceil(np.sqrt(n_rois))
-    npy = np.ceil(n_rois/npx)
-    
-    feature_info = copy.deepcopy(out['feature_info'])
-    feature_type_labels, feature_type_names = feature_info
-    n_feature_types = len(feature_type_names)
-
-    colors = cm.plasma(np.linspace(0,1,n_feature_types))
-    colors = np.flipud(colors)
-
-    val_cc = out['val_cc']
-    # Note i'm NOT using the thing that actually is in the field val_r2, 
-    # bc that is coefficient of determination which gives poor results for ridge regression.
-    # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
-
-    # Compute variance explained by each feature type - how well does the model without that feature type
-    # do, compared to the model with all features? 
-    # (subtract later columns from the first column)
-    var_expl = np.tile(np.expand_dims(val_r2[:,0], axis=1), [1,n_feature_types]) - val_r2[:,1:] 
-
-    max_ve  = np.argmax(var_expl, axis=1)
-
-    for rr in range(n_rois):
-
-        if rr<n_rois_ret:
-            inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
-            rname = ret_group_names[rr]
-        else:
-            inds_this_roi = np.isin(roi_labels_categ, categ_group_inds[rr-n_rois_ret])
-            rname = categ_group_names[rr-n_rois_ret]
-
-        abv_thresh = val_cc[:,0]>cc_cutoff
-        inds2use = np.logical_and(inds_this_roi, abv_thresh)
-
-        unvals = np.arange(0,n_feature_types)
-        counts = [np.sum(np.logical_and(max_ve==ff, inds2use)) for ff in unvals]
-
-        plt.subplot(npx,npy,rr+1)
-
-        for ff in range(len(unvals)):
-            plt.bar(unvals[ff], counts[ff], color=colors[ff,:])
-
-        plt.xticks(ticks=np.arange(0,n_feature_types),labels=feature_type_names,rotation=45, ha='right',rotation_mode='anchor')
-
-        if rr==n_rois-4:
-            plt.ylabel('Number of voxels "preferring"')
-        elif rr<n_rois-4:
-            plt.xticks([])
-    #         plt.yticks([])
-
-        plt.title('%s (%d vox)'%(rname, np.sum(inds2use)))
-
-    # plt.suptitle('S%02d, %s\nFeature type where max weight occured - showing all voxels with corr > %.2f'%(subject, fitting_type, cc_cutoff));
-    plt.suptitle('S%02d, %s\nFeature type with highest unique var explained - showing all voxels with corr > %.2f'%(subject, fitting_type, cc_cutoff));
-
-    plt.gcf().subplots_adjust(bottom=0.3)
-    if fig_save_folder:
-        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_eachroi.pdf'))
-        plt.savefig(os.path.join(fig_save_folder,'hist_highest_uniqvar_features_eachroi.png'))
+     

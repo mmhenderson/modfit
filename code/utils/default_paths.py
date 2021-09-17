@@ -14,8 +14,9 @@ save_fits_path = '/user_data/mmhender/imStat/model_fits/'
 # https://github.com/cocodataset/cocoapi
 coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
 
-# Path where AlexNet features will be saved
-alexnet_activ_path = '/lab_data/tarrlab/common/datasets/features/NSD/alexnet_full'
+# Path where pyramid texture model features will be
+pyramid_texture_feat_path = '/user_data/mmhender/features/pyramid_texture/'
+pyramid_texture_feat_path_localnode = '/scratch/mmhender/features/pyramid_texture/'
 
 # Path where sketch token features will be
 sketch_token_feat_path = '/user_data/mmhender/features/sketch_tokens/'
@@ -23,3 +24,6 @@ sketch_token_feat_path_localnode = '/scratch/mmhender/features/sketch_tokens/'
 
 # Path where all the BDCN code lives
 bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
+
+# Path where AlexNet features will be saved
+alexnet_activ_path = '/lab_data/tarrlab/common/datasets/features/NSD/alexnet_full'

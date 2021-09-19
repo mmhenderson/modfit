@@ -127,7 +127,7 @@ class texture_feature_extractor(nn.Module):
         # masks always goes [n partial versions x n total features]
         return masks, partial_version_names
         
-    def clear_maps(self):
+    def clear_big_features(self):
         
         """
         Note this doesn't really do much here, but this method needs to exist for this module to work w fitting code.

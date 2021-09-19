@@ -71,7 +71,7 @@ class sketch_token_feature_extractor(nn.Module):
         else:
             self.max_features = np.max(n_feat_each_prf)
        
-        self.clear_maps()
+        self.clear_big_features()
         
     def get_partial_versions(self):
 
@@ -83,7 +83,7 @@ class sketch_token_feature_extractor(nn.Module):
 
         return masks, partial_version_names
 
-    def get_maps(self, image_inds):
+    def load_precomputed_features(self, image_inds):
         
         print('Loading pre-computed features from %s'%self.features_file)
         t = time.time()
@@ -98,7 +98,7 @@ class sketch_token_feature_extractor(nn.Module):
         print('Size of features array for this image set is:')
         print(self.features_each_prf.shape)
         
-    def clear_maps(self):
+    def clear_big_features(self):
         
         print('Clearing features from memory')
         self.features_each_prf = None 
@@ -106,7 +106,7 @@ class sketch_token_feature_extractor(nn.Module):
     def forward(self, image_inds, prf_params, prf_model_index, fitting_mode = True):
         
         if self.features_each_prf is None:
-            self.get_maps(image_inds)
+            self.load_precomputed_features(image_inds)
         else:
             assert(self.features_each_prf.shape[0]==len(image_inds))
             

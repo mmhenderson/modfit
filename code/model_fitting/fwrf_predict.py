@@ -60,7 +60,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
         
         # First gather texture features for all pRFs.
         
-        _feature_extractor.clear_maps()
+        _feature_extractor.clear_big_features()
         
         for mm in range(n_prfs):
             if mm>1 and debug:
@@ -74,7 +74,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             pred_models[:,feature_inds_defined,mm] = torch_utils.get_value(all_feat_concat)
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined
             
-        _feature_extractor.clear_maps()
+        _feature_extractor.clear_big_features()
         
         vv=-1
         ## Looping over voxels here in batches, will eventually go through all.

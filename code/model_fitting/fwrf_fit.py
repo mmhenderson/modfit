@@ -320,7 +320,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     print ('setup throughput = %fs/model' % (inv_time / n_prfs))
     
     # This step clears the big feature maps for training data from feature extractor (no longer needed)
-    _feature_extractor.clear_maps()
+    _feature_extractor.clear_big_features()
     
     best_params = [prf_models[best_prf_models],]+return_params+[features_mean, features_std]+[best_prf_models]
     sys.stdout.flush()

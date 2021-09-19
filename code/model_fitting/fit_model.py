@@ -165,14 +165,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                           zscore_betas_within_sess=zscore_betas_within_sess, \
                                                                           shuffle_images=shuffle_images, random_images=random_images, \
                                                                                              random_voxel_data=random_voxel_data)
+
     
-    if 'pyramid' in fitting_type:
-        # Need a multiple of 8
-        process_at_size=240
-        trn_stim_data = skimage.transform.resize(trn_stim_data, output_shape=(trn_stim_data.shape[0],1,process_at_size, process_at_size))
-        val_stim_data = skimage.transform.resize(val_stim_data, output_shape=(val_stim_data.shape[0],1,process_at_size, process_at_size))
-    
-    if 'sketch_tokens' in fitting_type:
+    if 'sketch_tokens' in fitting_type or 'pyramid' in fitting_type:
         # For this model, the features are pre-computed, so we will just load them rather than passing in images.
         # Going to pass the image indices (into 10,000 dim array) instead of images to fitting and val functions, 
         # which will tell which features to load.
@@ -188,10 +183,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if 'pyramid' in fitting_type:
         
         # Set up the pyramid
+        compute_features = False
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=sample_batch_size, feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out, aperture=aperture, do_varpart = do_varpart, \
-                                      group_all_hl_feats = group_all_hl_feats, device=device)
+                                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
         if 'plus_bdcn' in fitting_type:

@@ -85,7 +85,7 @@ class bdcn_feature_extractor(nn.Module):
         else:
             self.max_features = np.max(n_feat_each_prf)
             
-        self.clear_maps()
+        self.clear_big_features()
  
 
     def get_partial_versions(self):
@@ -132,7 +132,7 @@ class bdcn_feature_extractor(nn.Module):
         elapsed =  time.time() - t
         print('time elapsed = %.5f'%elapsed)        
         
-    def clear_maps(self):
+    def clear_big_features(self):
         
         print('Clearing BDCN contour features from memory.')
         self.fmaps = None    

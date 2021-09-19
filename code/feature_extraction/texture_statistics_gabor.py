@@ -4,8 +4,9 @@ import time
 from collections import OrderedDict
 import torch.nn as nn
 
-from utils import numpy_utils, torch_utils, texture_utils, prf_utils
+from utils import numpy_utils, torch_utils, texture_utils, prf_utils, default_paths
 from model_fitting import fwrf_fit
+gabor_texture_feat_path = default_paths.gabor_texture_feat_path
 
 class texture_feature_extractor(nn.Module):
     """
@@ -20,7 +21,8 @@ class texture_feature_extractor(nn.Module):
     """
     def __init__(self,_fmaps_fn_complex, _fmaps_fn_simple, sample_batch_size=100, \
                  autocorr_output_pix=3, n_prf_sd_out=2, aperture=1.0, \
-                 feature_types_exclude=None,  do_varpart=False, group_all_hl_feats=False, device=None):
+                 feature_types_exclude=None,  do_varpart=False, group_all_hl_feats=False, \
+                 compute_features=True, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
@@ -40,10 +42,18 @@ class texture_feature_extractor(nn.Module):
         self.do_varpart = do_varpart
         self.group_all_hl_feats = group_all_hl_feats       
         
-        self.feature_types_exclude = feature_types_exclude
-        self.update_feature_list()
+        self.update_feature_list(feature_types_exclude)
         self.do_pca = False
         
+        # if compute features is false, this means the features are already generated, so will be looking for a 
+        # saved h5py file of pre-computed features. If true, will run the extraction step now.
+        self.compute_features = compute_features
+        
+        if not self.compute_features:
+            self.features_file = os.path.join(gabor_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, self.n_ori, self.n_sf))
+            if not os.path.exists(self.features_file):
+                raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                
+            self.features_each_prf = None
         
     def init_for_fitting(self, image_size, models=None, dtype=None):
 
@@ -56,29 +66,34 @@ class texture_feature_extractor(nn.Module):
         self.fmaps_fn_simple.get_fmaps_sizes(image_size)      
         self.max_features = self.n_features_total            
 
-    def update_feature_list(self):
+    def update_feature_list(self, feature_types_exclude):
         
         feature_types_all = ['pixel_stats', 'complex_feature_means', 'simple_feature_means',\
                          'complex_feature_autocorrs','simple_feature_autocorrs',\
                          'complex_within_scale_crosscorrs','simple_within_scale_crosscorrs',\
                          'complex_across_scale_crosscorrs','simple_across_scale_crosscorrs']
-       
+        self.feature_types_all = feature_types_all
         ori_pairs = np.vstack([[[oo1, oo2] for oo2 in np.arange(oo1+1, self.n_ori)] for oo1 in range(self.n_ori) if oo1<self.n_ori-1])
         n_ori_pairs = np.shape(ori_pairs)[0]
         feature_type_dims = [4,self.n_ori*self.n_sf, self.n_ori*self.n_sf*self.n_phases, \
                               self.n_ori*self.n_sf*self.autocorr_output_pix**2, self.n_ori*self.n_sf*self.n_phases*self.autocorr_output_pix**2, \
                               self.n_sf*n_ori_pairs, self.n_sf*n_ori_pairs*self.n_phases, (self.n_sf-1)*self.n_ori**2, (self.n_sf-1)*self.n_ori**2*self.n_phases]
-        
-        # decide which features to ignore, or use all features
-        
+        self.feature_type_dims_all = feature_type_dims        
+         
+        # Decide which features to ignore, or use all features      
+        if feature_types_exclude is None:
+            feature_types_exclude = []
         # a few shorthands for ignoring sets of features at a time
-        if 'crosscorrs' in self.feature_types_exclude:
-            self.feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs','complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
-        if 'autocorrs' in self.feature_types_exclude:
-            self.feature_types_exclude.extend(['complex_feature_autocorrs','simple_feature_autocorrs'])
-        if 'pixel' in self.feature_types_exclude:
-            self.feature_types_exclude.extend(['pixel_stats'])
-
+        if 'crosscorrs' in feature_types_exclude:
+            feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs','complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
+        if 'autocorrs' in feature_types_exclude:
+            feature_types_exclude.extend(['complex_feature_autocorrs','simple_feature_autocorrs'])
+        if 'pixel' in feature_types_exclude:
+            feature_types_exclude.extend(['pixel_stats'])
+        self.feature_types_exclude = feature_types_exclude
+        print('Feature types to exclude from the model:')
+        print(self.feature_types_exclude)    
+        
         self.feature_types_include  = [ff for ff in feature_types_all if not ff in self.feature_types_exclude]
         if len(self.feature_types_include)==0:
             raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
@@ -91,14 +106,16 @@ class texture_feature_extractor(nn.Module):
         self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
-        if self.group_all_hl_feats and len(self.feature_types_exclude)==0:
-            # In this case pretend there are just two groups of features - the 'mean_magnitudes' which are first-level gabor-like
-            # and all other features combined into a second group. Makes it simpler to do variance partition analysis.
+        if self.group_all_hl_feats:
+            # In this case pretend there are just two groups of features:
+            # Lower-level which includes pixel and gabor-like.
+            # Higher-level which includes all autocorrelations and cross-correlations. 
+            # This makes it simpler to do variance partition analysis.
             # if do_varpart=False, this does nothing.
-            self.feature_column_labels[self.feature_column_labels != 1] = -1
-            self.feature_column_labels[self.feature_column_labels==1] = 0
-            self.feature_column_labels[self.feature_column_labels==-1] = 1
-            self.feature_group_names = ['mean_magnitudes', 'all_other_texture_feats']
+            assert(len(self.feature_types_exclude)==0) # the following lines won't make sense if any features were missing, so check this
+            self.feature_column_labels[self.feature_column_labels<=2] = 0
+            self.feature_column_labels[self.feature_column_labels>2] = 1
+            self.feature_group_names = ['lower-level', 'higher-level']
         else:
             self.feature_group_names = self.feature_types_include
 
@@ -127,14 +144,29 @@ class texture_feature_extractor(nn.Module):
         # masks always goes [n partial versions x n total features]
         return masks, partial_version_names
         
+    def load_precomputed_features(self, image_inds):
+    
+        print('Loading pre-computed features from %s'%self.features_file)
+        t = time.time()
+        with h5py.File(self.features_file, 'r') as data_set:
+            values = np.copy(data_set['/features'])
+            data_set.close() 
+        elapsed = time.time() - t
+        print('Took %.5f seconds to load file'%elapsed)
+        
+        self.features_each_prf = values[image_inds,:,:]
+        
+        print('Size of features array for this image set is:')
+        print(self.features_each_prf.shape)
+        
     def clear_big_features(self):
         
-        """
-        Note this doesn't really do much here, but this method needs to exist for this module to work w fitting code.
-        """
-        print('Clear maps fn')
-        
-        
+        if self.compute_features:
+            print('Clear maps fn')
+        else:
+            print('Clearing precomputed features from memory.')
+            self.features_each_prf = None
+       
     def forward(self, images, prf_params, prf_model_index, fitting_mode=True):
         
         if isinstance(prf_params, torch.Tensor):
@@ -143,78 +175,105 @@ class texture_feature_extractor(nn.Module):
         prf_params = np.squeeze(prf_params)
         if isinstance(images, torch.Tensor):
             images = torch_utils.get_value(images)
+             
+        if not self.compute_features:
             
-        if not hasattr(self.fmaps_fn_simple, 'resolutions_each_sf'):
-            raise RuntimeError('Need to run init_for_fitting first')
-                
-       
-        if 'pixel_stats' in self.feature_types_include:
-            print('Computing pixel-level statistics...')    
-            t=time.time()
-            x,y,sigma = prf_params
-            n_pix=np.shape(images)[2]
-            g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
-            spatial_weights = g[2][0]
-            wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
-            pix_feat = torch.cat((wmean, wvar, wskew, wkurt), axis=1)
-            elapsed =  time.time() - t
-            print('time elapsed = %.5f'%elapsed)
-        else:
-            pix_feat = None
+            # Load from file the features for this set of images
+            # In this case, the item passed in through "images" must actually be the indices of the images to use, not images themselves.
+            # Check to make sure this is the case.
+            assert(len(images.shape)==1)
+            image_inds = images
+            if self.features_each_prf is None:
+                self.load_precomputed_features(image_inds)
+            else:
+                assert(self.features_each_prf.shape[0]==len(image_inds))
             
-        if 'complex_feature_means' in self.feature_types_include:
-            print('Computing complex cell features...')
-            t = time.time()
-            complex_feature_means = get_avg_features_in_prf(self.fmaps_fn_complex, images, prf_params,\
-                                                            sample_batch_size=self.sample_batch_size, \
-                                                            aperture=self.aperture, device=self.device, to_numpy=False)
-            elapsed =  time.time() - t
-            print('time elapsed = %.5f'%elapsed)
-        else:
-            complex_feature_means = None
+             # Taking the features for the desired prf model
+            features = self.features_each_prf[:,:,prf_model_index]
+            features = torch_utils._to_torch(features, self.device)
             
-        if 'simple_feature_means' in self.feature_types_include:
-            print('Computing simple cell features...')
-            t = time.time()
-            simple_feature_means = get_avg_features_in_prf(self.fmaps_fn_simple, images,  prf_params,\
-                                                           sample_batch_size=self.sample_batch_size, \
-                                                           aperture=self.aperture,  device=self.device, to_numpy=False)
-            elapsed =  time.time() - t
-            print('time elapsed = %.5f'%elapsed)
+            # Choosing which of these columns to include in model (might be all)
+            feature_column_labels_all = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_all[fi]]) for fi in range(len(self.feature_type_dims_all))], axis=1).astype('int'))
+            all_feat = OrderedDict()
+            for fi, ff in enumerate(self.feature_types_all):
+                if ff in self.feature_types_include:
+                    all_feat[ff] = features[:,feature_column_labels_all==fi]
+                else:
+                    all_feat[ff] = None
+                    
         else:
-            simple_feature_means = None
             
-        # To save time, decide now whether any autocorrelation or cross-correlation features are desired. If not, will skip a bunch of the slower computations.     
-        self.include_crosscorrs = np.any(['crosscorr' in ff for ff in self.feature_types_include])
-        self.include_autocorrs = np.any(['autocorr' in ff for ff in self.feature_types_include])
-        
-        if self.include_autocorrs and self.include_crosscorrs:
-            print('Computing higher order correlations...')
-        elif self.include_crosscorrs:
-            print('Computing higher order correlations (SKIPPING AUTOCORRELATIONS)...')
-        elif self.include_autocorrs:
-            print('Computing higher order correlations (SKIPPING CROSSCORRELATIONS)...')
-        else:
-            print('SKIPPING HIGHER-ORDER CORRELATIONS...')    
-        t = time.time()
-        complex_feature_autocorrs, simple_feature_autocorrs, \
-        complex_within_scale_crosscorrs, simple_within_scale_crosscorrs, \
-        complex_across_scale_crosscorrs, simple_across_scale_crosscorrs = get_higher_order_features(self.fmaps_fn_complex, self.fmaps_fn_simple, \
-                                                                                                    images, prf_params=prf_params, 
-                                                                                                    sample_batch_size=self.sample_batch_size, \
-                                                                                                    include_autocorrs=self.include_autocorrs, \
-                                                                                                    include_crosscorrs=self.include_crosscorrs, 
-                                                                                                    autocorr_output_pix=self.autocorr_output_pix, \
-                                                                                                    n_prf_sd_out=self.n_prf_sd_out, 
-                                                                                                    aperture=self.aperture,  device=self.device)
-        elapsed =  time.time() - t
-        print('time elapsed = %.5f'%elapsed)
+            if not hasattr(self.fmaps_fn_simple, 'resolutions_each_sf'):
+                raise RuntimeError('Need to run init_for_fitting first')
 
-        all_feat = OrderedDict({'pixel_stats': pix_feat, 'complex_feature_means':complex_feature_means, 'simple_feature_means':simple_feature_means, 
-                    'complex_feature_autocorrs': complex_feature_autocorrs, 'simple_feature_autocorrs': simple_feature_autocorrs, 
-                    'complex_within_scale_crosscorrs': complex_within_scale_crosscorrs, 'simple_within_scale_crosscorrs':simple_within_scale_crosscorrs,
-                    'complex_across_scale_crosscorrs': complex_across_scale_crosscorrs, 'simple_across_scale_crosscorrs':simple_across_scale_crosscorrs})
+            if 'pixel_stats' in self.feature_types_include:
+                print('Computing pixel-level statistics...')    
+                t=time.time()
+                x,y,sigma = prf_params
+                n_pix=np.shape(images)[2]
+                g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
+                spatial_weights = g[2][0]
+                wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
+                pix_feat = torch.cat((wmean, wvar, wskew, wkurt), axis=1)
+                elapsed =  time.time() - t
+                print('time elapsed = %.5f'%elapsed)
+            else:
+                pix_feat = None
 
+            if 'complex_feature_means' in self.feature_types_include:
+                print('Computing complex cell features...')
+                t = time.time()
+                complex_feature_means = get_avg_features_in_prf(self.fmaps_fn_complex, images, prf_params,\
+                                                                sample_batch_size=self.sample_batch_size, \
+                                                                aperture=self.aperture, device=self.device, to_numpy=False)
+                elapsed =  time.time() - t
+                print('time elapsed = %.5f'%elapsed)
+            else:
+                complex_feature_means = None
+
+            if 'simple_feature_means' in self.feature_types_include:
+                print('Computing simple cell features...')
+                t = time.time()
+                simple_feature_means = get_avg_features_in_prf(self.fmaps_fn_simple, images,  prf_params,\
+                                                               sample_batch_size=self.sample_batch_size, \
+                                                               aperture=self.aperture,  device=self.device, to_numpy=False)
+                elapsed =  time.time() - t
+                print('time elapsed = %.5f'%elapsed)
+            else:
+                simple_feature_means = None
+
+            # To save time, decide now whether any autocorrelation or cross-correlation features are desired. If not, will skip a bunch of the slower computations.     
+            self.include_crosscorrs = np.any(['crosscorr' in ff for ff in self.feature_types_include])
+            self.include_autocorrs = np.any(['autocorr' in ff for ff in self.feature_types_include])
+
+            if self.include_autocorrs and self.include_crosscorrs:
+                print('Computing higher order correlations...')
+            elif self.include_crosscorrs:
+                print('Computing higher order correlations (SKIPPING AUTOCORRELATIONS)...')
+            elif self.include_autocorrs:
+                print('Computing higher order correlations (SKIPPING CROSSCORRELATIONS)...')
+            else:
+                print('SKIPPING HIGHER-ORDER CORRELATIONS...')    
+            t = time.time()
+            complex_feature_autocorrs, simple_feature_autocorrs, \
+            complex_within_scale_crosscorrs, simple_within_scale_crosscorrs, \
+            complex_across_scale_crosscorrs, simple_across_scale_crosscorrs = get_higher_order_features(self.fmaps_fn_complex, self.fmaps_fn_simple, \
+                                                                                                        images, prf_params=prf_params, 
+                                                                                                        sample_batch_size=self.sample_batch_size, \
+                                                                                                        include_autocorrs=self.include_autocorrs, \
+                                                                                                        include_crosscorrs=self.include_crosscorrs, 
+                                                                                                        autocorr_output_pix=self.autocorr_output_pix, \
+                                                                                                        n_prf_sd_out=self.n_prf_sd_out, 
+                                                                                                        aperture=self.aperture,  device=self.device)
+            elapsed =  time.time() - t
+            print('time elapsed = %.5f'%elapsed)
+
+            all_feat = OrderedDict({'pixel_stats': pix_feat, 'complex_feature_means':complex_feature_means, 'simple_feature_means':simple_feature_means, 
+                        'complex_feature_autocorrs': complex_feature_autocorrs, 'simple_feature_autocorrs': simple_feature_autocorrs, 
+                        'complex_within_scale_crosscorrs': complex_within_scale_crosscorrs, 'simple_within_scale_crosscorrs':simple_within_scale_crosscorrs,
+                        'complex_across_scale_crosscorrs': complex_across_scale_crosscorrs, 'simple_across_scale_crosscorrs':simple_across_scale_crosscorrs})
+
+        # Now concatenating everything to a big matrix
         feature_names_full = list(all_feat.keys())
         feature_names = [fname for fname in feature_names_full if fname in self.feature_types_include]
         assert(feature_names==self.feature_types_include) # double check here that the order is correct
@@ -233,6 +292,10 @@ class texture_feature_extractor(nn.Module):
 
         if torch.any(torch.isnan(all_feat_concat)):
             print('\nWARNING THERE ARE NANS IN FEATURES MATRIX\n')
+        if torch.any(torch.all(all_feat_concat==0, axis=0)):
+            # Note the zero columns here are not a bug, they happen because number of autocorr features
+            # varies with prf size/position. Print the number of zero columns anyway...
+            print('There are %d zeros columns in feature matrix'%np.sum(torch_utils.get_value(torch.all(all_feat_concat==0, axis=0))))
 
         feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
             

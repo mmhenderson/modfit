@@ -4,7 +4,8 @@ import time
 from collections import OrderedDict
 import torch.nn as nn
 import pyrtools as pt
-from utils import numpy_utils, torch_utils, texture_utils, prf_utils
+from utils import numpy_utils, torch_utils, texture_utils, prf_utils, default_paths
+pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
 
 class texture_feature_extractor(nn.Module):
     
@@ -16,12 +17,11 @@ class texture_feature_extractor(nn.Module):
     """
     
     def __init__(self,_fmaps_fn, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
-                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, device=None):
+                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, compute_features=True, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
         self.fmaps_fn = _fmaps_fn   
-        self.fmaps = None
         self.n_sf = _fmaps_fn.pyr_height
         self.n_ori =  _fmaps_fn.n_ori
        
@@ -32,10 +32,22 @@ class texture_feature_extractor(nn.Module):
         
         self.do_varpart = do_varpart
         self.group_all_hl_feats = group_all_hl_feats
-        
+   
         self.update_feature_list(feature_types_exclude)
         self.do_pca = False
-       
+        
+        # if compute features is false, this means the features are already generated, so will be looking for a 
+        # saved h5py file of pre-computed features. If true, will run the extraction step now.
+        self.compute_features = compute_features
+        
+        if not self.compute_features:
+            self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, self.n_ori, self.n_sf))
+            if not os.path.exists(self.features_file):
+                raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                
+            self.features_each_prf = None
+        else:
+            self.fmaps = None
+    
     def init_for_fitting(self, image_size, models, dtype):
 
         """
@@ -43,26 +55,25 @@ class texture_feature_extractor(nn.Module):
         """
        
         self.max_features = self.n_features_total            
-        self.clear_maps()
+        self.clear_big_features()
         
-       
     def update_feature_list(self, feature_types_exclude):
         
+        # First defining all the possible features and their dimensionality (fixed)
         feature_types_all = ['pixel_stats', 'mean_magnitudes', 'mean_realparts', 'marginal_stats_lowpass_recons', 'variance_highpass_resid', \
             'magnitude_feature_autocorrs', 'lowpass_recon_autocorrs', 'highpass_resid_autocorrs', \
             'magnitude_within_scale_crosscorrs', 'real_within_scale_crosscorrs', 'magnitude_across_scale_crosscorrs', 'real_imag_across_scale_crosscorrs', \
             'real_spatshift_within_scale_crosscorrs', 'real_spatshift_across_scale_crosscorrs']
+        self.feature_types_all = feature_types_all
         feature_type_dims = [6,16,16,10,1,\
                         272,73,25,\
                         24,24,48,96,\
                        10,20]
-
+        self.feature_type_dims_all = feature_type_dims        
+         
+        # Decide which features to ignore, or use all features      
         if feature_types_exclude is None:
             feature_types_exclude = []
-        # decide which features to ignore, or use all features
-        self.feature_types_exclude = feature_types_exclude
-        
-        print(self.feature_types_exclude)    
         # a few shorthands for ignoring sets of features at a time
         if 'crosscorrs' in feature_types_exclude:
             feature_types_exclude.extend( [ff for ff in feature_types_all if 'crosscorrs' in ff])
@@ -70,16 +81,20 @@ class texture_feature_extractor(nn.Module):
             feature_types_exclude.extend( [ff for ff in feature_types_all if 'autocorrs' in ff])
         if 'pixel' in feature_types_exclude:
             feature_types_exclude.extend(['pixel_stats'])
+        self.feature_types_exclude = feature_types_exclude
+        print('Feature types to exclude from the model:')
+        print(self.feature_types_exclude)    
 
-        self.feature_types_include  = [ff for ff in feature_types_all if not ff in feature_types_exclude]
+        # Now list all the features that we do want to use
+        self.feature_types_include  = [ff for ff in feature_types_all if not ff in self.feature_types_exclude]
         if len(self.feature_types_include)==0:
             raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
             
-        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in feature_types_exclude]
+        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
         # how many features will be needed, in total?
         self.n_features_total = np.sum(feature_dims_include)
         
-        # numbers that define which feature types are in which column
+        # Numbers that define which feature types are in which columns of final output matrix
         self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
@@ -119,61 +134,112 @@ class texture_feature_extractor(nn.Module):
         # masks always goes [n partial versions x n total features]
         return masks, partial_version_names
 
+    
     def get_maps(self, images):
     
         print('Running steerable pyramid feature extraction...')
         print('Images array shape is:')
         print(images.shape)
         t = time.time()
+        if isinstance(images, torch.Tensor):
+            images = torch_utils.get_value(images)
         fmaps = self.fmaps_fn(images, to_torch=False, device=self.device)        
         self.fmaps = fmaps
         elapsed =  time.time() - t
         print('time elapsed = %.5f'%elapsed)
 
-    def clear_maps(self):
+    def load_precomputed_features(self, image_inds):
+    
+        print('Loading pre-computed features from %s'%self.features_file)
+        t = time.time()
+        with h5py.File(self.features_file, 'r') as data_set:
+            values = np.copy(data_set['/features'])
+            data_set.close() 
+        elapsed = time.time() - t
+        print('Took %.5f seconds to load file'%elapsed)
         
-        print('Clearing steerable pyramid features from memory.')
-        self.fmaps = None
+        self.features_each_prf = values[image_inds,:,:]
+        
+        print('Size of features array for this image set is:')
+        print(self.features_each_prf.shape)
+        
+    
+    def clear_big_features(self):
+        
+        if self.compute_features:
+            print('Clearing steerable pyramid features from memory.')
+            self.fmaps = None
+        else:
+            print('Clearing precomputed features from memory.')
+            self.features_each_prf = None
+        
         
     def forward(self, images, prf_params, prf_model_index, fitting_mode=True):
         
-        if self.fmaps is None:
-            self.get_maps(images)
+        if not self.compute_features:
+            
+            # Load from file the features for this set of images
+            # In this case, the item passed in through "images" must actually be the indices of the images to use, not images themselves.
+            # Check to make sure this is the case.
+            assert(len(images.shape)==1)
+            image_inds = images
+            if self.features_each_prf is None:
+                self.load_precomputed_features(image_inds)
+            else:
+                assert(self.features_each_prf.shape[0]==len(image_inds))
+            
+             # Taking the features for the desired prf model
+            features = self.features_each_prf[:,:,prf_model_index]
+            features = torch_utils._to_torch(features, self.device)
+            
+            # Choosing which of these columns to include in model (might be all)
+            feature_column_labels_all = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_all[fi]]) for fi in range(len(self.feature_type_dims_all))], axis=1).astype('int'))
+            all_feat = OrderedDict()
+            for fi, ff in enumerate(self.feature_types_all):
+                if ff in self.feature_types_include:
+                    all_feat[ff] = features[:,feature_column_labels_all==fi]
+                else:
+                    all_feat[ff] = None
+            
         else:
-            assert(images.shape[0]==self.fmaps[0][0].shape[0])
-        
-        if isinstance(prf_params, torch.Tensor):
-            prf_params = torch_utils.get_value(prf_params)
-        assert(np.size(prf_params)==3)
-        prf_params = np.squeeze(prf_params)
-        if isinstance(images, torch.Tensor):
-            images = torch_utils.get_value(images)
+            
+            if self.fmaps is None:
+                self.get_maps(images)
+            else:
+                assert(images.shape[0]==self.fmaps[0][0].shape[0])
 
-        print('Computing higher order correlations...')
-      
-        t = time.time()
-        pixel_stats, mean_magnitudes, mean_realparts, marginal_stats_lowpass_recons, variance_highpass_resid, \
-            magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
-            magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
-            real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs =  \
-                    get_higher_order_features(self.fmaps, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
-        
-        
-        elapsed =  time.time() - t
-        print('time elapsed = %.5f'%elapsed)
+            if isinstance(prf_params, torch.Tensor):
+                prf_params = torch_utils.get_value(prf_params)
+            assert(np.size(prf_params)==3)
+            prf_params = np.squeeze(prf_params)
+            if isinstance(images, torch.Tensor):
+                images = torch_utils.get_value(images)
 
-        all_feat = OrderedDict({'pixel_stats':pixel_stats, 'mean_magnitudes':mean_magnitudes, 'mean_realparts':mean_realparts, \
-                                'marginal_stats_lowpass_recons':marginal_stats_lowpass_recons, 'variance_highpass_resid':variance_highpass_resid, \
-            'magnitude_feature_autocorrs':magnitude_feature_autocorrs, 'lowpass_recon_autocorrs':lowpass_recon_autocorrs, 'highpass_resid_autocorrs':highpass_resid_autocorrs, \
-            'magnitude_within_scale_crosscorrs':magnitude_within_scale_crosscorrs, 'real_within_scale_crosscorrs':real_within_scale_crosscorrs, \
-            'magnitude_across_scale_crosscorrs':magnitude_across_scale_crosscorrs, 'real_imag_across_scale_crosscorrs':real_imag_across_scale_crosscorrs, \
-            'real_spatshift_within_scale_crosscorrs':real_spatshift_within_scale_crosscorrs, 'real_spatshift_across_scale_crosscorrs':real_spatshift_across_scale_crosscorrs})
+            print('Computing higher order correlations...')
 
+            t = time.time()
+            pixel_stats, mean_magnitudes, mean_realparts, marginal_stats_lowpass_recons, variance_highpass_resid, \
+                magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
+                magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
+                real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs =  \
+                        get_higher_order_features(self.fmaps, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
+
+
+            elapsed =  time.time() - t
+            print('time elapsed = %.5f'%elapsed)
+
+            all_feat = OrderedDict({'pixel_stats':pixel_stats, 'mean_magnitudes':mean_magnitudes, 'mean_realparts':mean_realparts, \
+                                    'marginal_stats_lowpass_recons':marginal_stats_lowpass_recons, 'variance_highpass_resid':variance_highpass_resid, \
+                'magnitude_feature_autocorrs':magnitude_feature_autocorrs, 'lowpass_recon_autocorrs':lowpass_recon_autocorrs, 'highpass_resid_autocorrs':highpass_resid_autocorrs, \
+                'magnitude_within_scale_crosscorrs':magnitude_within_scale_crosscorrs, 'real_within_scale_crosscorrs':real_within_scale_crosscorrs, \
+                'magnitude_across_scale_crosscorrs':magnitude_across_scale_crosscorrs, 'real_imag_across_scale_crosscorrs':real_imag_across_scale_crosscorrs, \
+                'real_spatshift_within_scale_crosscorrs':real_spatshift_within_scale_crosscorrs, 'real_spatshift_across_scale_crosscorrs':real_spatshift_across_scale_crosscorrs})
+
+        # Now concatenating everything to a big matrix
         feature_names_full = list(all_feat.keys())
         feature_names = [fname for fname in feature_names_full if fname in self.feature_types_include]
-        self.feature_names = feature_names
         assert(feature_names==self.feature_types_include) # double check here that the order is correct
-        
+
         for ff, feature_name in enumerate(feature_names):   
             assert(all_feat[feature_name] is not None)
             if ff==0:
@@ -191,8 +257,8 @@ class texture_feature_extractor(nn.Module):
         if torch.any(torch.sum(all_feat_concat, axis=0)==0):
             print('\nWARNING THERE ARE ZEROS IN FEATURES MATRIX\n')
             print('zeros for columns:')
-            print(np.where(torch.sum(all_feat_concat, axis=0)==0))
-            
+            print(np.where(torch_utils.get_value(torch.sum(all_feat_concat, axis=0)==0)))
+
         feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
         
         return all_feat_concat, feature_inds_defined

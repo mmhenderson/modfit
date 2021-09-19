@@ -99,13 +99,15 @@ class texture_feature_extractor(nn.Module):
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
         if self.group_all_hl_feats:
-            # In this case pretend there are just two groups of features - the 'mean_magnitudes' which are first-level gabor-like
-            # and all other features combined into a second group. Makes it simpler to do variance partition analysis.
+            # In this case pretend there are just two groups of features:
+            # Lower-level which includes pixel, gabor-like, and marginal stats of lowpass/highpass recons.
+            # Higher-level which includes all autocorrelations and cross-correlations. 
+            # This makes it simpler to do variance partition analysis.
             # if do_varpart=False, this does nothing.
-            self.feature_column_labels[self.feature_column_labels != 1] = -1
-            self.feature_column_labels[self.feature_column_labels==1] = 0
-            self.feature_column_labels[self.feature_column_labels==-1] = 1
-            self.feature_group_names = ['mean_magnitudes', 'all_other_texture_feats']
+            assert(len(self.feature_types_exclude)==0) # the following lines won't make sense if any features were missing, so check this
+            self.feature_column_labels[self.feature_column_labels<=4] = 0
+            self.feature_column_labels[self.feature_column_labels>4] = 1
+            self.feature_group_names = ['lower-level', 'higher-level']
         else:
             self.feature_group_names = self.feature_types_include
             
@@ -254,10 +256,10 @@ class texture_feature_extractor(nn.Module):
 
         if torch.any(torch.isnan(all_feat_concat)):
             print('\nWARNING THERE ARE NANS IN FEATURES MATRIX\n')
-        if torch.any(torch.sum(all_feat_concat, axis=0)==0):
+        if torch.any(torch.all(all_feat_concat==0, axis=0)):
             print('\nWARNING THERE ARE ZEROS IN FEATURES MATRIX\n')
             print('zeros for columns:')
-            print(np.where(torch_utils.get_value(torch.sum(all_feat_concat, axis=0)==0)))
+            print(np.where(torch_utils.get_value(torch.all(all_feat_concat==0, axis=0))))
 
         feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
         

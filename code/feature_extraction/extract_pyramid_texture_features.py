@@ -54,7 +54,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     n_prfs = models.shape[0]
     n_batches = int(np.ceil(n_images/batch_size))
 
-    features_each_prf = np.zeros((n_images, n_features, n_prfs))
+    features_each_prf = np.zeros((n_images, n_features, n_prfs), dtype=np.float32)
 
     for bb in range(n_batches):
 

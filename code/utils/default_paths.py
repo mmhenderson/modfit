@@ -14,6 +14,10 @@ save_fits_path = '/user_data/mmhender/imStat/model_fits/'
 # https://github.com/cocodataset/cocoapi
 coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
 
+# Path where gabor model features will be
+gabor_texture_feat_path = '/user_data/mmhender/features/gabor_texture/'
+gabor_texture_feat_path_localnode = '/scratch/mmhender/features/gabor_texture/'
+
 # Path where pyramid texture model features will be
 pyramid_texture_feat_path = '/user_data/mmhender/features/pyramid_texture/'
 pyramid_texture_feat_path_localnode = '/scratch/mmhender/features/pyramid_texture/'

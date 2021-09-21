@@ -24,10 +24,10 @@ class combined_feature_extractor(torch.nn.Module):
             
         self.max_features = max_features
         
-    def clear_maps(self):
+    def clear_big_features(self):
         
         for module in self.modules:
-            module.clear_maps()
+            module.clear_big_features()
             
     def get_partial_versions(self):
         

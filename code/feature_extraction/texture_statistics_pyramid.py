@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 import time
+import os
+import h5py
+import gc
 from collections import OrderedDict
 import torch.nn as nn
 import pyrtools as pt
@@ -16,7 +19,7 @@ class texture_feature_extractor(nn.Module):
     Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma]
     """
     
-    def __init__(self,_fmaps_fn, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
+    def __init__(self,_fmaps_fn, subject=None, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
                  aperture=1.0, do_varpart=False, group_all_hl_feats=False, compute_features=True, device=None):
         
         super(texture_feature_extractor, self).__init__()
@@ -39,12 +42,15 @@ class texture_feature_extractor(nn.Module):
         # if compute features is false, this means the features are already generated, so will be looking for a 
         # saved h5py file of pre-computed features. If true, will run the extraction step now.
         self.compute_features = compute_features
+        self.subject = subject
         
         if not self.compute_features:
-            self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, self.n_ori, self.n_sf))
+            self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(self.subject, self.n_ori, self.n_sf))
             if not os.path.exists(self.features_file):
                 raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                
-            self.features_each_prf = None
+            self.prf_batch_size=50
+            self.features_each_prf_batch = None
+            self.prf_inds_loaded = []
         else:
             self.fmaps = None
     
@@ -56,6 +62,10 @@ class texture_feature_extractor(nn.Module):
        
         self.max_features = self.n_features_total            
         self.clear_big_features()
+        if not self.compute_features:
+            n_prfs = models.shape[0]
+            n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
+            self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
         
     def update_feature_list(self, feature_types_exclude):
         
@@ -150,20 +160,43 @@ class texture_feature_extractor(nn.Module):
         elapsed =  time.time() - t
         print('time elapsed = %.5f'%elapsed)
 
-    def load_precomputed_features(self, image_inds):
+    def load_precomputed_features(self, image_inds, prf_model_index):
     
-        print('Loading pre-computed features from %s'%self.features_file)
-        t = time.time()
-        with h5py.File(self.features_file, 'r') as data_set:
-            values = np.copy(data_set['/features'])
-            data_set.close() 
-        elapsed = time.time() - t
-        print('Took %.5f seconds to load file'%elapsed)
+        if prf_model_index not in self.prf_inds_loaded:
+            
+            
+            batch_to_use = np.where([prf_model_index in self.prf_batch_inds[bb] for \
+                                     bb in range(len(self.prf_batch_inds))])[0][0]
+            assert(prf_model_index in self.prf_batch_inds[batch_to_use])
+
+            print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
+                                                                              self.prf_batch_inds[batch_to_use][-1], self.features_file))
+            self.features_each_prf_batch = None
+            gc.collect()
+            torch.cuda.empty_cache()
+       
+            t = time.time()
+            with h5py.File(self.features_file, 'r') as data_set:
+                values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                data_set.close() 
+            elapsed = time.time() - t
+            print('Took %.5f seconds to load file'%elapsed)
+
+            self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
+            self.features_each_prf_batch = values[image_inds,:,:]
+            values=None
+            
+        else:
+            assert(len(image_inds)==self.features_each_prf_batch.shape[0])
+            
+        index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
+        features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
+        values=None
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf.shape)
         
-        self.features_each_prf = values[image_inds,:,:]
-        
-        print('Size of features array for this image set is:')
-        print(self.features_each_prf.shape)
+        return features_in_prf
         
     
     def clear_big_features(self):
@@ -173,7 +206,10 @@ class texture_feature_extractor(nn.Module):
             self.fmaps = None
         else:
             print('Clearing precomputed features from memory.')
-            self.features_each_prf = None
+            self.features_each_prf_batch = None
+            self.prf_inds_loaded = []
+            gc.collect()
+            torch.cuda.empty_cache()
         
         
     def forward(self, images, prf_params, prf_model_index, fitting_mode=True):
@@ -185,13 +221,8 @@ class texture_feature_extractor(nn.Module):
             # Check to make sure this is the case.
             assert(len(images.shape)==1)
             image_inds = images
-            if self.features_each_prf is None:
-                self.load_precomputed_features(image_inds)
-            else:
-                assert(self.features_each_prf.shape[0]==len(image_inds))
-            
-             # Taking the features for the desired prf model
-            features = self.features_each_prf[:,:,prf_model_index]
+            features = self.load_precomputed_features(image_inds, prf_model_index)            
+            assert(features.shape[0]==len(image_inds))
             features = torch_utils._to_torch(features, self.device)
             
             # Choosing which of these columns to include in model (might be all)

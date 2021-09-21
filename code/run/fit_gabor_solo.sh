@@ -18,11 +18,11 @@ volume_space=1
 up_to_sess=10
 debug=0
 
-fitting_type=gabor_texture
+fitting_type=gabor_solo
 
 n_ori=4
 n_sf=4
-group_all_hl_feats=1
+group_all_hl_feats=0
 
 ridge=1
 
@@ -45,8 +45,3 @@ date_str=0
 cd $ROOT/code/model_fitting
 
 python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --do_fitting $do_fitting --do_val $do_val --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed --group_all_hl_feats $group_all_hl_feats --n_ori $n_ori --n_sf $n_sf
-
-group_all_hl_feats=0
-
-python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --do_fitting $do_fitting --do_val $do_val --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed --group_all_hl_feats $group_all_hl_feats --n_ori $n_ori --n_sf $n_sf
-

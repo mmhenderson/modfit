@@ -64,9 +64,11 @@ class sketch_token_feature_extractor(nn.Module):
             # max pc to retain is just to save space, otherwise the "pca_wts" variable becomes huge  
             self.max_features = self.max_pc_to_retain
             self.pca_wts = [np.zeros(shape=(self.max_pc_to_retain, n_feat_each_prf[mm]), dtype=dtype) for mm in range(n_prfs)] 
+            self.pca_pre_z_mean = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
+            self.pca_pre_z_std = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
             self.pca_pre_mean = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
             self.pct_var_expl = np.zeros(shape=(self.max_pc_to_retain, n_prfs), dtype=dtype)
-            self.n_comp_needed = np.full(shape=(n_prfs), fill_value=-1, dtype=np.int)
+            self.n_comp_needed = np.full(shape=(n_prfs), fill_value=-1, dtype=int)
 
         else:
             self.max_features = np.max(n_feat_each_prf)
@@ -148,6 +150,14 @@ class sketch_token_feature_extractor(nn.Module):
             assert(self.n_comp_needed[prf_model_index]==-1) 
             print('Running PCA...')
             pca = decomposition.PCA(n_components = np.min([np.min([self.max_pc_to_retain, n_features_actual]), n_trials]), copy=False)
+            # for this model, need to normalize the columns otherwise the last one dominates...
+            features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
+            features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
+            features -= features_m
+            features /= features_s 
+            self.pca_pre_z_mean[prf_model_index][0:n_features_actual] = features_m
+            self.pca_pre_z_std[prf_model_index][0:n_features_actual] = features_s
+            
             # Perform PCA to decorrelate feats and reduce dimensionality
             scores = pca.fit_transform(features)           
             features = None            
@@ -179,6 +189,9 @@ class sketch_token_feature_extractor(nn.Module):
             assert(self.n_comp_needed[prf_model_index]!=-1)
             print('Applying pre-computed PCA matrix...')
             # Apply the PCA transformation, just as it was done during training
+            features -= np.tile(np.expand_dims(self.pca_pre_z_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
+            features /= np.tile(np.expand_dims(self.pca_pre_z_std[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
+            
             features_submean = features - np.tile(np.expand_dims(self.pca_pre_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
             features_reduced = features_submean @ np.transpose(self.pca_wts[prf_model_index][0:self.n_comp_needed[prf_model_index],0:n_features_actual])               
                        

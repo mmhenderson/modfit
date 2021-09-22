@@ -26,7 +26,7 @@ mult_patch_by_prf=1
 do_nms=0
 downsample_factor=1
 do_pca_st=1
-min_pct_var=99
+min_pct_var=95
 max_pc_to_retain=400
 map_ind=-1
 

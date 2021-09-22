@@ -25,7 +25,7 @@ n_sf=4
 group_all_hl_feats=1
 
 do_pca_pyr_hl=1
-min_pct_var=99
+min_pct_var=95
 max_pc_to_retain=400
 
 ridge=1

@@ -9,6 +9,7 @@ import torch.nn as nn
 import pyrtools as pt
 from utils import numpy_utils, torch_utils, texture_utils, prf_utils, default_paths
 pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
+from sklearn import decomposition
 
 class texture_feature_extractor(nn.Module):
     
@@ -20,7 +21,8 @@ class texture_feature_extractor(nn.Module):
     """
     
     def __init__(self,_fmaps_fn, subject=None, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
-                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, compute_features=True, device=None):
+                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, compute_features=True, \
+                do_pca_hl = False, min_pct_var = 99, max_pc_to_retain = 100, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
@@ -37,7 +39,20 @@ class texture_feature_extractor(nn.Module):
         self.group_all_hl_feats = group_all_hl_feats
    
         self.update_feature_list(feature_types_exclude)
-        self.do_pca = False
+        self.do_pca_hl = do_pca_hl
+        if self.do_pca_hl:
+            # this only makes sense to do if these other params are set this way...
+            assert(self.group_all_hl_feats==True and len(self.feature_types_exclude)==0)
+            self.min_pct_var = min_pct_var
+            self.n_ll_feats = np.sum(self.feature_type_dims_all[0:5])
+            self.n_hl_feats = np.sum(self.feature_type_dims_all[5:])
+            self.max_pc_to_retain = np.min([self.n_hl_feats, max_pc_to_retain])
+            # trimming off the last few columns
+            self.feature_column_labels = self.feature_column_labels[0:self.max_pc_to_retain + self.n_ll_feats]
+             
+        else:
+            self.min_pct_var = None
+            self.max_pc_to_retain = None  
         
         # if compute features is false, this means the features are already generated, so will be looking for a 
         # saved h5py file of pre-computed features. If true, will run the extraction step now.
@@ -60,9 +75,35 @@ class texture_feature_extractor(nn.Module):
         Additional initialization operations.
         """
        
-        self.max_features = self.n_features_total            
+        print('Initializing for fitting')
+        
+        if self.do_pca_hl:
+
+            print('Initializing arrays for PCA params')
+            n_prfs = len(models)
+            
+            n_hl_feat_each_prf = self.n_hl_feats * np.ones(shape=(n_prfs,),dtype=int)      
+            self.n_hl_feat_each_prf = n_hl_feat_each_prf
+
+            # will need to save pca parameters to reproduce it during validation stage
+            # max pc to retain is just to save space, otherwise the "pca_wts" variable becomes huge 
+            # NOTE here these parameters are just for the HL/higher level features.
+            
+            self.pca_wts = [np.zeros(shape=(self.max_pc_to_retain, n_hl_feat_each_prf[mm]), dtype=dtype) for mm in range(n_prfs)] 
+            self.pca_pre_mean = [np.zeros(shape=(n_hl_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
+            self.pct_var_expl = np.zeros(shape=(self.max_pc_to_retain, n_prfs), dtype=dtype)
+            self.n_comp_needed = np.full(shape=(n_prfs), fill_value=-1, dtype=int)
+            
+            self.max_features = self.max_pc_to_retain + self.n_ll_feats
+                
+        else:
+            self.max_features = self.n_features_total    
+            
         self.clear_big_features()
+        
         if not self.compute_features:
+            # Prepare for loading the pre-computed features: as a compromise between speed and ram usage, will load them in
+            # batches of multiple prfs at a time. 
             n_prfs = models.shape[0]
             n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
             self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
@@ -118,6 +159,7 @@ class texture_feature_extractor(nn.Module):
             self.feature_column_labels[self.feature_column_labels<=4] = 0
             self.feature_column_labels[self.feature_column_labels>4] = 1
             self.feature_group_names = ['lower-level', 'higher-level']
+            
         else:
             self.feature_group_names = self.feature_types_include
             
@@ -128,7 +170,7 @@ class texture_feature_extractor(nn.Module):
             
         n_feature_types = len(self.feature_group_names)
         partial_version_names = ['full_model'] 
-        masks = np.ones([1,self.n_features_total])
+        masks = np.ones([1,self.max_features])
         
         if self.do_varpart and n_feature_types>1:
             
@@ -284,7 +326,7 @@ class texture_feature_extractor(nn.Module):
         print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
         print('Feature types included are:')
         print(feature_names)
-
+        
         if torch.any(torch.isnan(all_feat_concat)):
             print('\nWARNING THERE ARE NANS IN FEATURES MATRIX\n')
         if torch.any(torch.all(all_feat_concat==0, axis=0)):
@@ -292,11 +334,92 @@ class texture_feature_extractor(nn.Module):
             print('zeros for columns:')
             print(np.where(torch_utils.get_value(torch.all(all_feat_concat==0, axis=0))))
 
-        feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
+        print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
+        
+        if self.do_pca_hl:    
+            features_ll = all_feat_concat[:,0:self.n_ll_feats]
+            features_hl = all_feat_concat[:,self.n_ll_feats:]
+            print('Running PCA on higher-level features...')
+            features_hl = self.reduce_pca(features_hl, prf_model_index, fitting_mode)
+            
+            all_feat_concat = torch.cat((features_ll, features_hl), axis=1)
+            
+            feature_inds_defined = np.zeros((self.max_features,), dtype=bool)
+            feature_inds_defined[0:all_feat_concat.shape[1]] = 1
+        else:
+            feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
+        
+        print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
         
         return all_feat_concat, feature_inds_defined
     
-
+    
+    def reduce_pca(self, features, prf_model_index, fitting_mode=True):
+        
+        if torch.is_tensor(features):
+            features = features.detach().cpu().numpy()
+            was_tensor=True
+        else:
+            was_tensor=False
+            
+        n_trials = features.shape[0]
+        n_features_actual = features.shape[1]
+        
+        assert(n_features_actual == self.n_hl_feat_each_prf[prf_model_index])
+        print('Preparing for PCA: original dims of features:')
+        print(features.shape)
+        
+        if fitting_mode:
+            
+            # Going to perform pca on the raw features
+            # First make sure it hasn't been done yet!
+            assert(self.n_comp_needed[prf_model_index]==-1) 
+            print('Running PCA...')
+            pca = decomposition.PCA(n_components = np.min([np.min([self.max_pc_to_retain, n_features_actual]), n_trials]), copy=False)
+            # Perform PCA to decorrelate feats and reduce dimensionality
+            scores = pca.fit_transform(features)           
+            features = None            
+            wts = pca.components_
+            ev = pca.explained_variance_
+            ev = ev/np.sum(ev)*100
+            # wts/components goes [ncomponents x nfeatures]. 
+            # nfeatures is always actual number of raw features
+            # ncomponents is min(ntrials, nfeatures)
+            # to save space, only going to save up to some max number of components.
+            n_components_actual = np.min([wts.shape[0], self.max_pc_to_retain])
+            # save a record of the transformation to be used for validating model
+            self.pca_wts[prf_model_index][0:n_components_actual,0:n_features_actual] = wts[0:n_components_actual,:] 
+            # mean of each feature, nfeatures long - needed to reproduce transformation
+            self.pca_pre_mean[prf_model_index][0:n_features_actual] = pca.mean_ 
+            # max len of ev is the number of components
+            self.pct_var_expl[0:n_components_actual,prf_model_index] = ev[0:n_components_actual]  
+            n_components_reduced = int(np.where(np.cumsum(ev)>self.min_pct_var)[0][0] if np.any(np.cumsum(ev)>self.min_pct_var) else len(ev))
+            n_components_reduced = np.max([n_components_reduced, 1])
+            self.n_comp_needed[prf_model_index] = n_components_reduced
+            print('Retaining %d components to expl %d pct var'%(n_components_reduced, self.min_pct_var))
+            
+            assert(n_components_reduced<=self.max_pc_to_retain)            
+            features_reduced = scores[:,0:n_components_reduced]
+            
+        else:
+            
+            # This is a validation pass, going to use the pca pars that were computed on training set
+            # Make sure it has been done already!
+            assert(self.n_comp_needed[prf_model_index]!=-1)
+            print('Applying pre-computed PCA matrix...')
+            # Apply the PCA transformation, just as it was done during training
+            features_submean = features - np.tile(np.expand_dims(self.pca_pre_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
+            features_reduced = features_submean @ np.transpose(self.pca_wts[prf_model_index][0:self.n_comp_needed[prf_model_index],0:n_features_actual])               
+                       
+        features = None
+        
+        if was_tensor:
+            features_reduced = torch.tensor(features_reduced).to(self.device)
+        
+        return features_reduced
+    
+    
+    
 class steerable_pyramid_extractor(nn.Module):
     
     """
@@ -692,5 +815,4 @@ def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n
             magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
             magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
             real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs
-
 

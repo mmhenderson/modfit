@@ -20,8 +20,8 @@ sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
 from utils import nsd_utils, roi_utils, default_paths
 
-import initialize_fitting2 as initialize_fitting
-import arg_parser2 as arg_parser
+import initialize_fitting as initialize_fitting
+import arg_parser as arg_parser
 import merge_features, fwrf_fit, fwrf_predict
 
 fpX = np.float32

@@ -71,8 +71,12 @@ def get_args():
         
         
     # Stuff that is specific to PCA
-    parser.add_argument("--do_pca", type=int, default=1,
-                    help="want to do PCA before fitting only works for BDCN model for now. 1 for yes, 0 for no")
+    parser.add_argument("--do_pca_bdcn", type=int, default=1,
+                    help="want to do PCA on BDCN features before fitting? 1 for yes, 0 for no")
+    parser.add_argument("--do_pca_st", type=int, default=1,
+                    help="want to do PCA on sketch tokens features before fitting? 1 for yes, 0 for no")
+    parser.add_argument("--do_pca_pyr_hl", type=int, default=1,
+                    help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--min_pct_var", type=int,default=95,
                     help="minimum percent var to use when choosing num pcs to retain, default 95")
     parser.add_argument("--max_pc_to_retain", type=int,default=100,

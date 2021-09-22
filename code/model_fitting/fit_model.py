@@ -20,7 +20,9 @@ sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
 from utils import nsd_utils, roi_utils, default_paths
 
-import initialize_fitting, merge_features, arg_parser, fwrf_fit, fwrf_predict
+import initialize_fitting2 as initialize_fitting
+import arg_parser2 as arg_parser
+import merge_features, fwrf_fit, fwrf_predict
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()
@@ -36,8 +38,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, do_val = True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
-             do_pca = True, min_pct_var = 99, max_pc_to_retain = 400, map_ind = -1, \
-             n_prf_sd_out = 2, mult_patch_by_prf = True, do_avg_pool = True, \
+             do_pca_st = True, do_pca_bdcn = True, do_pca_pyr_hl = False, min_pct_var = 99, max_pc_to_retain = 400, \
+             map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, do_avg_pool = True, \
              downsample_factor = 1.0, do_nms = False):
     
     def save_all(fn2save, fitting_type):
@@ -95,6 +97,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             
         if 'pyramid' in fitting_type:
             dict2save.update({
+            'pc': pc,
+            'min_pct_var': min_pct_var,
+            'max_pc_to_retain': max_pc_to_retain,   
             'feature_info':feature_info,
             'group_all_hl_feats': group_all_hl_feats,
             })
@@ -127,11 +132,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if do_fitting==True and date_str is not None:
         raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
 
-    if do_fitting==False and do_pca==True:
+    if do_fitting==False and (do_pca_pyr_hl or do_pca_st or do_pca_bdcn):
         raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing pca, because the pca weight matrix is not saved in between trn/val.')
         
     if 'pyramid' in fitting_type:
-        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf)
+        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, do_pca_hl = do_pca_pyr_hl)
         feature_types_exclude = []        
         name1 = 'pyramid_texture'
         
@@ -146,11 +151,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         name1 = 'gabor_solo'
         
     elif 'bdcn' in fitting_type:
-        model_name = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)   
+        model_name = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)   
         name1 = 'bdcn'
         
     elif 'sketch_tokens' in fitting_type:
-        model_name = initialize_fitting.get_sketch_tokens_model_name(do_pca)   
+        model_name = initialize_fitting.get_sketch_tokens_model_name(do_pca_st)   
         name1 = 'sketch_tokens'
         
     else:
@@ -200,9 +205,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=sample_batch_size, \
-                                                                                  subject=subject, \
-                                                                                  feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out, aperture=aperture, do_varpart = do_varpart, \
-                                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, device=device)
+                                      subject=subject, feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out,\
+                                      aperture=aperture, do_varpart = do_varpart, \
+                                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
+                                      do_pca_hl = do_pca_pyr_hl, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                                                                                  device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'gabor' in fitting_type:
@@ -230,7 +237,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                                   aperture = aperture, \
                                                              n_prf_sd_out = n_prf_sd_out, \
                                              batch_size=sample_batch_size, mult_patch_by_prf=mult_patch_by_prf, do_avg_pool = do_avg_pool,\
-                                             do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                             do_pca = do_pca_st, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
         
     elif 'bdcn' in fitting_type:
         
@@ -240,7 +247,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                   n_prf_sd_out = n_prf_sd_out, \
                                                    batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
                                                 downsample_factor = downsample_factor, do_nms = do_nms, \
-                                             do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                             do_pca = do_pca_bdcn, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
 
         
     if 'plus_sketch_tokens' in fitting_type:
@@ -249,7 +256,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                                    aperture = aperture, \
                                                              n_prf_sd_out = n_prf_sd_out, \
                                        batch_size=sample_batch_size, mult_patch_by_prf=mult_patch_by_prf, do_avg_pool = do_avg_pool,\
-                                                   do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                                   do_pca = do_pca_st, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
     
@@ -261,7 +268,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                       n_prf_sd_out = n_prf_sd_out, \
                                                        batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
                                                     downsample_factor = downsample_factor, do_nms = do_nms, \
-                                              do_pca = do_pca, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                              do_pca = do_pca_bdcn, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
             
             _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'bdcn'], do_varpart = do_varpart)
@@ -289,15 +296,20 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
                                                        shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
                                                        dtype=fpX, debug=debug)
-        
-        if do_pca and ('bdcn' in fitting_type or 'sketch_tokens' in fitting_type):
-            if 'plus' in fitting_type:
-                m = _feature_extractor.modules[1]
-            else:
-                m = _feature_extractor
-            pc = [m.pct_var_expl, m.min_pct_var,  m.n_comp_needed]
+        if 'plus' in fitting_type:
+            pc = []
+            for m in _feature_extractor.modules:           
+                if hasattr(m, 'pct_var_expl'):
+                    pcm = [m.pct_var_expl, m.min_pct_var,  m.n_comp_needed]                  
+                else:
+                    pcm = None
+                pc.append(pcm)
         else:
-            pc = None
+            m = _feature_extractor
+            if hasattr(m, 'pct_var_expl'):
+                pc = [m.pct_var_expl, m.min_pct_var,  m.n_comp_needed]
+            else:
+                pc = None
             
         partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
             
@@ -371,6 +383,7 @@ if __name__ == '__main__':
              do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_varpart = args.do_varpart==1, 
              date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
-             do_pca = args.do_pca==1, min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
+             do_pca_pyr_hl = args.do_pca_pyr_hl==1, do_pca_st = args.do_pca_st==1, do_pca_bdcn = args.do_pca_bdcn==1, \
+             min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
              n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, do_avg_pool = args.do_avg_pool==1, \
              downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)

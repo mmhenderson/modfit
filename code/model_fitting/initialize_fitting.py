@@ -72,14 +72,20 @@ def get_save_path(subject, volume_space, model_name, shuffle_images, random_imag
     return output_dir, fn2save
  
     
-def get_pyramid_model_name(ridge, n_ori, n_sf):
+def get_pyramid_model_name(ridge, n_ori, n_sf, do_pca_hl=False):
 
     if ridge==True:       
         # ridge regression, testing several positive lambda values (default)
-        model_name = 'texture_pyramid_ridge_%dori_%dsf'%(n_ori, n_sf)
+        if do_pca_hl:
+            model_name = 'texture_pyramid_pcaHL_ridge_%dori_%dsf'%(n_ori, n_sf)
+        else:
+            model_name = 'texture_pyramid_ridge_%dori_%dsf'%(n_ori, n_sf)
     else:        
         # fixing lambda at zero, so it turns into ordinary least squares
-        model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
+        if do_pca_hl:
+            model_name = 'texture_pyramid_pcaHL_OLS_%dori_%dsf'%(n_ori, n_sf)
+        else:       
+            model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
         
     return model_name
 

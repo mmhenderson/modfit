@@ -90,6 +90,8 @@ class texture_feature_extractor(nn.Module):
             # NOTE here these parameters are just for the HL/higher level features.
             
             self.pca_wts = [np.zeros(shape=(self.max_pc_to_retain, n_hl_feat_each_prf[mm]), dtype=dtype) for mm in range(n_prfs)] 
+            self.pca_pre_z_mean = [np.zeros(shape=(n_hl_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
+            self.pca_pre_z_std = [np.zeros(shape=(n_hl_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
             self.pca_pre_mean = [np.zeros(shape=(n_hl_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
             self.pct_var_expl = np.zeros(shape=(self.max_pc_to_retain, n_prfs), dtype=dtype)
             self.n_comp_needed = np.full(shape=(n_prfs), fill_value=-1, dtype=int)
@@ -376,6 +378,14 @@ class texture_feature_extractor(nn.Module):
             assert(self.n_comp_needed[prf_model_index]==-1) 
             print('Running PCA...')
             pca = decomposition.PCA(n_components = np.min([np.min([self.max_pc_to_retain, n_features_actual]), n_trials]), copy=False)
+            # normalize the columns first
+            features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
+            features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
+            features -= features_m
+            features /= features_s 
+            self.pca_pre_z_mean[prf_model_index][0:n_features_actual] = features_m
+            self.pca_pre_z_std[prf_model_index][0:n_features_actual] = features_s
+            
             # Perform PCA to decorrelate feats and reduce dimensionality
             scores = pca.fit_transform(features)           
             features = None            
@@ -408,6 +418,9 @@ class texture_feature_extractor(nn.Module):
             assert(self.n_comp_needed[prf_model_index]!=-1)
             print('Applying pre-computed PCA matrix...')
             # Apply the PCA transformation, just as it was done during training
+            features -= np.tile(np.expand_dims(self.pca_pre_z_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
+            features /= np.tile(np.expand_dims(self.pca_pre_z_std[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
+            
             features_submean = features - np.tile(np.expand_dims(self.pca_pre_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
             features_reduced = features_submean @ np.transpose(self.pca_wts[prf_model_index][0:self.n_comp_needed[prf_model_index],0:n_features_actual])               
                        

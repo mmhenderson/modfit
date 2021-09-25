@@ -3,6 +3,16 @@ import scipy.io as sio
 from scipy.special import erf
 import math
 
+def unshuffle(shuffled_data, shuffle_order):
+    """
+    Take an array that has been shuffled according to shuffle_order, and re-create its original order.
+    Assumes that first dim of data is what needs to be unshuffled.    
+    """   
+    unshuffle_order = np.zeros_like(shuffle_order);
+    unshuffle_order[shuffle_order] = np.arange(shuffled_data.shape[0])
+    unshuffled_data = shuffled_data[unshuffle_order] # Unshuffle the shuffled data
+    return unshuffled_data
+
 def iterate_range(start, length, batchsize):
     batch_count = int(length // batchsize )
     residual = int(length % batchsize)

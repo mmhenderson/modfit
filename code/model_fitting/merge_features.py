@@ -41,7 +41,7 @@ class combined_feature_extractor(torch.nn.Module):
         if self.do_varpart:
 
             # going to define "masks" that combine certain sub-sets of models features at a time
-            # to be uses for variance partitioning
+            # to be used for variance partitioning
             feature_start_ind = 0
 
             for mi, module in enumerate(self.modules):

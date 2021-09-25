@@ -36,7 +36,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
-             do_fitting = True, do_val = True, do_varpart = True, date_str = 0, \
+             do_fitting = True, do_val = True, do_stack=True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              do_pca_st = True, do_pca_bdcn = True, do_pca_pyr_hl = False, min_pct_var = 99, max_pc_to_retain = 400, \
              map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, do_avg_pool = True, \
@@ -68,6 +68,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'val_r2': val_r2,    
         'partial_masks': partial_masks, 
         'partial_version_names': partial_version_names,
+        'stack_result': stack_result,
+        'stack_result_lo': stack_result_lo,
+        'partial_models_used_for_stack': partial_models_used_for_stack,
         'zscore_features': zscore_features,        
         'ridge': ridge,
         'debug': debug,
@@ -168,6 +171,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         model_name2 = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
         model_name = model_name + '_plus_' + model_name2
                
+    if do_stack:
+        model_name += '_stacked'
         
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
@@ -179,9 +184,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     # get all data and corresponding images, in two splits. always fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
             image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, sessions=sessions, \
-                                                                         voxel_mask=voxel_mask, volume_space=volume_space, \
-                                                                          zscore_betas_within_sess=zscore_betas_within_sess, \
-                                                                          shuffle_images=shuffle_images, random_images=random_images, \
+                                                                 voxel_mask=voxel_mask, volume_space=volume_space, \
+                                                                  zscore_betas_within_sess=zscore_betas_within_sess, \
+                                                                  shuffle_images=shuffle_images, random_images=random_images, \
                                                                                              random_voxel_data=random_voxel_data)
 
     
@@ -291,11 +296,14 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
         # always using true.
         shuffle=True 
-        best_losses, best_lambdas, best_params = fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, _feature_extractor, models, \
+        best_losses, best_lambdas, best_params, best_train_preds = fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
+                                                       _feature_extractor, models, \
                                                        lambdas, zscore=zscore_features, add_bias=add_bias, \
                                                        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
                                                        shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
                                                        dtype=fpX, debug=debug)
+        trn_voxel_data_pred = best_train_preds
+        
         if 'plus' in fitting_type:
             pc = []
             for m in _feature_extractor.modules:           
@@ -316,7 +324,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         sys.stdout.flush()
         val_cc=None
         val_r2=None
-       
+        stack_result=None
+        stack_result_lo=None
+        partial_models_used_for_stack=None
+        
         save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
         sys.stdout.flush()
@@ -359,8 +370,22 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         print('about to start validation')
         sys.stdout.flush()
         
-        val_cc, val_r2 = fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, _feature_extractor, \
+        val_cc, val_r2, val_voxel_data_pred  = fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, \
+                                                                                val_stim_data, _feature_extractor, \
                                    sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
+                                     
+        save_all(fn2save, fitting_type)
+        
+    ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ##############################################
+    sys.stdout.flush()
+    if do_stack: 
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start validation')
+        sys.stdout.flush()
+        
+        stack_result, stack_result_lo, partial_models_used_for_stack  = fwrf_predict.run_stacking(_feature_extractor, \
+                                                     trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred)
                                      
         save_all(fn2save, fitting_type)
    
@@ -380,7 +405,7 @@ if __name__ == '__main__':
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, ridge = args.ridge==1, \
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, random_voxel_data = args.random_voxel_data==1, \
-             do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_varpart = args.do_varpart==1, 
+             do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_stack = args.do_stack==1, do_varpart = args.do_varpart==1, 
              date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca_pyr_hl = args.do_pca_pyr_hl==1, do_pca_st = args.do_pca_st==1, do_pca_bdcn = args.do_pca_bdcn==1, \

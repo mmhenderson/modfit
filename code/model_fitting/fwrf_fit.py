@@ -1,15 +1,7 @@
 import sys
-import os
-import struct
 import time
 import copy
 import numpy as np
-import h5py
-from tqdm import tqdm
-import pickle
-import math
-import sklearn
-from sklearn import decomposition
 
 import torch
 import torch.nn as nn
@@ -67,7 +59,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
     _beta = torch.tensordot(_cofactor, _vtrn, dims=[[2], [0]]) # [#lambdas, #feature, #voxel]
     _pred = torch.tensordot(_xout, _beta, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
     _loss = torch.sum(torch.pow(_vout[:,None,:] - _pred, 2), dim=0) # [#lambdas, #voxels]
-    return _beta, _loss
+    return _beta, _loss, _pred
 
 
 
@@ -129,10 +121,12 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         print('Seeding random number generator: seed is %d'%shuff_rnd_seed)
         np.random.seed(shuff_rnd_seed)
         np.random.shuffle(order)
+        
     images = images[order]
-    voxel_data = voxel_data[order]  
-    trn_data = voxel_data[:trn_size]
-    out_data = voxel_data[trn_size:]
+    voxel_data_shuff = copy.deepcopy(voxel_data)
+    voxel_data_shuff = voxel_data_shuff[order]  
+    trn_data = voxel_data_shuff[:trn_size]
+    out_data = voxel_data_shuff[trn_size:]
 
     
     # Here is where any model-specific additional initialization steps are done
@@ -158,6 +152,10 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     best_prf_models = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)   
     best_lambdas = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)
     best_losses = np.full(fill_value=np.inf, shape=(n_voxels,n_partial_versions), dtype=dtype)
+
+    # Initialize arrays to store the trial-wise predictions (need these for stacking)
+    # Note that this is all training set trials - including the held out trials.
+    best_train_preds = np.zeros(shape=(n_voxels, n_trials, n_partial_versions), dtype=dtype)
 
     # Additional params that are optional
     if add_bias:
@@ -248,6 +246,16 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
                     # Here is where optimization happens - relatively simple matrix math inside loss fn.
                     _betas, _loss = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel]
+                    
+                    # Get trial-by-trial predictions for each training set trial (need for stacking)
+                    _pred_train = torch.tensordot(_xtrn, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
+                    _pred_out = torch.tensordot(_xout, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
+                    pred_train = torch_utils.get_value(_pred_train)
+                    pred_out = torch_utils.get_value(_pred_out)
+                    # Going to combine the training and held out trials and re-create their original order here.
+                    preds_all_shuffled = np.concatenate((pred_train, pred_out), axis=0)
+                    preds_all_origorder = unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
+    
                     # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
                     # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
 
@@ -255,7 +263,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                     _loss_values, _lambda_index = torch.min(_loss, dim=0)
                     loss_values, lambda_index = torch_utils.get_value(_loss_values), torch_utils.get_value(_lambda_index)
                     betas = torch_utils.get_value(_betas)
-
+                    pred = torch_utils.get_value(_pred)
 
                     if pp==0:
 
@@ -279,7 +287,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
                         lambda_inds = lambda_index[imp]
                         best_lambdas[arv,pp] = lambda_inds
-                        best_losses[arv,pp] = loss_values[imp]
+                        best_losses[arv,pp] = loss_values[imp]                        
                         best_prf_models[arv,pp] = m
                         if zscore and pp==0:
                             
@@ -296,11 +304,16 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         # taking the weights associated with the best lambda value
                         # remember that they won't fill entire matrix, rest of values stay at zero
                         best_w_tmp = copy.deepcopy(best_w_params[arv,:,pp])
-                        best_w_tmp[:,nonzero_inds_full] = numpy_utils.select_along_axis(betas[:,:,imp], lambda_inds, run_axis=2, choice_axis=0).T
+                        best_w_tmp[:,nonzero_inds_full] = numpy_utils.select_along_axis(betas[:,:,imp], lambda_inds, \
+                                                                                        run_axis=2, choice_axis=0).T
                         best_w_tmp[:,~nonzero_inds_full] = 0.0 # make sure to fill zeros here
-
                         best_w_params[arv,:,pp] = best_w_tmp
-                
+                        
+                        # Save the trialwise predictions for all trials in their original order.
+                        # Choosing predictions from whichever lambda was best.
+                        best_train_preds[arv,:,pp] = numpy_utils.select_along_axis(preds_all_origorder[:,:,imp], \
+                                                                               lambda_inds, run_axis=2, choice_axis=1).T;
+
                 vox_loop_time += (time.time() - vox_start)
                 elapsed = (time.time() - vox_start)
                 sys.stdout.flush()
@@ -325,4 +338,4 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     best_params = [prf_models[best_prf_models],]+return_params+[features_mean, features_std]+[best_prf_models]
     sys.stdout.flush()
 
-    return best_losses, best_lambdas, best_params
+    return best_losses, best_lambdas, best_params, best_train_preds

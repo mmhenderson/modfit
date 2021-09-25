@@ -39,6 +39,8 @@ def get_args():
                     help="want to do model training? 1 for yes, 0 for no")
     parser.add_argument("--do_val", type=int,default=1,
                     help="want to do model validation? 1 for yes, 0 for no")
+    parser.add_argument("--do_stack", type=int,default=1,
+                    help="want to do stacking analysis? 1 for yes, 0 for no")
     parser.add_argument("--do_varpart", type=int,default=1,
                     help="want to do variance partition? 1 for yes, 0 for no")
     parser.add_argument("--date_str", type=int,default=0,

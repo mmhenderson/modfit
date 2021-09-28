@@ -121,11 +121,13 @@ def get_combined_rois(subject, out):
 
 def get_r2(out):
     
-    val_cc = out['val_cc']
+#     val_cc = out['val_cc']
     # Note i'm NOT using the thing that actually is in the field val_r2, 
     # bc that is coefficient of determination which gives poor results for ridge regression.
     # instead using the signed squared correlation coefficient for r2/var explained.
-    val_r2 = np.sign(val_cc)*val_cc**2
+#     val_r2 = np.sign(val_cc)*val_cc**2
+
+    val_r2 = out['val_r2']
 
     return val_r2
 

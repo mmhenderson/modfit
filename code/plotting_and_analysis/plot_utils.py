@@ -162,7 +162,7 @@ def create_roi_subplots(data, inds2use, single_plot_object, subject, out, suptit
         
 class bar_plot:
        
-    def __init__(self, colors=None, column_labels=None, plot_errorbars=True, ylabel=None, yticks=None, title=None, horizontal_line_pos=None, ylims=None):
+    def __init__(self, colors=None, column_labels=None, plot_errorbars=True, ylabel=None, yticks=None, title=None, horizontal_line_pos=None, ylims=None, plot_counts=False, groups=None):
 
         self.colors = colors
         self.column_labels = column_labels
@@ -172,6 +172,8 @@ class bar_plot:
         self.horizontal_line_pos = horizontal_line_pos
         self.ylims = ylims
         self.yticks = yticks
+        self.plot_counts = plot_counts
+        self.groups = groups
         
     def create(self, data, new_fig=True, figsize=None, minimal_labels=False):
     
@@ -179,8 +181,19 @@ class bar_plot:
             if figsize is None:
                 figsize=(16,8)
             plt.figure(figsize=figsize)
-
+  
+        if self.plot_counts:
+            data = np.squeeze(data)
+            assert(len(data.shape)==1)
+            if self.groups is None:
+                self.groups = np.unique(data)                
+            counts = np.array([np.sum(data==gg) for gg in self.groups])
+            counts = counts[np.newaxis, :]
+            data = counts
+            self.plot_errorbars = False
+            
         n_columns = data.shape[1]
+          
         if self.colors is None:
             colors = cm.plasma(np.linspace(0,1,n_columns))
             colors = np.flipud(colors)
@@ -188,13 +201,13 @@ class bar_plot:
             colors = self.colors
             
         if data.shape[0]>0:
-            for cc in range(n_columns):
-
+        
+            for cc in range(n_columns):               
                 mean = np.mean(data[:,cc])
                 plt.bar(cc, mean, color=colors[cc,:])
                 if self.plot_errorbars:
                     sem = np.std(data[:,cc])/np.sqrt(data.shape[0])
-                plt.errorbar(cc, mean, sem, color = colors[cc,:], ecolor='k', zorder=10)
+                    plt.errorbar(cc, mean, sem, color = colors[cc,:], ecolor='k', zorder=10)
 
         if not minimal_labels:
             if self.column_labels is not None:

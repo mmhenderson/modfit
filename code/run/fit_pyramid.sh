@@ -24,7 +24,7 @@ n_ori=4
 n_sf=4
 group_all_hl_feats=1
 
-do_pca_pyr_hl=1
+do_pca_pyr_hl=0
 min_pct_var=95
 max_pc_to_retain=400
 
@@ -48,4 +48,4 @@ date_str=0
 
 cd $ROOT/code/model_fitting
 
-python3 fit_model2.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --do_fitting $do_fitting --do_val $do_val --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed --group_all_hl_feats $group_all_hl_feats --n_ori $n_ori --n_sf $n_sf --do_pca_pyr_hl $do_pca_pyr_hl --min_pct_var $min_pct_var --max_pc_to_retain $max_pc_to_retain
+python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --debug $debug --fitting_type $fitting_type --shuffle_images $shuffle_images --random_images $random_images --random_voxel_data $random_voxel_data --do_fitting $do_fitting --do_val $do_val --date_str $date_str --shuff_rnd_seed $shuff_rnd_seed --group_all_hl_feats $group_all_hl_feats --n_ori $n_ori --n_sf $n_sf --do_pca_pyr_hl $do_pca_pyr_hl --min_pct_var $min_pct_var --max_pc_to_retain $max_pc_to_retain

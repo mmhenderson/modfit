@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --nodelist=mind-1-3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4

@@ -9,7 +9,8 @@ import torch.nn
 #import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from utils import torch_utils, nsd_utils, default_paths
+from utils import torch_utils,  default_paths
+from utils import nsd_utils
 from model_fitting import initialize_fitting
 from feature_extraction import texture_statistics_pyramid
 
@@ -27,9 +28,9 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     image_data = nsd_utils.get_image_data(subject)  
     image_data = nsd_utils.image_uncolorize_fn(image_data)
 
-    # Need to have size a multiple of 8, for the pyramid to work right
-    process_at_size=240
-    resample_fn = torch.nn.Upsample((process_at_size, process_at_size), mode="bilinear", align_corners=True)
+#     # Need to have size a multiple of 8, for the pyramid to work right
+#     process_at_size=240
+#     resample_fn = torch.nn.Upsample((process_at_size, process_at_size), mode="bilinear", align_corners=True)
 
     # Params for the spatial aspect of the model (possible pRFs)
     aperture = 1.0
@@ -67,7 +68,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
 
         image_batch = torch_utils._to_torch(image_data[batch_inds,:,:,:], device)
 
-        image_batch = resample_fn(image_batch)
+#         image_batch = resample_fn(image_batch)
 
         _feature_extractor.clear_big_features()
 

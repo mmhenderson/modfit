@@ -13,6 +13,7 @@ def get_r2(actual,predicted):
     """
     This computes the coefficient of determination (R2).
     Always goes along first dimension (i.e. the trials/samples dimension)
+    MAKE SURE INPUTS ARE ACTUAL AND THEN PREDICTED, NOT FLIPPED
     """
     ssres = np.sum(np.power((predicted - actual),2), axis=0);
     sstot = np.sum(np.power((actual - np.mean(actual, axis=0)),2), axis=0);
@@ -173,11 +174,11 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     return val_cc, val_r2, pred_voxel_data
 
 
-def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred, debug=False):   
+def run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=False):   
     """
     Get data organized to run stacking code (stacked_core)
     """
-    n_voxels = trn_voxel_data.shape[1]
+    n_voxels = trn_holdout_voxel_data.shape[1]
 
     # To get the "features" to use for stacking - i'm using the "partial models" that are defined 
     # by the feature extractor. The first one is the full model, so we don't want to use that - just want 
@@ -201,26 +202,26 @@ def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_d
 
     # Creating a list where each element is predictions for one of the partial models - these will be 
     # the 'features' elements input to stacking code.
-    preds_train = [trn_voxel_data_pred[:,:,pp].T for pp in partial_models_use]
+    preds_train = [trn_holdout_voxel_data_pred[:,:,pp].T for pp in partial_models_use]
     preds_val = [val_voxel_data_pred[:,:,pp] for pp in partial_models_use]
     # Compute trial-wise training errors
     # each element of err is [ntrials x nvoxels]
-    train_err = [trn_voxel_data - trn_voxel_data_pred[:,:,pp].T for pp in partial_models_use]
+    train_err = [trn_holdout_voxel_data - trn_holdout_voxel_data_pred[:,:,pp].T for pp in partial_models_use]
 
     # Also computing the performance of each of the partial versions on training set data.
     # this is sort of a sanity check that things are working, since the performance of the partial models
-    # should roughly predict what the stacking weights will be.
-    train_r2 = np.array([get_r2(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T) \
+    # should roughly (?)  predict what the stacking weights will be.
+    train_r2 = np.array([get_r2(trn_holdout_voxel_data, trn_holdout_voxel_data_pred[:,:,pp].T) \
                          for pp in range(len(partial_version_names))]).T
     train_r2 = np.nan_to_num(train_r2)
-    train_cc = np.array([get_corrcoef(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T) \
+    train_cc = np.array([get_corrcoef(trn_holdout_voxel_data, trn_holdout_voxel_data_pred[:,:,pp].T) \
                          for pp in range(len(partial_version_names))]).T
     train_cc = np.nan_to_num(train_cc)
 
     # First running stacking w all features included
     feat_use = np.arange(0,n_feature_groups)
     # Stack result will be a tuple including the stacking weights, performance.
-    stack_result = stacked_core(feat_use, train_err, train_data=trn_voxel_data,\
+    stack_result = stacked_core(feat_use, train_err, train_data=trn_holdout_voxel_data,\
                      val_data = val_voxel_data, preds_train = preds_train, preds_val = preds_val,\
                      debug=debug);
 
@@ -231,7 +232,7 @@ def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_d
         for leave_one in range(n_feature_groups):
             feat_use_lo = list(copy.deepcopy(feat_use))
             feat_use_lo.remove(leave_one)
-            tmp = stacked_core(feat_use_lo, train_err, train_data=trn_voxel_data,\
+            tmp = stacked_core(feat_use_lo, train_err, train_data=trn_holdout_voxel_data,\
                              val_data = val_voxel_data, preds_train = preds_train, preds_val = preds_val,\
                              debug=debug);
             stack_result_lo[leave_one] = tmp
@@ -317,14 +318,14 @@ def stacked_core(feat_use, train_err, train_data, val_data, preds_train, preds_v
         
     print('Computing performance of stacked models')
     # Compute r2 of the stacked model for training data
-    stacked_r2_train = get_r2(stacked_pred_train, train_data)
-    stacked_cc_train = get_corrcoef(stacked_pred_train, train_data)
+    stacked_r2_train = get_r2(train_data, stacked_pred_train)
+    stacked_cc_train = get_corrcoef(train_data, stacked_pred_train)
     stacked_r2_train = np.nan_to_num(stacked_r2_train)
     stacked_cc_train = np.nan_to_num(stacked_cc_train) 
     
     # And for validation data
-    stacked_r2_val = get_r2(stacked_pred_val, val_data)
-    stacked_cc_val = get_corrcoef(stacked_pred_val, val_data)
+    stacked_r2_val = get_r2(val_data, stacked_pred_val)
+    stacked_cc_val = get_corrcoef(val_data, stacked_pred_val)
     stacked_r2_val = np.nan_to_num(stacked_r2_val)
     stacked_cc_val = np.nan_to_num(stacked_cc_val) 
     

@@ -59,7 +59,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
     _beta = torch.tensordot(_cofactor, _vtrn, dims=[[2], [0]]) # [#lambdas, #feature, #voxel]
     _pred = torch.tensordot(_xout, _beta, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
     _loss = torch.sum(torch.pow(_vout[:,None,:] - _pred, 2), dim=0) # [#lambdas, #voxels]
-    return _beta, _loss
+    return _beta, _loss, _pred
 
 
 
@@ -123,11 +123,13 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         np.random.shuffle(order)
         
     images = images[order]
-    voxel_data_shuff = copy.deepcopy(voxel_data)
-    voxel_data_shuff = voxel_data_shuff[order]  
-    trn_data = voxel_data_shuff[:trn_size]
-    out_data = voxel_data_shuff[trn_size:]
+    
+    train_trial_order = order[:trn_size]
+    holdout_trial_order = order[trn_size:]
 
+    trn_data = copy.deepcopy(voxel_data[train_trial_order,:])
+    out_data = copy.deepcopy(voxel_data[holdout_trial_order,:])
+    
     
     # Here is where any model-specific additional initialization steps are done
     # Includes initializing pca params arrays, if doing pca
@@ -154,8 +156,8 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     best_losses = np.full(fill_value=np.inf, shape=(n_voxels,n_partial_versions), dtype=dtype)
 
     # Initialize arrays to store the trial-wise predictions (need these for stacking)
-    # Note that this is all training set trials - including the held out trials.
-    best_train_preds = np.zeros(shape=(n_voxels, n_trials, n_partial_versions), dtype=dtype)
+    # Using JUST the held out trials here so the errors are always cross-validated
+    best_train_holdout_preds = np.zeros(shape=(n_voxels, holdout_size, n_partial_versions), dtype=dtype)
 
     # Additional params that are optional
     if add_bias:
@@ -245,16 +247,21 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                     _vout = torch_utils._to_torch(out_data[:,rv], device=device)
 
                     # Here is where optimization happens - relatively simple matrix math inside loss fn.
-                    _betas, _loss = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel]
+                    _betas, _loss, _pred_out = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel], [trials x lambdas x voxels]
+                    # Keep trial-by-trial predictions for each held-out set trial (need for stacking)
+                    pred_out = torch_utils.get_value(_pred_out) 
+                    # Note these trials are still in their SHUFFLED order, so we when we want to get R2 
+                    # will need to make the actual data match this order.
+            
                     
-                    # Get trial-by-trial predictions for each training set trial (need for stacking)
-                    _pred_train = torch.tensordot(_xtrn, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
-                    _pred_out = torch.tensordot(_xout, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
-                    pred_train = torch_utils.get_value(_pred_train)
-                    pred_out = torch_utils.get_value(_pred_out)
+                    
+#                     _pred_train = torch.tensordot(_xtrn, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
+#                     _pred_out = torch.tensordot(_xout, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
+#                     pred_train = torch_utils.get_value(_pred_train)
+                    
                     # Going to combine the training and held out trials and re-create their original order here.
-                    preds_all_shuffled = np.concatenate((pred_train, pred_out), axis=0)
-                    preds_all_origorder = numpy_utils.unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
+#                     preds_all_shuffled = np.concatenate((pred_train, pred_out), axis=0)
+#                     preds_all_origorder = numpy_utils.unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
     
                     # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
                     # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
@@ -310,7 +317,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         
                         # Save the trialwise predictions for all trials in their original order.
                         # Choosing predictions from whichever lambda was best.
-                        best_train_preds[arv,:,pp] = numpy_utils.select_along_axis(preds_all_origorder[:,:,imp], \
+                        best_train_holdout_preds[arv,:,pp] = numpy_utils.select_along_axis(pred_out[:,:,imp], \
                                                                                lambda_inds, run_axis=2, choice_axis=1).T;
 
                 vox_loop_time += (time.time() - vox_start)
@@ -337,4 +344,4 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     best_params = [prf_models[best_prf_models],]+return_params+[features_mean, features_std]+[best_prf_models]
     sys.stdout.flush()
 
-    return best_losses, best_lambdas, best_params, best_train_preds
+    return best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order

@@ -300,13 +300,14 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
         # always using true.
         shuffle=True 
-        best_losses, best_lambdas, best_params, best_train_preds = fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
+        best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order = \
+                            fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
                                                        _feature_extractor, models, \
                                                        lambdas, zscore=zscore_features, add_bias=add_bias, \
                                                        voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
                                                        shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
                                                        dtype=fpX, debug=debug)
-        trn_voxel_data_pred = best_train_preds
+        trn_holdout_voxel_data_pred = best_train_holdout_preds
         
         if 'plus' in fitting_type:
             pc = []
@@ -390,8 +391,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         print('about to start stacking analysis')
         sys.stdout.flush()
         
-        stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = fwrf_predict.run_stacking(_feature_extractor, \
-                                                     trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred, debug=debug)
+        trn_holdout_voxel_data = trn_voxel_data[holdout_trial_order,:]
+        stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
+            fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, \
+                                      trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
                                      
         save_all(fn2save, fitting_type)
    

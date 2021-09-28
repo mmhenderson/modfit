@@ -56,11 +56,11 @@ def get_image_data(subject, shuffle_images=False, random_images=False):
     
     if random_images==False:        
         print('\nLoading images for subject %d\n'%subject)
-        image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_227.h5py'%subject))        
+        image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_240.h5py'%subject))        
     else:        
         print('\nGenerating random gaussian noise images...\n')
         n_images = 10000
-        image_data = (np.random.normal(0,1,[n_images, 3, 227, 227])*30+255/2).astype(np.uint8)
+        image_data = (np.random.normal(0,1,[n_images, 3, 240,240])*30+255/2).astype(np.uint8)
         image_data = np.maximum(np.minimum(image_data, 255),0)
 
     print ('image data size:', image_data.shape, ', dtype:', image_data.dtype, ', value range:',\
@@ -243,8 +243,8 @@ def get_subject_specific_images(nsd_root, path_to_save, npix=227):
     Save a smaller array for each subject, at specified path.
     """
     
-    stim_file_original = nsd_root + "nsddata_stimuli/stimuli/nsd/nsd_stimuli.hdf5"
-    exp_design_file = nsd_root + "nsddata/experiments/nsd/nsd_expdesign.mat"
+    stim_file_original = os.path.join(nsd_root,"nsddata_stimuli/stimuli/nsd/nsd_stimuli.hdf5")
+    exp_design_file = os.path.join(nsd_root,"nsddata/experiments/nsd/nsd_expdesign.mat")
     exp_design = loadmat(exp_design_file)
     subject_idx  = exp_design['subjectim']
     
@@ -256,11 +256,12 @@ def get_subject_specific_images(nsd_root, path_to_save, npix=227):
     print(image_data.shape)
 
     for k,s_idx in enumerate(subject_idx):
+        fn2save = os.path.join(path_to_save, 'S%d_stimuli_%d'%(k+1, npix))
+        print('Will save to %s'%fn2save)       
+        print('Resizing...')
         s_image_data = image_data[s_idx - 1]
         s_image_data = resize_image_tensor(s_image_data.transpose(0,3,1,2), newsize=(npix,npix))
-
-        print(s_image_data.shape)
-        fn2save = os.path.join(path_to_save, 'S%d_stimuli_%d'%(k+1, npix))
+        print(s_image_data.shape)        
         print('saving to %s'%fn2save)
         
         with h5py.File(fn2save + '.h5py', 'w') as hf:

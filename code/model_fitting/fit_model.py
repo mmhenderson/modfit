@@ -17,7 +17,8 @@ import skimage.transform
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from feature_extraction import texture_statistics_gabor, texture_statistics_pyramid, bdcn_features, sketch_token_features
+from feature_extraction import texture_statistics_gabor, bdcn_features, sketch_token_features
+from feature_extraction import texture_statistics_pyramid2 as texture_statistics_pyramid
 from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting
@@ -71,6 +72,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'stack_result': stack_result,
         'stack_result_lo': stack_result_lo,
         'partial_models_used_for_stack': partial_models_used_for_stack,
+        'train_r2': train_r2, 
+        'train_cc': train_cc,
         'zscore_features': zscore_features,        
         'ridge': ridge,
         'debug': debug,
@@ -140,7 +143,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
     if 'pyramid' in fitting_type:
         model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, do_pca_hl = do_pca_pyr_hl)
-        feature_types_exclude = []        
+#         feature_types_exclude = []
+        feature_types_exclude = ['pixel']
         name1 = 'pyramid_texture'
         
     elif 'gabor_texture' in fitting_type:        
@@ -165,10 +169,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         raise ValueError('your string for fitting_type was not recognized')
         
     if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(do_pca)
+        model_name2 = initialize_fitting.get_sketch_tokens_model_name(do_pca_st)
         model_name = model_name + '_plus_' + model_name2
     elif 'plus_bdcn' in fitting_type:
-        model_name2 = initialize_fitting.get_bdcn_model_name(do_pca, map_ind)
+        model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
         model_name = model_name + '_plus_' + model_name2
                
     if do_stack:
@@ -324,6 +328,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         sys.stdout.flush()
         val_cc=None
         val_r2=None
+        train_cc=None
+        train_r2=None
         stack_result=None
         stack_result_lo=None
         partial_models_used_for_stack=None
@@ -381,11 +387,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if do_stack: 
         gc.collect()
         torch.cuda.empty_cache()
-        print('about to start validation')
+        print('about to start stacking analysis')
         sys.stdout.flush()
         
-        stack_result, stack_result_lo, partial_models_used_for_stack  = fwrf_predict.run_stacking(_feature_extractor, \
-                                                     trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred)
+        stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = fwrf_predict.run_stacking(_feature_extractor, \
+                                                     trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred, debug=debug)
                                      
         save_all(fn2save, fitting_type)
    

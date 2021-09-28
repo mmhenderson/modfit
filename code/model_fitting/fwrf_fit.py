@@ -59,7 +59,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
     _beta = torch.tensordot(_cofactor, _vtrn, dims=[[2], [0]]) # [#lambdas, #feature, #voxel]
     _pred = torch.tensordot(_xout, _beta, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
     _loss = torch.sum(torch.pow(_vout[:,None,:] - _pred, 2), dim=0) # [#lambdas, #voxels]
-    return _beta, _loss, _pred
+    return _beta, _loss
 
 
 
@@ -254,7 +254,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                     pred_out = torch_utils.get_value(_pred_out)
                     # Going to combine the training and held out trials and re-create their original order here.
                     preds_all_shuffled = np.concatenate((pred_train, pred_out), axis=0)
-                    preds_all_origorder = unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
+                    preds_all_origorder = numpy_utils.unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
     
                     # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
                     # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
@@ -263,8 +263,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                     _loss_values, _lambda_index = torch.min(_loss, dim=0)
                     loss_values, lambda_index = torch_utils.get_value(_loss_values), torch_utils.get_value(_lambda_index)
                     betas = torch_utils.get_value(_betas)
-                    pred = torch_utils.get_value(_pred)
-
+                    
                     if pp==0:
 
                         # comparing this loss to the other prf_models for each voxel (e.g. the other RF position/sizes)

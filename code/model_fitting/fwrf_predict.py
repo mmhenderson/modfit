@@ -9,27 +9,26 @@ from cvxopt import matrix, solvers
 from utils import numpy_utils, torch_utils
 
 
-def get_r2(actual,predicted,axis=0):
+def get_r2(actual,predicted):
     """
     This computes the coefficient of determination (R2).
-    Specify which axis to compute along (i.e. the trials/samples dimension)
+    Always goes along first dimension (i.e. the trials/samples dimension)
     """
     ssres = np.sum(np.power((predicted - actual),2), axis=0);
-    sstot = np.sum(np.power((actual - np.mean(actual)),2), axis=0);
+    sstot = np.sum(np.power((actual - np.mean(actual, axis=0)),2), axis=0);
     r2 = 1-(ssres/sstot)
     
     return r2
 
-def get_corrcoef(actual,predicted,axis=0,dtype=np.float32):
+def get_corrcoef(actual,predicted,dtype=np.float32):
     """
     This computes the linear correlation coefficient.
-    Specify which axis to compute along (i.e. the trials/samples dimension)
+    Always goes along first dimension (i.e. the trials/samples dimension)
     Assume input is 2D.
     """
     assert(len(actual.shape)==2)
-    loop_axis = 1-axis;
-    vals_cc = np.full(fill_value=0, shape=(actual.shape[loop_axis],), dtype=dtype)
-    for vv in range(actual.shape[loop_axis]):
+    vals_cc = np.full(fill_value=0, shape=(actual.shape[1],), dtype=dtype)
+    for vv in range(actual.shape[1]):
         vals_cc[vv] = np.corrcoef(actual[:,vv], predicted[:,vv])[0,1] 
     return vals_cc
  
@@ -162,8 +161,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 pred_voxel_data[:,rv,pp] = pred_block
                 
                 # Now for this batch of voxels and this partial version of the model, measure performance.
-                val_cc[rv,pp] = get_corrcoef(voxel_data[:,rv], pred_block, axis=0)
-                val_r2[rv,pp] = get_r2(voxel_data[:,rv], pred_block, axis=0)
+                val_cc[rv,pp] = get_corrcoef(voxel_data[:,rv], pred_block)
+                val_r2[rv,pp] = get_r2(voxel_data[:,rv], pred_block)
 
                 sys.stdout.flush()
 
@@ -174,7 +173,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     return val_cc, val_r2, pred_voxel_data
 
 
-def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred):   
+def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_data_pred, val_voxel_data_pred, debug=False):   
     """
     Get data organized to run stacking code (stacked_core)
     """
@@ -211,10 +210,10 @@ def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_d
     # Also computing the performance of each of the partial versions on training set data.
     # this is sort of a sanity check that things are working, since the performance of the partial models
     # should roughly predict what the stacking weights will be.
-    train_r2 = np.array([get_r2(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T, axis=0) \
+    train_r2 = np.array([get_r2(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T) \
                          for pp in range(len(partial_version_names))]).T
     train_r2 = np.nan_to_num(train_r2)
-    train_cc = np.array([get_corrcoef(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T, axis=0) \
+    train_cc = np.array([get_corrcoef(trn_voxel_data, trn_voxel_data_pred[:,:,pp].T) \
                          for pp in range(len(partial_version_names))]).T
     train_cc = np.nan_to_num(train_cc)
 
@@ -240,7 +239,7 @@ def run_stacking(_feature_extractor, trn_voxel_data, val_voxel_data, trn_voxel_d
         stack_result_lo = None
 
 
-    return stack_result, stack_result_lo, partial_models_use
+    return stack_result, stack_result_lo, partial_models_use, train_r2, train_cc
 
 
 def stacked_core(feat_use, train_err, train_data, val_data, preds_train, preds_val, debug=False):
@@ -314,16 +313,18 @@ def stacked_core(feat_use, train_err, train_data, val_data, preds_train, preds_v
         z = np.array([preds_train[feature_j][:, vv] for feature_j in feat_use])
         stacked_pred_train[:, vv] = np.dot(S[vv, :], z)
         
+        sys.stdout.flush()
+        
     print('Computing performance of stacked models')
     # Compute r2 of the stacked model for training data
-    stacked_r2_train = get_r2(stacked_pred_train, train_data, axis=0)
-    stacked_cc_train = get_corrcoef(stacked_pred_train, train_data, axis=0)
+    stacked_r2_train = get_r2(stacked_pred_train, train_data)
+    stacked_cc_train = get_corrcoef(stacked_pred_train, train_data)
     stacked_r2_train = np.nan_to_num(stacked_r2_train)
     stacked_cc_train = np.nan_to_num(stacked_cc_train) 
     
     # And for validation data
-    stacked_r2_val = get_r2(stacked_pred_val, val_data, axis=0)
-    stacked_cc_val = get_corrcoef(stacked_pred_val, val_data, axis=0)
+    stacked_r2_val = get_r2(stacked_pred_val, val_data)
+    stacked_cc_val = get_corrcoef(stacked_pred_val, val_data)
     stacked_r2_val = np.nan_to_num(stacked_r2_val)
     stacked_cc_val = np.nan_to_num(stacked_cc_val) 
     

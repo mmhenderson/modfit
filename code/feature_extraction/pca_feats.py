@@ -4,6 +4,7 @@ import time, h5py
 codepath = '/user_data/mmhender/imStat/code'
 sys.path.append(codepath)
 from utils import default_paths
+from utils import numpy_utils2 as numpy_utils
 from model_fitting import initialize_fitting 
 from sklearn import decomposition
 import scipy.stats
@@ -71,7 +72,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
             print('Took %.5f seconds to load file'%elapsed)
 
             prf_inds_loaded = prf_batch_inds[batch_to_use]
-            features_each_prf_batch = values
+            features_each_prf_batch = values.astype(np.float32)
             values=None
 
         index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
@@ -82,6 +83,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         print(features_in_prf.shape)
 
         features_ll = features_in_prf[:,0:n_ll_feats]
+#         features_ll = features_ll[:,6:] # Taking out the pixel features for now 
         features_hl = features_in_prf[:,n_ll_feats:]
         assert(n_hl_feats==features_hl.shape[1])
 
@@ -94,6 +96,16 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         scores_hl_each_prf.append(scores_hl)
         wts_hl_each_prf.append(wts_hl)
         ev_hl_each_prf.append(ev_hl)
+        
+        print('size of wts_hl:')
+        print(wts_hl.shape)    
+        
+        print('size of scores_hl:')
+        print(scores_hl.shape) 
+        print(scores_hl.dtype)
+        print('scores_hl_each_prf list is approx %.2f GiB'%numpy_utils.get_list_size_gib(scores_hl_each_prf))
+        
+        sys.stdout.flush()
 
     fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject, n_ori, n_sf))
     print('saving to %s'%fn2save)
@@ -185,10 +197,18 @@ def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     values = None            
     wts = pca.components_
     ev = pca.explained_variance_
+#     print(ev)
+#     print(np.sum(ev))
     ev = ev/np.sum(ev)*100
     
+    print('First element of ev: %.2f'%ev[0])
     # print this out as a check...if it is always 1, this can mean something is wrong w data.
-    print('Requires %d components to explain 95 pct var'%np.where(np.cumsum(ev)>=95)[0][0])
+    if np.size(np.where(np.cumsum(ev)>=95))>0:
+        n_comp_needed = np.where(np.cumsum(ev)>=95)[0][0]
+        print('Requires %d components to explain 95 pct var'%n_comp_needed)    
+    else:
+        n_comp_needed = n_comp
+        print('Requires more than %d components to explain 95 pct var'%n_comp_needed)
     
     return scores, wts, ev
 
@@ -205,14 +225,19 @@ if __name__ == '__main__':
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--zscore", type=int,default=0,
                     help="want to zscore columns before pca? 1 for yes, 0 for no")
+    parser.add_argument("--max_pc_to_retain", type=int,default=0,
+                    help="max pc to retain? enter 0 for None")
     
     args = parser.parse_args()
     
+    if args.max_pc_to_retain==0:
+        args.max_pc_to_retain = None
+    
     if args.type=='sketch_tokens':
-        run_pca_sketch_tokens(subject=args.subject, max_pc_to_retain=None, debug=args.debug==1, zscore_first=args.zscore==1)
+        run_pca_sketch_tokens(subject=args.subject, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1)
     elif args.type=='texture_pyramid':
         n_ori=4
         n_sf=4
-        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=None, debug=args.debug==1, zscore_first=args.zscore==1)
+        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1)
     else:
         raise ValueError('--type %s is not recognized'%args.type)

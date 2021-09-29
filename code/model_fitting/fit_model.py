@@ -18,7 +18,7 @@ import skimage.transform
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, bdcn_features, sketch_token_features
-from feature_extraction import texture_statistics_pyramid2 as texture_statistics_pyramid
+from feature_extraction import texture_statistics_pyramid as texture_statistics_pyramid
 from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting

@@ -4,7 +4,7 @@ import time, h5py
 codepath = '/user_data/mmhender/imStat/code'
 sys.path.append(codepath)
 from utils import default_paths
-from utils import numpy_utils2 as numpy_utils
+from utils import numpy_utils as numpy_utils
 from model_fitting import initialize_fitting 
 from sklearn import decomposition
 import scipy.stats

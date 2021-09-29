@@ -10,7 +10,6 @@ import pyrtools as pt
 from utils import numpy_utils, torch_utils, texture_utils, prf_utils, default_paths
 pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
 from sklearn import decomposition
-
 class texture_feature_extractor(nn.Module):
     
     """
@@ -42,10 +41,10 @@ class texture_feature_extractor(nn.Module):
         self.do_pca_hl = do_pca_hl
         if self.do_pca_hl:
             # this only makes sense to do if these other params are set this way...
-            assert(self.group_all_hl_feats==True and len(self.feature_types_exclude)==0)
+            assert(self.group_all_hl_feats==True)
             self.min_pct_var = min_pct_var
-            self.n_ll_feats = np.sum(self.feature_type_dims_all[0:5])
-            self.n_hl_feats = np.sum(self.feature_type_dims_all[5:])
+            self.n_ll_feats = np.sum(np.array(self.feature_type_dims_include)[self.feature_is_ll])
+            self.n_hl_feats = np.sum(np.array(self.feature_type_dims_include)[~self.feature_is_ll])
             self.max_pc_to_retain = np.min([self.n_hl_feats, max_pc_to_retain])
             # trimming off the last few columns
             self.feature_column_labels = self.feature_column_labels[0:self.max_pc_to_retain + self.n_ll_feats]
@@ -122,6 +121,7 @@ class texture_feature_extractor(nn.Module):
                         272,73,25,\
                         24,24,48,96,\
                        10,20]
+        self.feature_is_ll = list(np.ones((5,))==1) + list(np.zeros((9,))==1)
         self.feature_type_dims_all = feature_type_dims        
          
         # Decide which features to ignore, or use all features      
@@ -143,12 +143,13 @@ class texture_feature_extractor(nn.Module):
         if len(self.feature_types_include)==0:
             raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
             
-        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
+        self.feature_type_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
         # how many features will be needed, in total?
-        self.n_features_total = np.sum(feature_dims_include)
-        
+        self.n_features_total = np.sum(self.feature_type_dims_include)
+        self.feature_is_ll = np.array([self.feature_is_ll[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude])
+
         # Numbers that define which feature types are in which columns of final output matrix
-        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
+        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_include[fi]]) for fi in range(len(self.feature_type_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
         if self.group_all_hl_feats:
@@ -157,11 +158,14 @@ class texture_feature_extractor(nn.Module):
             # Higher-level which includes all autocorrelations and cross-correlations. 
             # This makes it simpler to do variance partition analysis.
             # if do_varpart=False, this does nothing.
-            assert(len(self.feature_types_exclude)==0) # the following lines won't make sense if any features were missing, so check this
-            self.feature_column_labels[self.feature_column_labels<=4] = 0
-            self.feature_column_labels[self.feature_column_labels>4] = 1
+            self.feature_column_labels[self.feature_is_ll[self.feature_column_labels]] = 0
+            self.feature_column_labels[~self.feature_is_ll[self.feature_column_labels]] = 1
             self.feature_group_names = ['lower-level', 'higher-level']
             
+            print('Grouping lower level features:')
+            print(np.array(self.feature_types_include)[self.feature_is_ll])
+            print('Grouping higher level features:')
+            print(np.array(self.feature_types_include)[~self.feature_is_ll])
         else:
             self.feature_group_names = self.feature_types_include
             
@@ -430,6 +434,8 @@ class texture_feature_extractor(nn.Module):
             features_reduced = torch.tensor(features_reduced).to(self.device)
         
         return features_reduced
+    
+    
     
     
     

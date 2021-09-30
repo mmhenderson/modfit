@@ -304,8 +304,10 @@ class texture_feature_extractor(nn.Module):
                 magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
                 real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs =  \
                         get_higher_order_features(self.fmaps, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
-
-
+            if torch.any(torch.abs(pixel_stats)>10**6):
+                print('WARNING THERE ARE SOME VERY BIG VALUES (>10^6) IN PIXEL STATS')
+                print(torch.max(pixel_stats))
+                
             elapsed =  time.time() - t
             print('time elapsed = %.5f'%elapsed)
 

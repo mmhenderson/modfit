@@ -31,11 +31,12 @@ def get_weighted_pixel_features(image_batch, spatial_weights, device=None):
     wmean = torch.sum(ims_weighted, axis=2).view([batch_size,-1,1])
 
     wvar = torch.sum(spatial_weights * (image_batch - wmean.expand([-1,-1,n_pix**2]))**2, axis=2).view([batch_size,-1,1])
-    
+    wvar += 10**(-6) # putting this in to prevent runaway values - can get massive skew/kurt if this is tiny.
+
     wskew = torch.sum(spatial_weights *(image_batch - wmean.expand([-1,-1,n_pix**2]))**3 / (wvar**(3/2)), axis=2).view([batch_size,-1,1])
     
     wkurt = torch.sum(spatial_weights *(image_batch - wmean.expand([-1,-1,n_pix**2]))**4 / (wvar**(2)), axis=2).view([batch_size,-1,1])
-    
+   
     # correct for nans/inf values which happen when variance is very small (denominator)
     wskew[torch.isnan(wskew)] = 0.0
     wkurt[torch.isnan(wkurt)] = 0.0

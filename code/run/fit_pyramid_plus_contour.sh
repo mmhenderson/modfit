@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
 #SBATCH --gres=gpu:1
+#SBATCH --nodelist=mind-1-13
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append

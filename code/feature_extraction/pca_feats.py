@@ -6,8 +6,8 @@ sys.path.append(codepath)
 from utils import default_paths
 from utils import numpy_utils as numpy_utils
 from model_fitting import initialize_fitting 
+from feature_extraction import texture_statistics_pyramid
 from sklearn import decomposition
-import scipy.stats
 import argparse
 
 """
@@ -19,7 +19,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
 
     path_to_load = default_paths.pyramid_texture_feat_path
 
-    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_ORIG.h5py'%(subject, n_ori, n_sf))
+    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     path_to_save = os.path.join(path_to_load, 'PCA')
@@ -35,10 +35,37 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
     prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
 
+    # Set up the pyramid feature extractor (just to get dims of diff feature types, not using it for real here)
+    _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
+    _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn, subject=subject, \
+                                                                              sample_batch_size=None, \
+                                                                             feature_types_exclude=[], \
+                                                   n_prf_sd_out=2, aperture=aperture, do_varpart = False, \
+                                  compute_features=False, group_all_hl_feats = True, device='cpu:0')
+    # Get dims of each feature type
+    dims = np.array(_feature_extractor.feature_type_dims_all)
+    is_ll = _feature_extractor.feature_is_ll
     # going to treat lower-level and higher-level separately here, doing pca within each set.
-    # these values are just hard-coded based on how the features were generated, in texture_statistics_pyramid.py
-    n_ll_feats = 49 
-    n_hl_feats = 592
+    feature_type_dims_ll = dims[is_ll]
+    feature_type_dims_hl = dims[~is_ll]
+    n_ll_feats = np.sum(feature_type_dims_ll)
+    n_hl_feats = np.sum(feature_type_dims_hl)
+    
+    # Define groups of columns to zscore within.
+    # Treating every pixel statistic as a different group because of different scales.
+    # Keeping the groups of mean magnitude features together across orients and scales - rather
+    # than z-scoring each column, to preserve informative difference across these channels.
+    zgroup_sizes_ll = [1,1,1,1,1,1] + list(feature_type_dims_ll[1:])
+    zgroup_sizes_hl = list(feature_type_dims_hl)
+    zgroup_labels_ll = np.concatenate([np.ones(shape=(1, zgroup_sizes_ll[ff]))*ff \
+                                           for ff in range(len(zgroup_sizes_ll))], axis=1)
+    # For the marginal stats of lowpass recons, separating skew/kurtosis here
+    zgroup_labels_ll[zgroup_labels_ll==9] = 10
+    zgroup_labels_ll[0,np.where(zgroup_labels_ll==8)[1][np.arange(1,10,2)]] = 9
+
+    # for higher level groups, just retaining original grouping scheme 
+    zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
+                                           for ff in range(len(zgroup_sizes_hl))], axis=1)
 
     prf_inds_loaded = []
     scores_ll_each_prf = []
@@ -81,18 +108,21 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         values=None
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
-
+        
         features_ll = features_in_prf[:,0:n_ll_feats]
-#         features_ll = features_ll[:,6:] # Taking out the pixel features for now 
         features_hl = features_in_prf[:,n_ll_feats:]
         assert(n_hl_feats==features_hl.shape[1])
+        
+        # z-score each group of columns.
+        features_ll_z = numpy_utils.zscore_in_groups(features_ll, zgroup_labels_ll)
+        features_hl_z = numpy_utils.zscore_in_groups(features_hl, zgroup_labels_hl)
 
-        scores_ll, wts_ll, ev_ll = do_pca(features_ll, max_pc_to_retain, zscore_first=zscore_first)
+        scores_ll, wts_ll, ev_ll = do_pca(features_ll_z, max_pc_to_retain, zscore_first=False)
         scores_ll_each_prf.append(scores_ll)
         wts_ll_each_prf.append(wts_ll)
         ev_ll_each_prf.append(ev_ll)
 
-        scores_hl, wts_hl, ev_hl = do_pca(features_hl, max_pc_to_retain, zscore_first=zscore_first)
+        scores_hl, wts_hl, ev_hl = do_pca(features_hl_z, max_pc_to_retain, zscore_first=False)
         scores_hl_each_prf.append(scores_hl)
         wts_hl_each_prf.append(wts_hl)
         ev_hl_each_prf.append(ev_hl)
@@ -140,7 +170,10 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
     elapsed = time.time() - t
     print('Took %.5f seconds to load file'%elapsed)
     # ignoring the last column which has values for "no contour" which are on a larger scale.
-    features_each_prf = values[:,0:150,:]
+#     features_each_prf = values[:,0:150,:]
+    features_each_prf = values
+
+    zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
 
     print('Size of features array for this image set is:')
     print(features_each_prf.shape)
@@ -157,11 +190,12 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
         
         features_in_prf = features_each_prf[:,:,prf_model_index]
-       
+        features_in_prf_z = numpy_utils.zscore_in_groups(features_in_prf, zgroup_labels)
+           
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
 
-        scores, wts, ev = do_pca(features_in_prf, max_pc_to_retain, zscore_first=zscore_first)
+        scores, wts, ev = do_pca(features_in_prf_z, max_pc_to_retain, zscore_first=False)
         scores_each_prf.append(scores)
         wts_each_prf.append(wts)
         ev_each_prf.append(ev)
@@ -170,9 +204,10 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, 'ev': ev_each_prf})
 
-    
 def do_pca(values, max_pc_to_retain=None, zscore_first=False):
-    
+    """
+    Apply PCA to the data, return reduced dim data as well as weights, var explained.
+    """
     n_features_actual = values.shape[1]
     n_trials = values.shape[0]
     
@@ -224,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--zscore", type=int,default=0,
-                    help="want to zscore columns before pca? 1 for yes, 0 for no")
+                    help="want to zscore individual columns before pca? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
                     help="max pc to retain? enter 0 for None")
     

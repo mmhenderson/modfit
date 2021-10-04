@@ -10,7 +10,7 @@
 
 subj=1
 debug=0
-type=texture_pyramid
+type=sketch_tokens
 zscore=0
 max_pc_to_retain=100
 
@@ -19,6 +19,3 @@ cd ../
 cd feature_extraction
 
 python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore --max_pc_to_retain $max_pc_to_retain
-
-# type=sketch_tokens
-# python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore

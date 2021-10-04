@@ -3,6 +3,23 @@ import scipy.io as sio
 from scipy.special import erf
 import math
 import sys
+import scipy.stats
+
+def zscore_in_groups(data, group_labels):
+    """
+    Apply z-scoring to data of several columns at a time - column groupings given by group_labels.
+    """
+    if len(group_labels.shape)>1:
+        group_labels = np.squeeze(group_labels)
+    assert(len(group_labels.shape)==1)
+    zdata = np.zeros(shape=np.shape(data))
+    ungroups = np.unique(group_labels)
+    for gg in range(len(ungroups)):       
+        d = data[:,group_labels==ungroups[gg]]        
+        zd = np.reshape(scipy.stats.zscore(d.ravel()), np.shape(d))        
+        zdata[:,group_labels==ungroups[gg]] = zd
+        
+    return zdata
 
 def unshuffle(shuffled_data, shuffle_order):
     """

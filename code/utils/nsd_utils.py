@@ -5,6 +5,8 @@ import h5py
 from scipy.io import loadmat
 import PIL.Image
 import nibabel as nib
+import pandas as pd
+import pickle
 
 from utils import default_paths
 
@@ -270,3 +272,23 @@ def get_subject_specific_images(nsd_root, path_to_save, npix=227):
             hf.create_dataset(key,data=val)
             print ('saved %s in h5py file' %(key))
 
+
+def get_subj_df(subject):
+    """
+    Get info about the 10,000 images that were shown to each subject.
+    Note this is not the full ordered sequence of trials (which is 30,000 long)
+    This is only the unique images 
+    (matches what is in /user_data/mmhender/nsd_stimuli/stimuli/nsd/S1_stimuli....h5py)
+    """
+    exp_design_file = os.path.join(nsd_root,"nsddata/experiments/nsd/nsd_expdesign.mat")
+    exp_design = loadmat(exp_design_file)
+    subject_idx  = exp_design['subjectim']
+    
+    nsd_meta_file = os.path.join(nsd_root, 'nsddata/experiments/nsd/nsd_stim_info_merged.pkl')
+    with open(nsd_meta_file,'rb') as f:
+        stim_info = pickle.load(f,encoding="latin1")
+    
+    ss=subject-1
+    subject_df = stim_info.loc[subject_idx[ss,:]-1]
+
+    return subject_df

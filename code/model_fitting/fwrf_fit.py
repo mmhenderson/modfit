@@ -280,8 +280,9 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
                     else:
 
-                        # for the partial models we don't actually care which was best for the partial model itself,
-                        # just care what was best for the full model
+                        # for the partial models we don't actually care which pRF was best for the partial model itself,
+                        # just using which pRF is best for the full model. This way pRF is always the same even when 
+                        # leaving a set of features out.
                         imp = full_model_improved[rv]
 
 

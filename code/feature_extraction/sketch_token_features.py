@@ -11,31 +11,31 @@ sketch_token_feat_path = default_paths.sketch_token_feat_path
 
 class sketch_token_feature_extractor(nn.Module):
     
-    def __init__(self, subject, device, map_resolution=227, aperture = 1.0, n_prf_sd_out = 2, \
-                 batch_size=100, mult_patch_by_prf=True, do_avg_pool = True, \
-                 do_pca = True, min_pct_var = 99, max_pc_to_retain = 100):
+    def __init__(self, subject, device,\
+                 use_pca_feats = False, min_pct_var = 99, max_pc_to_retain = 100, \
+                 use_lda_feats = False):
         
         super(sketch_token_feature_extractor, self).__init__()
         
         self.subject = subject
         
-        self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+        self.use_pca_feats = use_pca_feats
+        self.use_lda_feats = use_lda_feats
+        if self.use_pca_feats:
+            self.use_lda_feats = False # only allow one of these to be true
+            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', 'S%d_PCA.npy'%(subject))
+        elif self.use_lda_feats:
+            self.features_file = os.path.join(sketch_token_feat_path, 'LDA', 'S%d_LDA.npy'%(subject))         
+        else:
+            self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+            
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
-        with h5py.File(self.features_file, 'r') as data_set:
-            ds_size = np.shape(data_set['/features'])
-        self.n_features = ds_size[1]
+
+        self.n_features = 151
         self.device = device
-          
-        self.map_resolution = map_resolution
-        self.aperture = aperture
-        self.n_prf_sd_out = n_prf_sd_out
-        self.batch_size = batch_size
-        self.mult_patch_by_prf = mult_patch_by_prf
-        self.do_avg_pool = do_avg_pool # else max pool
-        
-        self.do_pca = do_pca
-        if self.do_pca:
+
+        if self.use_pca_feats:
             self.min_pct_var = min_pct_var
             self.max_pc_to_retain = np.min([self.n_features, max_pc_to_retain])
         else:
@@ -53,25 +53,13 @@ class sketch_token_feature_extractor(nn.Module):
         """
         
         print('Initializing for fitting')
-        n_prfs = len(models)
-        n_feat_each_prf = self.n_features * np.ones(shape=(n_prfs,),dtype=int)      
-        self.n_feat_each_prf = n_feat_each_prf
-        
-        if self.do_pca:
-            
-            print('Initializing arrays for PCA params')
-            # will need to save pca parameters to reproduce it during validation stage
-            # max pc to retain is just to save space, otherwise the "pca_wts" variable becomes huge  
-            self.max_features = self.max_pc_to_retain
-            self.pca_wts = [np.zeros(shape=(self.max_pc_to_retain, n_feat_each_prf[mm]), dtype=dtype) for mm in range(n_prfs)] 
-            self.pca_pre_z_mean = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
-            self.pca_pre_z_std = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
-            self.pca_pre_mean = [np.zeros(shape=(n_feat_each_prf[mm],), dtype=dtype) for mm in range(n_prfs)]
-            self.pct_var_expl = np.zeros(shape=(self.max_pc_to_retain, n_prfs), dtype=dtype)
-            self.n_comp_needed = np.full(shape=(n_prfs), fill_value=-1, dtype=int)
 
+        if self.use_pca_feats:
+            self.max_features = self.max_pc_to_retain        
+        elif self.use_lda_feats:
+            self.max_features = 11;
         else:
-            self.max_features = np.max(n_feat_each_prf)
+            self.max_features = self.n_features
        
         self.clear_big_features()
         
@@ -89,16 +77,48 @@ class sketch_token_feature_extractor(nn.Module):
         
         print('Loading pre-computed features from %s'%self.features_file)
         t = time.time()
-        with h5py.File(self.features_file, 'r') as data_set:
-            values = np.copy(data_set['/features'])
-            data_set.close() 
-        elapsed = time.time() - t
-        print('Took %.5f seconds to load file'%elapsed)
+           
+        if self.use_pca_feats:
+            
+            # loading pre-computed pca features, and deciding here how many features to include in model.
+            pc_result = np.load(self.features_file, allow_pickle=True).item()
+            scores_each_prf = pc_result['scores']
+            ev_each_prf = pc_result['ev']
+            n_pcs_avail = scores_each_prf[0].shape[1]
+            n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
+                               if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
+                               else n_pcs_avail for ev in ev_each_prf]
+            n_feat_each_prf = [np.min([nf, self.max_pc_to_retain]) for nf in n_feat_each_prf]
+            self.features_each_prf = [scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]] \
+                                      for mm in range(len(scores_each_prf))]           
+            print('Size of features array for first prf model with this image set is:')
+            print(self.features_each_prf[0].shape)
+            
+        elif self.use_lda_feats:
+            
+            # loading pre-computed linear discriminant analysis features
+            lda_result = np.load(self.features_file, allow_pickle=True).item()
+            scores_each_prf = lda_result['scores']
+
+            self.features_each_prf = np.moveaxis(np.array([scores_each_prf[mm][image_inds,:] \
+                          for mm in range(len(scores_each_prf))]), [0,1,2], [2,0,1])
+            assert(self.features_each_prf.shape[1]==self.max_features)
+            print('Size of features array for this image set is:')
+            print(self.features_each_prf.shape)
         
-        self.features_each_prf = values[image_inds,:,:]
+        else:
+            
+            # Loading raw sketch tokens features.
+            with h5py.File(self.features_file, 'r') as data_set:
+                values = np.copy(data_set['/features'])
+                data_set.close() 
+            elapsed = time.time() - t
+            print('Took %.5f seconds to load file'%elapsed)
+
+            self.features_each_prf = values[image_inds,:,:]
         
-        print('Size of features array for this image set is:')
-        print(self.features_each_prf.shape)
+            print('Size of features array for this image set is:')
+            print(self.features_each_prf.shape)
         
     def clear_big_features(self):
         
@@ -109,15 +129,13 @@ class sketch_token_feature_extractor(nn.Module):
         
         if self.features_each_prf is None:
             self.load_precomputed_features(image_inds)
-        else:
-            assert(self.features_each_prf.shape[0]==len(image_inds))
-            
-        # Taking the features for the desired prf model
-        features = self.features_each_prf[:,:,prf_model_index]
         
-        if self.do_pca:    
-            features = self.reduce_pca(features, prf_model_index, fitting_mode)
-
+        if self.use_pca_feats:
+            features = self.features_each_prf[prf_model_index]
+        else:
+            features = self.features_each_prf[:,:,prf_model_index]
+        
+        assert(features.shape[0]==len(image_inds))
         print('Final size of feature matrix is:')
         print(features.shape)
         
@@ -128,81 +146,7 @@ class sketch_token_feature_extractor(nn.Module):
             
         return features, feature_inds_defined
      
-        
-    def reduce_pca(self, features, prf_model_index, fitting_mode=True):
-        
-        if torch.is_tensor(features):
-            features = features.detach().cpu().numpy()
-            was_tensor=True
-        else:
-            was_tensor=False
-            
-        n_trials = features.shape[0]
-        n_features_actual = features.shape[1]
-        assert(n_features_actual == self.n_feat_each_prf[prf_model_index])
-        print('Preparing for PCA: original dims of features:')
-        print(features.shape)
-        
-        if fitting_mode:
-            
-            # Going to perform pca on the raw features
-            # First make sure it hasn't been done yet!
-            assert(self.n_comp_needed[prf_model_index]==-1) 
-            print('Running PCA...')
-            pca = decomposition.PCA(n_components = np.min([np.min([self.max_pc_to_retain, n_features_actual]), n_trials]), copy=False)
-            # for this model, need to normalize the columns otherwise the last one dominates...
-            features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
-            features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
-            features -= features_m
-            features /= features_s 
-            self.pca_pre_z_mean[prf_model_index][0:n_features_actual] = features_m
-            self.pca_pre_z_std[prf_model_index][0:n_features_actual] = features_s
-            
-            # Perform PCA to decorrelate feats and reduce dimensionality
-            scores = pca.fit_transform(features)           
-            features = None            
-            wts = pca.components_
-            ev = pca.explained_variance_
-            ev = ev/np.sum(ev)*100
-            # wts/components goes [ncomponents x nfeatures]. 
-            # nfeatures is always actual number of raw features
-            # ncomponents is min(ntrials, nfeatures)
-            # to save space, only going to save up to some max number of components.
-            n_components_actual = np.min([wts.shape[0], self.max_pc_to_retain])
-            # save a record of the transformation to be used for validating model
-            self.pca_wts[prf_model_index][0:n_components_actual,0:n_features_actual] = wts[0:n_components_actual,:] 
-            # mean of each feature, nfeatures long - needed to reproduce transformation
-            self.pca_pre_mean[prf_model_index][0:n_features_actual] = pca.mean_ 
-            # max len of ev is the number of components
-            self.pct_var_expl[0:n_components_actual,prf_model_index] = ev[0:n_components_actual]  
-            n_components_reduced = int(np.where(np.cumsum(ev)>self.min_pct_var)[0][0] if np.any(np.cumsum(ev)>self.min_pct_var) else len(ev))
-            n_components_reduced = np.max([n_components_reduced, 1])
-            self.n_comp_needed[prf_model_index] = n_components_reduced
-            print('Retaining %d components to expl %d pct var'%(n_components_reduced, self.min_pct_var))
-            assert(n_components_reduced<=self.max_pc_to_retain)            
-            features_reduced = scores[:,0:n_components_reduced]
-           
-        else:
-            
-            # This is a validation pass, going to use the pca pars that were computed on training set
-            # Make sure it has been done already!
-            assert(self.n_comp_needed[prf_model_index]!=-1)
-            print('Applying pre-computed PCA matrix...')
-            # Apply the PCA transformation, just as it was done during training
-            features -= np.tile(np.expand_dims(self.pca_pre_z_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
-            features /= np.tile(np.expand_dims(self.pca_pre_z_std[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
-            
-            features_submean = features - np.tile(np.expand_dims(self.pca_pre_mean[prf_model_index][0:n_features_actual], axis=0), [n_trials, 1])
-            features_reduced = features_submean @ np.transpose(self.pca_wts[prf_model_index][0:self.n_comp_needed[prf_model_index],0:n_features_actual])               
-                       
-        features = None
-        
-        if was_tensor:
-            features_reduced = torch.tensor(features_reduced).to(self.device)
-        
-        return features_reduced
     
-
 def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_pool=True, \
                           batch_size=100, aperture=1.0, debug=False, device=None):
     """

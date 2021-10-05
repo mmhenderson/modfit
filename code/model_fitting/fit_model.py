@@ -18,7 +18,7 @@ import skimage.transform
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, bdcn_features, sketch_token_features
-from feature_extraction import texture_statistics_pyramid as texture_statistics_pyramid
+from feature_extraction import texture_statistics_pyramid
 from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting
@@ -39,8 +39,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, do_val = True, do_stack=True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
-             do_pca_st = True, do_pca_bdcn = True, do_pca_pyr_hl = False, min_pct_var = 99, max_pc_to_retain = 400, \
-             map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, do_avg_pool = True, \
+             use_pca_st_feats = False, use_lda_st_feats = False, do_pca_bdcn = True, do_pca_pyr_hl = False, \
+             min_pct_var = 99, max_pc_to_retain = 400, \
+             map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, \
              downsample_factor = 1.0, do_nms = False):
     
     def save_all(fn2save, fitting_type):
@@ -93,12 +94,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             
         if 'sketch_tokens' in fitting_type:
             dict2save.update({
-            'pc': pc,
             'min_pct_var': min_pct_var,
             'max_pc_to_retain': max_pc_to_retain,           
-            'mult_patch_by_prf': mult_patch_by_prf,
-            'map_resolution': map_resolution, 
-            'do_avg_pool': do_avg_pool,
+            'use_pca_st_feats': use_pca_st_feats, 
+            'use_lda_st_feats': use_lda_st_feats,
             })
             
         if 'pyramid' in fitting_type:
@@ -162,14 +161,17 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         name1 = 'bdcn'
         
     elif 'sketch_tokens' in fitting_type:
-        model_name = initialize_fitting.get_sketch_tokens_model_name(do_pca_st)   
+        if use_pca_st_feats:
+            # not allowing both of these to be true
+            use_lda_st_feats = False
+        model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats)   
         name1 = 'sketch_tokens'
         
     else:
         raise ValueError('your string for fitting_type was not recognized')
         
     if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(do_pca_st)
+        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats)   
         model_name = model_name + '_plus_' + model_name2
     elif 'plus_bdcn' in fitting_type:
         model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
@@ -240,13 +242,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'sketch_tokens' in fitting_type:
-        
-        map_resolution = 227
-        _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject, device, map_resolution=map_resolution, \
-                                                                                  aperture = aperture, \
-                                                             n_prf_sd_out = n_prf_sd_out, \
-                                             batch_size=sample_batch_size, mult_patch_by_prf=mult_patch_by_prf, do_avg_pool = do_avg_pool,\
-                                             do_pca = do_pca_st, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+
+        _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                 use_lda_feats = use_lda_st_feats)
         
     elif 'bdcn' in fitting_type:
         
@@ -260,12 +259,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
         
     if 'plus_sketch_tokens' in fitting_type:
-        map_resolution = 227
-        _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject, device, map_resolution=map_resolution, \
-                                                                                   aperture = aperture, \
-                                                             n_prf_sd_out = n_prf_sd_out, \
-                                       batch_size=sample_batch_size, mult_patch_by_prf=mult_patch_by_prf, do_avg_pool = do_avg_pool,\
-                                                   do_pca = do_pca_st, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+        
+        _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                 use_lda_feats = use_lda_st_feats)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
     
@@ -386,18 +383,21 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ##############################################
     sys.stdout.flush()
     if do_stack: 
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start stacking analysis')
-        sys.stdout.flush()
         
-        trn_holdout_voxel_data = trn_voxel_data[holdout_trial_order,:]
-        stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
-            fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, \
-                                      trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
-                                     
-        save_all(fn2save, fitting_type)
-   
+        if len(partial_version_names)>1:
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start stacking analysis')
+            sys.stdout.flush()
+
+            trn_holdout_voxel_data = trn_voxel_data[holdout_trial_order,:]
+            stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
+                fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, \
+                                          trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
+
+            save_all(fn2save, fitting_type)
+        else:
+            print('Skipping stacking analysis because you only have one set of features.')
 
     ########## SUPPORT FUNCTIONS HERE ###############
 
@@ -408,16 +408,19 @@ if __name__ == '__main__':
 
     # now actually call the function to execute fitting...
  
-    fit_fwrf(fitting_type = args.fitting_type, subject=args.subject, volume_space = args.volume_space, up_to_sess = args.up_to_sess, \
+    fit_fwrf(fitting_type = args.fitting_type, subject=args.subject, volume_space = args.volume_space, \
+             up_to_sess = args.up_to_sess, \
              n_ori = args.n_ori, n_sf = args.n_sf, nonlin_fn = args.nonlin_fn==1,  padding_mode = args.padding_mode, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, ridge = args.ridge==1, \
-             shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, random_voxel_data = args.random_voxel_data==1, \
-             do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_stack = args.do_stack==1, do_varpart = args.do_varpart==1, 
-             date_str = args.date_str, \
+             shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
+             random_voxel_data = args.random_voxel_data==1, \
+             do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_stack = args.do_stack==1, \
+             do_varpart = args.do_varpart==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
-             do_pca_pyr_hl = args.do_pca_pyr_hl==1, do_pca_st = args.do_pca_st==1, do_pca_bdcn = args.do_pca_bdcn==1, \
+             do_pca_pyr_hl = args.do_pca_pyr_hl==1, use_pca_st_feats = args.use_pca_st_feats==1, \
+             use_lda_st_feats = args.use_lda_st_feats==1, do_pca_bdcn = args.do_pca_bdcn==1, \
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
-             n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, do_avg_pool = args.do_avg_pool==1, \
+             n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \
              downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)

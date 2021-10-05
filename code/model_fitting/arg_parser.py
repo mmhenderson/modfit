@@ -75,10 +75,9 @@ def get_args():
     # Stuff that is specific to PCA
     parser.add_argument("--do_pca_bdcn", type=int, default=1,
                     help="want to do PCA on BDCN features before fitting? 1 for yes, 0 for no")
-    parser.add_argument("--do_pca_st", type=int, default=1,
-                    help="want to do PCA on sketch tokens features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--do_pca_pyr_hl", type=int, default=1,
                     help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
+    
     parser.add_argument("--min_pct_var", type=int,default=95,
                     help="minimum percent var to use when choosing num pcs to retain, default 95")
     parser.add_argument("--max_pc_to_retain", type=int,default=100,
@@ -93,12 +92,14 @@ def get_args():
                     help="In BDCN model, downsample edge maps before getting feautures? 1 for yes, 0 for no")
 
     parser.add_argument("--mult_patch_by_prf", type=int, default=1,
-                    help="For BDCN and sketch tokens, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
+                    help="For BDCN model, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
     
     # Specific to sketch tokens
-    parser.add_argument("--do_avg_pool", type=int, default=1,
-                    help="In sketch tokens model, want to apply avg pooling or max pooling across spatial pRF? 1 for avg, 0 for max")
-   
+    parser.add_argument("--use_pca_st_feats", type=int, default=0,
+                    help="Want to use reduced dim (PCA) version of sketch tokens features?")
+    parser.add_argument("--use_lda_st_feats", type=int, default=0,
+                    help="Want to use reduced dim (LDA) version of sketch tokens features?")
+                            
     args = parser.parse_args()
     
     # print values of a few key things to the command line...

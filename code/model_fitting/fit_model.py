@@ -39,7 +39,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, do_val = True, do_stack=True, do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
-             use_pca_st_feats = False, use_lda_st_feats = False, do_pca_bdcn = True, do_pca_pyr_hl = False, \
+             use_pca_st_feats = False, use_lda_st_feats = False, use_lda_animacy_st_feats = False, \
+             do_pca_bdcn = True, do_pca_pyr_hl = False, \
              min_pct_var = 99, max_pc_to_retain = 400, \
              map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, \
              downsample_factor = 1.0, do_nms = False):
@@ -98,6 +99,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             'max_pc_to_retain': max_pc_to_retain,           
             'use_pca_st_feats': use_pca_st_feats, 
             'use_lda_st_feats': use_lda_st_feats,
+            'use_lda_animacy_st_feats': use_lda_animacy_st_feats,
             })
             
         if 'pyramid' in fitting_type:
@@ -164,14 +166,16 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         if use_pca_st_feats:
             # not allowing both of these to be true
             use_lda_st_feats = False
-        model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats)   
+            use_lda_animacy_st_feats = False
+        model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
+                                                                     use_lda_st_feats, use_lda_animacy_st_feats)   
         name1 = 'sketch_tokens'
         
     else:
         raise ValueError('your string for fitting_type was not recognized')
         
     if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats)   
+        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, use_lda_animacy_st_feats)   
         model_name = model_name + '_plus_' + model_name2
     elif 'plus_bdcn' in fitting_type:
         model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
@@ -183,17 +187,18 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
     # decide what voxels to use  
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space)
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space, include_all=True)
 
     sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
     # get all data and corresponding images, in two splits. always fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
-            image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, sessions=sessions, \
-                                                                 voxel_mask=voxel_mask, volume_space=volume_space, \
-                                                                  zscore_betas_within_sess=zscore_betas_within_sess, \
-                                                                  shuffle_images=shuffle_images, random_images=random_images, \
-                                                                                             random_voxel_data=random_voxel_data)
+            image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, \
+                                      sessions=sessions, image_inds_only = True, \
+                                      voxel_mask=voxel_mask, volume_space=volume_space, \
+                                      zscore_betas_within_sess=zscore_betas_within_sess, \
+                                  shuffle_images=shuffle_images, random_images=random_images, \
+                                    random_voxel_data=random_voxel_data)
 
     
     if 'gabor' in fitting_type or 'sketch_tokens' in fitting_type or 'pyramid' in fitting_type:
@@ -245,7 +250,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats)
+                 use_lda_feats = use_lda_st_feats, use_lda_animacy_feats = use_lda_animacy_st_feats)
         
     elif 'bdcn' in fitting_type:
         
@@ -262,7 +267,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
         _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats)
+                 use_lda_feats = use_lda_st_feats, use_lda_animacy_feats = use_lda_animacy_st_feats)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
     
@@ -420,7 +425,9 @@ if __name__ == '__main__':
              do_varpart = args.do_varpart==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca_pyr_hl = args.do_pca_pyr_hl==1, use_pca_st_feats = args.use_pca_st_feats==1, \
-             use_lda_st_feats = args.use_lda_st_feats==1, do_pca_bdcn = args.do_pca_bdcn==1, \
+             use_lda_st_feats = args.use_lda_st_feats==1, \
+             use_lda_animacy_st_feats = args.use_lda_animacy_st_feats==1, \
+             do_pca_bdcn = args.do_pca_bdcn==1, \
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
              n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \
              downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)

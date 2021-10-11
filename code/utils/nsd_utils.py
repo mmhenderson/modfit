@@ -48,7 +48,7 @@ def ncsnr_to_nc(ncsnr, n=1):
     noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)   
     return noise_ceiling
     
-def get_image_data(subject, shuffle_images=False, random_images=False):
+def get_image_data(subject, shuffle_images=False, random_images=False, native=False):
 
     """
     Load the set of NSD images that were shown to a given subject.
@@ -58,7 +58,10 @@ def get_image_data(subject, shuffle_images=False, random_images=False):
     
     if random_images==False:        
         print('\nLoading images for subject %d\n'%subject)
-        image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_240.h5py'%subject))        
+        if native:
+            image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_native.h5py'%subject))     
+        else:
+            image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_240.h5py'%subject))        
     else:        
         print('\nGenerating random gaussian noise images...\n')
         n_images = 10000
@@ -172,7 +175,7 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
     return betas_full
        
 
-def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_sess=True, volume_space=True, \
+def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=None, zscore_betas_within_sess=True, volume_space=True, \
                     shuffle_images=False, random_images=False, random_voxel_data=False):
 
     """
@@ -184,8 +187,11 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_
     """
     
     # First load all the images, full brick of 10,000 images. Not in order yet.
-    image_data = get_image_data(subject, shuffle_images, random_images)
-    image_data = image_uncolorize_fn(image_data)
+    if not image_inds_only:
+        image_data = get_image_data(subject, shuffle_images, random_images)
+        image_data = image_uncolorize_fn(image_data)
+    else:
+        image_data = None
     # Load the experiment design file that defines actual order.
     image_order = get_master_image_order()
     
@@ -198,7 +204,8 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_
     image_order = image_order[inds2use]
     
     # Now re-ordering the image data into the real sequence, for just the sessions of interest.
-    image_data_ordered = image_data[image_order]
+    if not image_inds_only:
+        image_data_ordered = image_data[image_order]
     
     # Now load voxel data (preprocessed beta weights for each trial)
     if random_voxel_data==False:
@@ -222,9 +229,13 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, zscore_betas_within_
     val_voxel_data = voxel_data[shared_1000_inds,:]
     trn_voxel_data = voxel_data[~shared_1000_inds,:]
 
-    val_stim_data = image_data_ordered[shared_1000_inds,:,:,:]
-    trn_stim_data = image_data_ordered[~shared_1000_inds,:,:,:]
-    
+    if not image_inds_only:
+        val_stim_data = image_data_ordered[shared_1000_inds,:,:,:]
+        trn_stim_data = image_data_ordered[~shared_1000_inds,:,:,:]
+    else:
+        val_stim_data = None
+        trn_stim_data = None
+        
     image_order_val = image_order[shared_1000_inds]
     image_order_trn = image_order[~shared_1000_inds]
 

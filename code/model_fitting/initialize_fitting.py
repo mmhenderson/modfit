@@ -111,10 +111,12 @@ def get_gabor_solo_model_name(ridge, n_ori, n_sf):
 
     return model_name
 
-def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats):
+def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, use_lda_animacy_st_feats):
 
     if use_pca_st_feats==True:       
         model_name = 'sketch_tokens_pca'
+    elif use_lda_animacy_st_feats==True:
+        model_name = 'sketch_tokens_lda_animacy'
     elif use_lda_st_feats==True:
         model_name = 'sketch_tokens_lda'
     else:        

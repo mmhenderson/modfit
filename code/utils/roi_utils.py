@@ -84,7 +84,7 @@ def load_roi_label_mapping(subject, verbose=False):
     return [ret_num_labels, ret_text_labels], [faces_num_labels, faces_text_labels], [places_num_labels, places_text_labels]
                 
      
-def get_voxel_roi_info(subject, volume_space=True):
+def get_voxel_roi_info(subject, volume_space=True, include_all=False):
 
     """
     For a specified subject, load all definitions of all ROIs for this subject.
@@ -104,6 +104,8 @@ def get_voxel_roi_info(subject, volume_space=True):
        
         print('\nVolume space: ROI defs are located at: %s\n'%roi_path)
 
+        nsd_general_full = load_from_nii(os.path.join(roi_path, 'nsdgeneral.nii.gz')).flatten()
+            
         prf_labels_full  = load_from_nii(os.path.join(roi_path, 'prf-visualrois.nii.gz'))
         # save the shape, so we can project back to volume space later.
         brain_nii_shape = np.array(prf_labels_full.shape)
@@ -140,6 +142,11 @@ def get_voxel_roi_info(subject, volume_space=True):
         place_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.floc-places.mgz'))[:,0,0]
         place_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.floc-places.mgz'))[:,0,0]
         place_labels_full = np.concatenate((place_labs1, place_labs2), axis=0)
+      
+        # Note this part hasn't been tested
+        general_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.nsdgeneral.mgz'))[:,0,0]
+        general_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.nsdgeneral.mgz'))[:,0,0]
+        nsd_general_full = np.concatenate((general_labs1, general_labs2), axis=0)
   
         # Masks of ncsnr values for each voxel 
         n1 = load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
@@ -151,6 +158,7 @@ def get_voxel_roi_info(subject, volume_space=True):
         brain_nii_shape = None
 
     # boolean masks of which voxels had definitions in each of these naming schemes
+    has_general_label = (nsd_general_full>0).astype(bool)
     has_prf_label = (prf_labels_full>0).astype(bool)
     has_kast_label = (kast_labels_full>0).astype(bool)
     has_face_label = (face_labels_full>0).astype(bool)
@@ -185,6 +193,10 @@ def get_voxel_roi_info(subject, volume_space=True):
 
     # Now masking out all voxels that have any definition, and using them for the analysis. 
     voxel_mask = np.logical_or(roi_labels_retino>0, roi_labels_categ>0)
+    if include_all:
+        print('Including all voxels that are defined within nsdgeneral mask, in addition to roi labels.')
+        voxel_mask = np.logical_or(voxel_mask, has_general_label)
+        
     voxel_idx = np.where(voxel_mask) # numerical indices into the big 3D array
     print('\n%d voxels are defined across all areas, and will be used for analysis\n'%np.size(voxel_idx))
 

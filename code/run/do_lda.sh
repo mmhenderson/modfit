@@ -10,10 +10,14 @@
 
 subj=1
 debug=0
-type=sketch_tokens
+feature_type=sketch_tokens
+# discrim_type=animacy
+discrim_type=all_supcat
+do_features=1
+do_class_cv=0
 
 source ~/myenv/bin/activate
 cd ../
 cd feature_extraction
 
-python3 linear_discr.py --subject $subj --debug $debug --type $type
+python3 linear_discr.py --subject $subj --debug $debug --feature_type $feature_type --discrim_type $discrim_type --do_features $do_features --do_class_cv $do_class_cv

@@ -99,7 +99,9 @@ def get_args():
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")
     parser.add_argument("--use_lda_st_feats", type=int, default=0,
                     help="Want to use reduced dim (LDA) version of sketch tokens features?")
-                            
+    parser.add_argument("--use_lda_animacy_st_feats", type=int, default=0,
+                    help="Want to use reduced dim (LDA) version of sketch tokens features?")
+                             
     args = parser.parse_args()
     
     # print values of a few key things to the command line...

@@ -16,7 +16,7 @@ ROOT=$(pwd)
 
 subj=1
 volume_space=1
-up_to_sess=10
+up_to_sess=40
 ridge=1
 sample_batch_size=100
 voxel_batch_size=100
@@ -26,7 +26,7 @@ fitting_type=sketch_tokens
 use_pca_st_feats=1
 use_lda_st_feats=0
 min_pct_var=100
-max_pc_to_retain=11
+max_pc_to_retain=1
 
 do_stack=0
 

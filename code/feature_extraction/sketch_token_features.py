@@ -3,6 +3,7 @@ import sys, os
 import torch
 import time
 import h5py
+import pandas as pd
 import torch.nn as nn
 from sklearn import decomposition
 
@@ -13,7 +14,7 @@ class sketch_token_feature_extractor(nn.Module):
     
     def __init__(self, subject, device,\
                  use_pca_feats = False, min_pct_var = 99, max_pc_to_retain = 100, \
-                 use_lda_feats = False):
+                 use_lda_feats = False, use_lda_animacy_feats = False):
         
         super(sketch_token_feature_extractor, self).__init__()
         
@@ -21,18 +22,30 @@ class sketch_token_feature_extractor(nn.Module):
         
         self.use_pca_feats = use_pca_feats
         self.use_lda_feats = use_lda_feats
+        self.use_lda_animacy_feats = use_lda_animacy_feats
+        
         if self.use_pca_feats:
+            self.n_features = 151
             self.use_lda_feats = False # only allow one of these to be true
-            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', 'S%d_PCA.npy'%(subject))
+            self.use_lda_animacy_feats = False
+            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', 'S%d_PCA.npy'%(subject))     
+        elif self.use_lda_animacy_feats:
+            self.n_features = 1
+            self.use_pca_feats = False
+            self.use_lda_feats = False
+            self.features_file = os.path.join(sketch_token_feat_path, 'LDA','S%d_LDA_animacy.npy'%subject)
         elif self.use_lda_feats:
-            self.features_file = os.path.join(sketch_token_feat_path, 'LDA', 'S%d_LDA.npy'%(subject))         
+            self.n_features = 11
+            self.use_pca_feats = False
+            self.use_lda_animacy_feats = False
+            self.features_file = os.path.join(sketch_token_feat_path, 'LDA', 'S%d_LDA.npy'%(subject))     
         else:
+            self.n_features = 151
             self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
             
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
-        self.n_features = 151
         self.device = device
 
         if self.use_pca_feats:
@@ -56,8 +69,6 @@ class sketch_token_feature_extractor(nn.Module):
 
         if self.use_pca_feats:
             self.max_features = self.max_pc_to_retain        
-        elif self.use_lda_feats:
-            self.max_features = 11;
         else:
             self.max_features = self.n_features
        
@@ -94,7 +105,22 @@ class sketch_token_feature_extractor(nn.Module):
             print('Size of features array for first prf model with this image set is:')
             print(self.features_each_prf[0].shape)
             
-        elif self.use_lda_feats:
+#         elif self.use_lda_animacy_feats:
+            
+#             n_prfs = 875
+#             features_each_prf = np.zeros((len(image_inds), self.n_features, n_prfs))
+#             for mm in range(n_prfs):
+#                 fn2load = self.features_file.split('.')[0][0:-1] + '%d'%mm + '.csv'
+#                 print('loading from %s'%fn2load)
+#                 lda_result = pd.read_csv(fn2load, index_col = 0)               
+#                 labels = np.array(lda_result['has_animate'])
+#                 features_each_prf[:,:,mm] = labels[image_inds]               
+#             self.features_each_prf = features_each_prf
+#             assert(self.features_each_prf.shape[1]==self.max_features)
+#             print('Size of features array for this image set is:')
+#             print(self.features_each_prf.shape)
+            
+        elif self.use_lda_feats or self.use_lda_animacy_feats:
             
             # loading pre-computed linear discriminant analysis features
             lda_result = np.load(self.features_file, allow_pickle=True).item()

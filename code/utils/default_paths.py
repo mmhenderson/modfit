@@ -16,7 +16,8 @@ else:
     
 nsd_root = nsd_path
 beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
-stim_root = os.path.join(root, 'nsd_stimuli/stimuli/nsd/')    
+stim_root = os.path.join(root, 'nsd_stimuli/stimuli/')    
+stim_labels_root = os.path.join(root, 'nsd_stimuli/labels/')    
 
 # Where to save model fits
 save_fits_path = os.path.join(root,'imStat/model_fits/')

@@ -331,3 +331,149 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
             fn2save =  os.path.join(folder2save,'S%d_cocolabs_binary_prf%d.csv'%(subject, mm))
         print('Saving to %s'%fn2save)
         binary_df.to_csv(fn2save, header=True)
+        
+        
+def write_indoor_outdoor_csv(subject):
+    """
+    Creating binary labels for indoor/outdoor status of images (inferred based on presence of 
+    various categories in coco and coco-stuff).
+    """
+    
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
+            get_coco_cat_info(coco_val)
+
+    stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
+            get_coco_cat_info(coco_stuff_val)
+
+    must_be_indoor = np.array([0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 0, 0, 0, 0, 0, 0, 0, \
+                 0, 1, 1, 1, 1, 1, 1, 0, \
+                 1, 1, 1, 0, 1, 1, 1, 1, \
+                 1, 0, 1, 1, 0, 0, 1, 1 ])
+
+    must_be_outdoor = np.array([0, 0, 1, 1, 1, 1, 1, 1, 
+                            1, 1, 1, 1, 1, 1, 0, 0, \
+                            0, 1, 1, 1, 1, 1, 1, 1, \
+                            0, 0, 0, 0, 0, 1, 1, 1, \
+                            1, 1, 1, 1, 1, 1, 1, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0])
+
+    print('things labels assumed to be indoor:')
+    print(np.array(cat_names)[must_be_indoor==1])
+    print('things labels assumed to be outdoor:')
+    print(np.array(cat_names)[must_be_outdoor==1])
+    print('things labels that are ambiguous:')
+    print(np.array(cat_names)[(must_be_outdoor==0) & (must_be_indoor==0)])
+
+
+
+    stuff_must_be_indoor = np.array([0, 0, 0, 0, 0, 0, 1, 0, \
+                           0, 1, 1, 1, 0, 0, 0, 1, \
+                           1, 1, 1, 0, 0, 0, 1, 0, \
+                           0, 1, 1, 0, 0, 0, 0, 1, \
+                           0, 0, 0, 0, 0, 0, 0, 0, \
+                           0, 0, 0, 0, 0, 0, 0, 0, \
+                           0, 1, 0, 0, 0, 0, 0, 0, \
+                           0, 0, 0, 0, 1, 0, 0, 0, \
+                           1, 0, 0, 0, 0, 0, 0, 0, \
+                           0, 0, 0, 0, 0, 0, 0, 0, \
+                           0, 0, 1, 0, 1, 0, 0, 0, \
+                           1, 0, 0, 0])
+
+    stuff_must_be_outdoor = np.array([0, 0, 1, 1, 1, 1, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 1, 0, \
+                            0, 0, 0, 1, 0, 1, 0, 0, \
+                            0, 0, 0, 0, 1, 0, 0, 0, \
+                            1, 1, 0, 1, 1, 1, 0, 0, \
+                            0, 0, 1, 1, 1, 0, 0, 0, \
+                            1, 0, 0, 0, 0, 1, 0, 1, \
+                            1, 1, 1, 1, 0, 0, 1, 1, \
+                            0, 1, 1, 1, 0, 0, 0, 1, \
+                            0, 0, 1, 0, 0, 1, 0, 0, \
+                            0, 0, 0, 0, 0, 0, 0, 0, \
+                            0, 0, 0, 0])
+
+    print('stuff labels assumed to be indoor:')
+    print(np.array(stuff_cat_names)[stuff_must_be_indoor==1])
+    print('stuff labels assumed to be outdoor:')
+    print(np.array(stuff_cat_names)[stuff_must_be_outdoor==1])
+    print('stuff labels that are ambiguous:')
+    print(np.array(stuff_cat_names)[(stuff_must_be_outdoor==0) & (stuff_must_be_indoor==0)])
+
+    fn2load = os.path.join(default_paths.stim_labels_root, 'S%d_cocolabs_binary.csv'%subject)
+    coco_df = pd.read_csv(fn2load, index_col = 0)
+
+    cat_labels = np.array(coco_df)[:,12:92]
+
+    indoor_columns = np.array([cat_labels[:,cc] for cc in np.where(must_be_indoor)[0]]).T
+    indoor_inds_things = np.any(indoor_columns, axis=1)
+    indoor_sum_things = np.sum(indoor_columns==1, axis=1)
+
+    outdoor_columns = np.array([cat_labels[:,cc] for cc in np.where(must_be_outdoor)[0]]).T
+    outdoor_inds_things = np.any(outdoor_columns, axis=1)
+    outdoor_sum_things = np.sum(outdoor_columns==1, axis=1)
+
+    np.mean(outdoor_inds_things)
+
+    fn2load = os.path.join(default_paths.stim_labels_root, 'S%d_cocolabs_stuff_binary.csv'%subject)
+    coco_stuff_df = pd.read_csv(fn2load, index_col=0)
+
+    stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
+
+    indoor_columns = np.array([stuff_cat_labels[:,cc] for cc in np.where(stuff_must_be_indoor)[0]]).T
+    indoor_inds_stuff = np.any(indoor_columns, axis=1)
+    indoor_sum_stuff = np.sum(indoor_columns==1, axis=1)
+
+    outdoor_columns = np.array([stuff_cat_labels[:,cc] for cc in np.where(stuff_must_be_outdoor)[0]]).T
+    outdoor_inds_stuff = np.any(outdoor_columns, axis=1)
+    outdoor_sum_stuff = np.sum(outdoor_columns==1, axis=1)
+
+    outdoor_all = outdoor_inds_things | outdoor_inds_stuff
+    indoor_all = indoor_inds_things | indoor_inds_stuff
+
+    ambiguous = ~outdoor_all & ~indoor_all
+    conflict = outdoor_all & indoor_all
+
+    print('\n')
+    print('proportion of images that are ambiguous (no indoor or outdoor object annotation):')
+    print(np.mean(ambiguous))
+    print('proportion of images with conflict (have annotation for both indoor and outdoor object):')
+    print(np.mean(conflict))
+
+    conflict_indoor = conflict & (indoor_sum_things+indoor_sum_stuff > outdoor_sum_things+outdoor_sum_stuff)
+    conflict_outdoor = conflict & (outdoor_sum_things+outdoor_sum_stuff > indoor_sum_things+indoor_sum_stuff)
+    conflict_unresolved = conflict & (indoor_sum_things+indoor_sum_stuff == outdoor_sum_things+outdoor_sum_stuff)
+    print('conflicting images that can be resolved to indoor/outdoor/tie based on number annotations:')
+    print([np.mean(conflict_indoor), np.mean(conflict_outdoor), np.mean(conflict_unresolved)])
+
+    # correct the conflicting images that we are able to resolve
+
+    outdoor_all[conflict_indoor] = 0
+    indoor_all[conflict_outdoor] = 0
+
+    ambiguous = ~outdoor_all & ~indoor_all
+    conflict = outdoor_all & indoor_all
+
+    print('\nafter resolving conflicts based on number of annotations:')
+    print('proportion of images that are ambiguous (no indoor or outdoor object annotation):')
+    print(np.mean(ambiguous))
+    print('proportion of images with conflict (have annotation for both indoor and outdoor object):')
+    print(np.mean(conflict))
+
+
+    indoor_outdoor_df = pd.DataFrame({'has_indoor': indoor_all, 'has_outdoor': outdoor_all})
+    fn2save = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
+
+    print('Saving to %s'%fn2save)
+    indoor_outdoor_df.to_csv(fn2save, header=True)
+
+    return

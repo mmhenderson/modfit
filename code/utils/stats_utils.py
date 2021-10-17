@@ -1,6 +1,30 @@
 import numpy as np
 import scipy.stats
 
+def get_r2(actual,predicted):
+    """
+    This computes the coefficient of determination (R2).
+    Always goes along first dimension (i.e. the trials/samples dimension)
+    MAKE SURE INPUTS ARE ACTUAL AND THEN PREDICTED, NOT FLIPPED
+    """
+    ssres = np.sum(np.power((predicted - actual),2), axis=0);
+    sstot = np.sum(np.power((actual - np.mean(actual, axis=0)),2), axis=0);
+    r2 = 1-(ssres/sstot)
+    
+    return r2
+
+def get_corrcoef(actual,predicted,dtype=np.float32):
+    """
+    This computes the linear correlation coefficient.
+    Always goes along first dimension (i.e. the trials/samples dimension)
+    Assume input is 2D.
+    """
+    assert(len(actual.shape)==2)
+    vals_cc = np.full(fill_value=0, shape=(actual.shape[1],), dtype=dtype)
+    for vv in range(actual.shape[1]):
+        vals_cc[vv] = np.corrcoef(actual[:,vv], predicted[:,vv])[0,1] 
+    return vals_cc
+ 
 def get_dprime(predlabs,reallabs,un=None):
     """ 
     Calculate d' for predicted and actual values. Works for multiple classes.
@@ -59,3 +83,14 @@ def get_dprime(predlabs,reallabs,un=None):
     dprime = np.mean(hrz-fpz);
 
     return dprime
+
+
+def get_shared_unique_var(combined, just_a, just_b):
+    
+    unique_a = combined - just_b
+    unique_b = combined - just_a
+    shared_ab = just_a + just_b - combined
+   
+    return shared_ab, unique_a, unique_b
+
+

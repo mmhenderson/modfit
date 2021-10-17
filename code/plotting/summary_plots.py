@@ -3,6 +3,8 @@ import numpy as np
 import sys
 import os
 import cortex
+from utils import roi_utils, nsd_utils
+from plotting import plot_utils, plot_prf_params
 
 """
 General use functions for plotting encoding model fit results.
@@ -10,13 +12,7 @@ Input to most of these functions is 'out', which is a dictionary containing
 fit results. Created by the model fitting code in model_fitting/fit_model.py
 """
 
-from utils import roi_utils, nsd_utils
-from plotting_and_analysis.analysis_utils import get_r2, get_roi_info, get_combined_rois
-from plotting_and_analysis.spatial_fits import get_prf_pars_deg
-from plotting_and_analysis.plot_utils import get_full_surface, get_full_volume
-from plotting_and_analysis import plot_utils
-
-def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
+def plot_perf_summary(subject, fitting_type,out,fig_save_folder=None):
     """
     Plot some general metrics of fit performance, across all voxels.
     """
@@ -27,7 +23,7 @@ def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
     if len(best_losses.shape)==2:
         best_losses = best_losses[:,0]
     val_cc = out['val_cc'][:,0]
-    val_r2 = get_r2(out)[:,0]
+    val_r2 = out['val_r2'][:,0]
     best_lambdas = out['best_lambdas']
     lambdas = out['lambdas']
 
@@ -71,7 +67,7 @@ def plot_perf_summary(subject, fitting_type,out, fig_save_folder=None):
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.png'))
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.pdf'))
 
-def plot_summary_pycortex(subject, fitting_type, out, port):
+def plot_summary_pycortex(subject, fitting_type, out, port, roi_def=None):
 
     """
     Use pycortex webgl function to plot some summary statistics for encoding model fits, in surface space.
@@ -80,10 +76,9 @@ def plot_summary_pycortex(subject, fitting_type, out, port):
     
     substr = 'subj%02d'%subject
 
-    retlabs, catlabs, ret_group_names, categ_group_names = get_combined_rois(subject, out)
-    best_ecc_deg, best_angle_deg, best_size_deg = get_prf_pars_deg(out, screen_eccen_deg=8.4)
+    best_ecc_deg, best_angle_deg, best_size_deg = plot_prf_params.get_prf_pars_deg(out, screen_eccen_deg=8.4)
     val_cc = out['val_cc'][:,0]
-    val_r2 = get_r2(out)[:,0]
+    val_r2 = out['val_r2'][:,0]
     voxel_mask = out['voxel_mask']
     
     cmin = 0.0
@@ -93,69 +88,17 @@ def plot_summary_pycortex(subject, fitting_type, out, port):
     vemin = -0.05
     vemax = 0.05
     
-    if out['brain_nii_shape'] is not None:
-        print('Data is in 3d volume space')
-        xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
-        nii_shape = out['brain_nii_shape']
-        mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
-        
-        dat2plot = {'ROI labels (retinotopic)': cortex.Volume(data=get_full_volume(retlabs, voxel_mask, \
-                                                                                   nii_shape),\
-                                              subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs), \
-                                              xfmname=xfmname, mask=mask_3d), \
-            'ROI labels (category-selective)': cortex.Volume(data=get_full_volume(catlabs, voxel_mask, nii_shape),\
-                                             subject=substr, cmap='Accent',vmin = 0, vmax = np.max(catlabs), \
-                                                             xfmname=xfmname, mask=mask_3d), \
-            'pRF eccentricity': cortex.Volume(data=get_full_volume(best_ecc_deg, voxel_mask, nii_shape), \
-                                              subject=substr, cmap='PRGn',\
-                                              vmin=0, vmax=7, xfmname=xfmname, mask=mask_3d),\
-            'pRF angle': cortex.Volume(data=get_full_volume(best_angle_deg, voxel_mask, nii_shape), \
-                                           subject=substr, cmap='Retinotopy_RYBCR', \
-                                           vmin=0, vmax=360, xfmname=xfmname, mask=mask_3d), \
-            'pRF size': cortex.Volume(data = get_full_volume(best_size_deg, voxel_mask, nii_shape),\
-                                      subject=substr, cmap='PRGn', vmin=0, vmax=4, \
-                                      xfmname=xfmname, mask=mask_3d), \
-            'Correlation (validation set)': cortex.Volume(data = get_full_volume(val_cc, voxel_mask, nii_shape),\
-                                                          subject=substr, cmap='PuBu', vmin=cmin, vmax=cmax, \
-                                                         xfmname=xfmname, mask=mask_3d), \
-            'R2 (validation set)': cortex.Volume(data = get_full_volume(val_r2, voxel_mask, nii_shape), \
-                                                 subject=substr, cmap='PuBu', \
-                                                 vmin=rmin, vmax=rmax, xfmname=xfmname, mask=mask_3d), \
-           }
-
-        
-    else:
-        print('Data is in nativesurface space')
-
-        dat2plot = {'ROI labels (retinotopic)': cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
-                                                subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs)), \
-                    'ROI labels (category-selective)': cortex.Vertex(data = get_full_surface(catlabs, voxel_mask),\
-                                                                     subject=substr, cmap='Accent',vmin = 0, vmax =np.max(catlabs)),\
-                    'pRF eccentricity': cortex.Vertex(data = get_full_surface(best_ecc_deg, voxel_mask), \
-                                                      subject=substr, \
-                                                      cmap='PRGn', vmin=0, vmax=7), \
-                    'pRF angle': cortex.Vertex(data = get_full_surface(best_angle_deg, voxel_mask), \
-                                               subject=substr, \
-                                               cmap='Retinotopy_RYBCR', vmin=0, vmax=360), \
-                    'pRF size': cortex.Vertex(data = get_full_surface(best_size_deg, voxel_mask), subject=substr, \
-                                              cmap='PRGn', vmin=0, vmax=4), \
-                    'Correlation (validation set)': cortex.Vertex(data = get_full_surface(val_cc, voxel_mask),\
-                                                                  subject=substr, \
-                                                                  cmap='PuBu', vmin=cmin, vmax=cmax), \
-                    'R2 (validation set)': cortex.Vertex(data = get_full_surface(val_r2, voxel_mask), \
-                                                         subject=substr, \
-                                                         cmap='PuBu', vmin=rmin, vmax=rmax), \
-                   }
-
-    dat2plot.keys()
+    maps  = [best_ecc_deg, best_angle_deg, best_size_deg, val_cc, val_r2]
+    names = ['pRF eccentricity', 'pRF angle','pRF size', 'Correlation (validation set)','R2 (validation set)']
+    mins = [0, 0, 0, 0, 0]
+    maxes = [7, 360, 4, 0.8, 0.6]
+    cmaps = ['PRGn', 'Retinotopy_RYBCR', 'PRGn', 'PuBu','PuBu']
     
-    # Open the webviewer
-    print('navigate browser to: 127.0.0.1:%s'%port)
-    cortex.webshow(dat2plot, open_browser=True, port=port, title = 'S%02d, %s'%(subject, fitting_type))
- 
+    plot_utils.plot_maps_pycortex(maps, names, subject, out, fitting_type, port, roi_def=roi_def, \
+                       mins=mins, maxes=maxes, cmaps=cmaps)
 
-
-def plot_fit_summary_volume_space(subject, fitting_type, out, screen_eccen_deg = 8.4, fig_save_folder=None):
+def plot_fit_summary_volume_space(subject, fitting_type, out, roi_def=None, screen_eccen_deg = 8.4, \
+                                fig_save_folder=None):
 
     """
     Visualize some basic properties of pRFs for each voxel, in volume space
@@ -173,17 +116,18 @@ def plot_fit_summary_volume_space(subject, fitting_type, out, screen_eccen_deg =
         best_losses = best_losses[:,0]
     val_cc = out['val_cc'][:,0]
 
-    best_ecc_deg, best_angle_deg, best_size_deg = get_prf_pars_deg(out, screen_eccen_deg)    
-
-    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
-        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
+    best_ecc_deg, best_angle_deg, best_size_deg = plot_prf_params.get_prf_pars_deg(out, screen_eccen_deg)    
+    if roi_def is None:
+        roi_def = roi_utils.get_combined_rois(subject,verbose=False)
+    
+    retlabs, facelabs, placelabs, bodylabs, ret_names, face_names, place_names, body_names = roi_def    
 
     volume_loss = roi_utils.view_data(brain_nii_shape, voxel_idx, best_losses)
     volume_cc   = roi_utils.view_data(brain_nii_shape, voxel_idx, val_cc)
     volume_ecc  = roi_utils.view_data(brain_nii_shape, voxel_idx, best_ecc_deg)
     volume_ang  = roi_utils.view_data(brain_nii_shape, voxel_idx, best_angle_deg)
     volume_size = roi_utils.view_data(brain_nii_shape, voxel_idx, best_size_deg)
-    volume_roi = roi_utils.view_data(brain_nii_shape, voxel_idx, roi_labels_retino)
+    volume_roi = roi_utils.view_data(brain_nii_shape, voxel_idx, retlabs)
 
     slice_idx = 40
     fig = plt.figure(figsize=(16,8))
@@ -245,14 +189,29 @@ def plot_noise_ceilings(subject, fitting_type,out, fig_save_folder):
         plt.savefig(os.path.join(fig_save_folder,'noise_ceiling_dist.png'))
         plt.savefig(os.path.join(fig_save_folder,'noise_ceiling_dist.pdf'))
  
-def plot_cc_each_roi(subject, fitting_type,out, fig_save_folder=None):
+def plot_cc_each_roi(subject, fitting_type,out, roi_def=None, skip_inds=None, fig_save_folder=None):
 
     """
     Make a histogram for each ROI, showing distibution of validation set correlation coefficient for all voxels.
     """
+    if roi_def is None:
+        roi_def = roi_utils.get_combined_rois(subject,verbose=False)
     
-    roi_labels_retino, roi_labels_categ, ret_group_inds, categ_group_inds, ret_group_names, categ_group_names, \
-        n_rois_ret, n_rois_categ, n_rois = get_roi_info(subject, out)
+    retlabs, facelabs, placelabs, bodylabs, ret_names, face_names, place_names, body_names = roi_def    
+
+    if skip_inds is None:
+        skip_inds = []
+    
+    nret = len(ret_names)
+    nface = len(face_names)
+    nplace = len(place_names)
+    nbody = len(body_names)    
+    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
+    
+    is_ret = np.arange(0, n_rois)<nret
+    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
+    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
+    is_body = np.arange(0, n_rois)>=nret+nface+nplace
     
     val_cc = out['val_cc'][:,0]
     
@@ -260,29 +219,38 @@ def plot_cc_each_roi(subject, fitting_type,out, fig_save_folder=None):
     npx = int(np.ceil(np.sqrt(n_rois)))
     npy = int(np.ceil(n_rois/npx))
 
+    pi=0
     for rr in range(n_rois):
+        
+        if rr not in skip_inds:
+            if is_ret[rr]:
+                inds_this_roi = retlabs==rr
+                rname = ret_names[rr]
+            elif is_face[rr]:
+                inds_this_roi = facelabs==(rr-nret)
+                rname = face_names[rr-nret]
+            elif is_place[rr]:
+                inds_this_roi = placelabs==(rr-nret-nface)
+                rname = place_names[rr-nret-nface]
+            elif is_body[rr]:
+                inds_this_roi = bodylabs==(rr-nret-nface-nplace)
+                rname = body_names[rr-nret-nface-nplace]
 
-        if rr<n_rois_ret:
-            inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
-            rname = ret_group_names[rr]
-        else:
-            inds_this_roi = np.isin(roi_labels_categ, categ_group_inds[rr-n_rois_ret])
-            rname = categ_group_names[rr-n_rois_ret]
+            pi+=1
+            plt.subplot(npx,npy,pi)
 
-        plt.subplot(npx,npy,rr+1)
+            h = plt.hist(val_cc[inds_this_roi], bins=np.linspace(-0.2,1,100))
 
-        h = plt.hist(val_cc[inds_this_roi], bins=np.linspace(-0.2,1,100))
+            if pi==(npx-1)*npy+1:
+                plt.xlabel('Correlation coefficient')
+                plt.ylabel('Number of voxels')
+            else:
+                plt.xticks([]);
+        #         plt.yticks([])
 
-        if rr==n_rois-4:
-            plt.xlabel('Correlation coefficient')
-            plt.ylabel('Number of voxels')
-        else:
-            plt.xticks([]);
-    #         plt.yticks([])
+            plt.axvline(0,color='k')
 
-        plt.axvline(0,color='k')
-
-        plt.title('%s (%d vox)'%(rname, np.sum(inds_this_roi)))
+            plt.title('%s (%d vox)'%(rname, np.sum(inds_this_roi)))
 
     plt.suptitle('Correlation coef. on validation set\nS%02d, %s'%(subject, fitting_type));
 
@@ -291,7 +259,7 @@ def plot_cc_each_roi(subject, fitting_type,out, fig_save_folder=None):
         plt.savefig(os.path.join(fig_save_folder,'corr_each_roi.png'))
         
         
-def plot_r2_vs_nc(subject, fitting_type, out, fig_save_folder=None, fig_size=None):
+def plot_r2_vs_nc(subject, fitting_type, out, roi_def=None, skip_inds=None, fig_save_folder=None, fig_size=None):
 
     """
     Create scatter plots for each ROI, comparing each voxel's R2 prediction to the noise ceiling.
@@ -299,7 +267,7 @@ def plot_r2_vs_nc(subject, fitting_type, out, fig_save_folder=None, fig_size=Non
   
     voxel_ncsnr = out['voxel_ncsnr'].ravel()[out['voxel_index'][0]]
     noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
-    val_r2 = get_r2(out)[:,0]
+    val_r2 = out['val_r2'][:,0]
 
     inds2use = np.ones(np.shape(val_r2))==1
 
@@ -311,7 +279,7 @@ def plot_r2_vs_nc(subject, fitting_type, out, fig_save_folder=None, fig_size=Non
         fig_size = (20,18)
     plot_utils.create_roi_subplots(np.concatenate([noise_ceiling[:,np.newaxis],val_r2[:,np.newaxis]], axis=1), inds2use, sp, subject, out,\
                         suptitle='S%02d, %s\nComparing model performance to noise ceiling'%(subject, fitting_type), \
-                       label_just_corner=True, figsize=fig_size)
+                       label_just_corner=True, figsize=fig_size,roi_def=roi_def, skip_inds=skip_inds)
     plt.gcf().subplots_adjust(bottom=0.5)
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'r2_vs_noiseceiling.png'))

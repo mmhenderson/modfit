@@ -5,8 +5,7 @@ import numpy as np
 import copy
 import sys
 import cortex
-
-from plotting_and_analysis.analysis_utils import get_combined_rois
+from utils import roi_utils
 
 def set_all_font_sizes(fs):
     
@@ -50,42 +49,63 @@ def get_full_volume(values, voxel_mask, shape):
     return full_vals
 
 
-def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, mins=None, maxes=None, cmaps=None):
+def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, roi_def=None, \
+                       mins=None, maxes=None, cmaps=None):
 
     """
     Plot some maps in pycortex with desired specifications. Also add roi plots as additional layers.
     """
     
-    retlabs, catlabs, ret_group_names, categ_group_names = get_combined_rois(subject, out)
-    retlabs[retlabs==0] = np.nan
-    catlabs[catlabs==0] = np.nan
-    print(retlabs)
-    print(catlabs)
+    if 'volume_space' in list(out.keys()):
+        volume_space = out['volume_space']
+    elif out['brain_nii_shape'] is not None:
+        volume_space = True
+    else:
+        volume_space = False
+        
+    if roi_def is None:
+        roi_def = roi_utils.get_combined_rois(subject,verbose=False)
+    retlabs, facelabs, placelabs, bodylabs, ret_names, face_names, place_names, body_names = roi_def    
+
+    retlabs[retlabs==-1] = np.nan
+    facelabs[facelabs==-1] = np.nan
+    placelabs[placelabs==-1] = np.nan
+    bodylabs[bodylabs==-1] = np.nan
     substr = 'subj%02d'%subject
 
     voxel_mask = out['voxel_mask']
     
-    if out['brain_nii_shape'] is not None:
+    if volume_space:
         print('Data is in 3d volume space')
         xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
         nii_shape = out['brain_nii_shape']
         mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
         
-        dat2plot = {'ROI labels (retinotopic)': cortex.Volume(data=get_full_volume(retlabs, voxel_mask, \
-                                                                                   nii_shape),\
-                                              subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs)+1,\
-                                                              xfmname=xfmname, mask=mask_3d), \
-            'ROI labels (category-selective)': cortex.Volume(data=get_full_volume(catlabs, voxel_mask, nii_shape),\
-                                             subject=substr, cmap='Accent',vmin = 0, vmax = np.max(catlabs)+1, \
-                                                             xfmname=xfmname, mask=mask_3d)}
+        dat2plot = {'ROI labels (retinotopic)': \
+                cortex.Volume(data=get_full_volume(retlabs, voxel_mask, nii_shape),\
+                subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs[~np.isnan(retlabs)])+1,\
+                xfmname=xfmname, mask=mask_3d), \
+                'ROI labels (face-selective)': cortex.Volume(data=get_full_volume(facelabs, voxel_mask, nii_shape),\
+                 subject=substr, cmap='Accent',vmin = 0, vmax = np.max(facelabs[~np.isnan(facelabs)])+1, \
+                 xfmname=xfmname, mask=mask_3d), \
+                'ROI labels (place-selective)': cortex.Volume(data=get_full_volume(placelabs, voxel_mask, nii_shape),\
+                 subject=substr, cmap='Accent',vmin = 0, vmax = np.max(placelabs[~np.isnan(placelabs)])+1, \
+                 xfmname=xfmname, mask=mask_3d), \
+                'ROI labels (body-selective)': cortex.Volume(data=get_full_volume(bodylabs, voxel_mask, nii_shape),\
+                 subject=substr, cmap='Accent',vmin = 0, vmax = np.max(bodylabs[~np.isnan(bodylabs)])+1, \
+                 xfmname=xfmname, mask=mask_3d)}
        
     else:
         print('Data is in nativesurface space')
 
         dat2plot = {'ROI labels (retinotopic)': cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
                                                     subject=substr, cmap='Accent',vmin = 0, vmax = np.max(retlabs)+1), \
-                'ROI labels (category-selective)': cortex.Vertex(data = get_full_surface(catlabs, voxel_mask), \
-                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(catlabs)+1)}
+                'ROI labels (face-selective)': cortex.Vertex(data = get_full_surface(facelabs, voxel_mask), \
+                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(facelabs)+1), \
+                'ROI labels (place-selective)': cortex.Vertex(data = get_full_surface(placelabs, voxel_mask), \
+                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(placelabs)+1), \
+                'ROI labels (body-selective)': cortex.Vertex(data = get_full_surface(bodylabs, voxel_mask), \
+                                                    subject=substr, cmap='Accent',vmin = 0, vmax = np.max(bodylabs)+1)}
                 
     if mins is None:
         mins = [None for ll in range(len(names))]
@@ -99,9 +119,9 @@ def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, mins=None,
         cmaps = ['PuBu' for ll in range(len(names))]
     elif len(cmaps)==1:
         cmaps = [cmaps[0] for ll in range(len(names))]  
-        
+    
     for ni, name in enumerate(names):
-        if out['brain_nii_shape'] is not None:
+        if volume_space:
             dat2plot[name] = cortex.Volume(data = get_full_volume(maps[ni], voxel_mask, nii_shape), \
                                                     cmap=cmaps[ni], subject=substr, vmin=mins[ni], vmax=maxes[ni],\
                                            xfmname=xfmname, mask=mask_3d)
@@ -117,48 +137,68 @@ def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, mins=None,
     
 
     
-def create_roi_subplots(data, inds2use, single_plot_object, subject, out, suptitle=None, label_just_corner=True, figsize=None):
+def create_roi_subplots(data, inds2use, single_plot_object, subject, out, roi_def=None, skip_inds=None, \
+                        suptitle=None, label_just_corner=True, figsize=None):
 
     """
     Create a grid of subplots for each ROI in the dataset.
     Takes in a 'single plot object' which is either scatter plot, violin plot, or bar plot, with some parameters.
     """
+
+    if roi_def is None:
+        roi_def = roi_utils.get_combined_rois(subject,verbose=False)    
+    retlabs, facelabs, placelabs, bodylabs, ret_names, face_names, place_names, body_names = roi_def    
+
+    if skip_inds is None:
+        skip_inds = []
+    nret = len(ret_names)
+    nface = len(face_names)
+    nplace = len(place_names)
+    nbody = len(body_names)    
+    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
     
-    retlabs, catlabs, ret_group_names, categ_group_names = get_combined_rois(subject, out)
-    skip_inds = [10,11,15]
-    n_rois_ret = len(ret_group_names)
-    n_rois = len(ret_group_names) + len(categ_group_names)
+    is_ret = np.arange(0, n_rois)<nret
+    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
+    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
+    is_body = np.arange(0, n_rois)>=nret+nface+nplace
     
     # Preferred feature type, based on unique var explained. Separate plot each ROI.
     if figsize==None:
         figsize=(24,20)
     plt.figure(figsize=figsize)
-    npy = int(np.ceil(np.sqrt(n_rois)))
-    npx = int(np.ceil(n_rois/npy))
+    npy = int(np.ceil(np.sqrt(n_rois-len(skip_inds))))
+    npx = int(np.ceil((n_rois-len(skip_inds))/npy))
 
     if label_just_corner:
-        rr2label = [n_rois+len(skip_inds)-npx-1]
+        pi2label = [(npx-1)*npy+1]
     else:
-        rr2label = np.arange(n_rois)
+        pi2label = np.arange(npx*npy)
         
     pi = 0
     for rr in range(n_rois):
 
         if rr not in skip_inds:
-            if rr<n_rois_ret:
-                inds_this_roi = retlabs==(rr+1)
-                rname = ret_group_names[rr]
-            else:
-                inds_this_roi = catlabs==(rr+1-n_rois_ret)
-                rname = categ_group_names[rr-n_rois_ret]
-
+            
+            if is_ret[rr]:
+                inds_this_roi = retlabs==rr
+                rname = ret_names[rr]
+            elif is_face[rr]:
+                inds_this_roi = facelabs==(rr-nret)
+                rname = face_names[rr-nret]
+            elif is_place[rr]:
+                inds_this_roi = placelabs==(rr-nret-nface)
+                rname = place_names[rr-nret-nface]
+            elif is_body[rr]:
+                inds_this_roi = bodylabs==(rr-nret-nface-nplace)
+                rname = body_names[rr-nret-nface-nplace]
+            
             data_this_roi = data[inds2use & inds_this_roi,:]
 
             pi = pi+1
             plt.subplot(npx, npy, pi)
 
             single_plot_object.title = '%s (%d vox)'%(rname, data_this_roi.shape[0])
-            if rr in rr2label:
+            if pi in pi2label:
                 minimal_labels=False
             else:
                 minimal_labels=True

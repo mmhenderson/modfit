@@ -78,15 +78,3 @@ def make_gaussian_mass_stack(xs, ys, sigmas, n_pix, size=None, dtype=np.float32)
     for i in range(1,stack_size):
         _,_,Z[i,:,:] = make_gaussian_mass(xs[i], ys[i], sigmas[i], n_pix, size=size, dtype=dtype)
     return X, Y, Z
-
-
-
-    
-# def model_space(model_specs):
-#     vm = np.asarray(model_specs[0])
-#     nt = np.prod([sms.length for sms in model_specs[1]])           
-#     rx, ry, rs = [sms(vm[i,0], vm[i,1]) for i,sms in enumerate(model_specs[1])]
-#     xs, ys, ss = np.meshgrid(rx, ry, rs, indexing='ij')    
-#     return np.concatenate([xs.reshape((nt,1)).astype(dtype=np.float32), 
-#                            ys.reshape((nt,1)).astype(dtype=np.float32), 
-#                            ss.reshape((nt,1)).astype(dtype=np.float32)], axis=1)      

@@ -63,7 +63,7 @@ def _loss_fn(_cofactor, _vtrn, _xout, _vout):
 
 
 
-def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, \
+def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, best_model_each_voxel=None,\
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
                        shuffle=True, shuff_rnd_seed=0, device=None, dtype=np.float32, debug=False):
     
@@ -109,7 +109,8 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
     # Get train/holdout splits.
     # Held-out data here is used for lamdba selection.
-    # This is the inner part of nested cross-validation; there is another portion of data ('val') which never enters this function.
+    # This is the inner part of nested cross-validation; there is another portion of data ('val')
+    # which never enters this function.
     trn_size = n_trials - holdout_size
     assert trn_size>0, 'Training size needs to be greater than zero'
     print ('trn_size = %d (%.1f%%)' % (trn_size, float(trn_size)*100/len(voxel_data)))
@@ -182,14 +183,16 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
             if debug and m>1:
                 break
                 
-            print('\nGetting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(m, prf_models[m,0],  prf_models[m,1],  prf_models[m,2]))
+            print('\nGetting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(m, \
+                                                        prf_models[m,0],  prf_models[m,1],  prf_models[m,2]))
 
             t = time.time()            
 
             # Get features for the desired pRF, across all trn set image  
             # Features is size [ntrials x nfeatures]
             # nfeatures may be less than max_features, because max_features is the largest number possible for any pRF.
-            # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
+            # feature_inds_defined is length max_features, and tells which of the features in max_features 
+            # are included in features.
             features, feature_inds_defined = _feature_extractor(images, (x,y,sigma), m, fitting_mode=True)
             features = features.detach().cpu().numpy() 
             
@@ -213,9 +216,23 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
             
             # Going to keep track of whether current prf is better than running best, for each voxel.
             # This is for the full model only.
-            # Will use this to make sure for each partial model, we end up saving the params for the prf that was best w full model.
-            full_model_improved = np.zeros((n_voxels,),dtype=bool)
+            # Will use this to make sure for each partial model, we end up saving the params for the 
+            # prf that was best w full model.
+            if best_model_each_voxel is None:
+                full_model_improved = np.zeros((n_voxels,),dtype=bool)
+                voxels_to_fit = np.arange(0, n_voxels)
+            else:
+                voxels_to_fit = np.where(best_model_each_voxel==m)[0]
+            
+            if len(voxels_to_fit)==0:
+                print('No voxels have this pRF saved as their best model, skipping it.')
+                continue
+            
+            
+            n_voxels_to_fit = len(voxels_to_fit)            
+            n_voxel_batches = int(np.ceil(n_voxels_to_fit/voxel_batch_size))
 
+            
             # Looping over versions of model w different features set to zero (variance partition)
             for pp in range(n_partial_versions):
 
@@ -237,54 +254,53 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
                 # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
                 vox_start = time.time()
-                vi=-1
-                for rv,lv in numpy_utils.iterate_range(0, n_voxels, voxel_batch_size):
-                    vi=vi+1
-                    sys.stdout.write('\rfitting model %4d of %-4d, voxels [%6d:%-6d] of %d' % (m, n_prfs, rv[0], rv[-1], n_voxels))
 
+                for vi in range(n_voxel_batches):
+                    
+                    vinds = np.arange(voxel_batch_size*vi, np.min([voxel_batch_size*(vi+1), n_voxels_to_fit]))
+                    rv = voxels_to_fit[vinds]
+                    lv = len(vinds)
+
+                    sys.stdout.write('\rfitting model %4d of %-4d, voxel batch %d of %d'%(m, n_prfs, vi, n_voxel_batches))
+                    if best_model_each_voxel is not None:
+                        print(vinds)
+                        print(rv)
+                    
                     # Send matrices to gpu
                     _vtrn = torch_utils._to_torch(trn_data[:,rv], device=device)
                     _vout = torch_utils._to_torch(out_data[:,rv], device=device)
 
                     # Here is where optimization happens - relatively simple matrix math inside loss fn.
-                    _betas, _loss, _pred_out = _loss_fn(_cof, _vtrn, _xout, _vout) #   [#lambda, #feature, #voxel, ], [#lambda, #voxel], [trials x lambdas x voxels]
+                    _betas, _loss, _pred_out = _loss_fn(_cof, _vtrn, _xout, _vout) 
+                    #   [#lambda, #feature, #voxel, ], [#lambda, #voxel], [trials x lambdas x voxels]
                     # Keep trial-by-trial predictions for each held-out set trial (need for stacking)
                     pred_out = torch_utils.get_value(_pred_out) 
-                    # Note these trials are still in their SHUFFLED order, so we when we want to get R2 
-                    # will need to make the actual data match this order.
-            
-                    
-                    
-#                     _pred_train = torch.tensordot(_xtrn, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
-#                     _pred_out = torch.tensordot(_xout, _betas, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
-#                     pred_train = torch_utils.get_value(_pred_train)
-                    
-                    # Going to combine the training and held out trials and re-create their original order here.
-#                     preds_all_shuffled = np.concatenate((pred_train, pred_out), axis=0)
-#                     preds_all_origorder = numpy_utils.unshuffle(preds_all_shuffled, order) # [#samples x lambdas x voxels]
-    
-                    # Now have a set of weights (in betas) and a loss value for every voxel and every lambda. 
-                    # goal is then to choose for each voxel, what is the best lambda and what weights went with that lambda.
-
+                
                     # choose best lambda value and the loss that went with it.
                     _loss_values, _lambda_index = torch.min(_loss, dim=0)
                     loss_values, lambda_index = torch_utils.get_value(_loss_values), torch_utils.get_value(_lambda_index)
                     betas = torch_utils.get_value(_betas)
                     
-                    if pp==0:
+                    if best_model_each_voxel is None:
+                        
+                        if pp==0:
 
-                        # comparing this loss to the other prf_models for each voxel (e.g. the other RF position/sizes)
-                        assert(partial_version_names[pp]=='full_model' or partial_version_names[pp]=='full_combined_model')               
-                        imp = loss_values<best_losses[rv,pp]
-                        full_model_improved[rv] = imp
+                            # comparing this loss to the other prf_models for each voxel (e.g. the other RF position/sizes)
+                            assert(partial_version_names[pp]=='full_model' or \
+                                   partial_version_names[pp]=='full_combined_model')               
+                            imp = loss_values<best_losses[rv,pp]
+                            full_model_improved[rv] = imp
+
+                        else:
+
+                            # for the partial models we don't actually care which pRF was best for the partial model itself,
+                            # just using which pRF is best for the full model. This way pRF is always the same even when 
+                            # leaving a set of features out.
+                            imp = full_model_improved[rv]
 
                     else:
-
-                        # for the partial models we don't actually care which pRF was best for the partial model itself,
-                        # just using which pRF is best for the full model. This way pRF is always the same even when 
-                        # leaving a set of features out.
-                        imp = full_model_improved[rv]
-
+                        
+                        imp = np.ones((lv,))==1
 
                     if np.sum(imp)>0:
 
@@ -298,12 +314,15 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         best_prf_models[arv,pp] = m
                         if zscore and pp==0:
                             
-                            # only need to update the mean/std if we're working with the full model, because those will be same for all partial versions.
+                            # only need to update the mean/std if we're working with the full model, 
+                            # because those will be same for all partial versions.
                             fmean_tmp = copy.deepcopy(features_mean[arv,:])
                             fstd_tmp = copy.deepcopy(features_std[arv,:])
-                            fmean_tmp[:,nonzero_inds_full[0:-1]] = features_m[0,nonzero_inds_short[0:-1]] # broadcast over updated voxels
+                            fmean_tmp[:,nonzero_inds_full[0:-1]] = features_m[0,nonzero_inds_short[0:-1]] 
+                            # broadcast over updated voxels
                             fmean_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
-                            fstd_tmp[:,nonzero_inds_full[0:-1]] = features_s[0,nonzero_inds_short[0:-1]] # broadcast over updated voxels
+                            fstd_tmp[:,nonzero_inds_full[0:-1]] = features_s[0,nonzero_inds_short[0:-1]] 
+                            # broadcast over updated voxels
                             fstd_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
                             features_mean[arv,:] = fmean_tmp
                             features_std[arv,:] = fstd_tmp

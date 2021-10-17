@@ -3,8 +3,7 @@ import numpy as np
 import time, h5py
 codepath = '/user_data/mmhender/imStat/code'
 sys.path.append(codepath)
-from utils import default_paths
-from utils import numpy_utils as numpy_utils
+from utils import default_paths, numpy_utils, nsd_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import texture_statistics_pyramid
 from sklearn import decomposition
@@ -67,14 +66,21 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
                                            for ff in range(len(zgroup_sizes_hl))], axis=1)
 
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+    
     prf_inds_loaded = []
     scores_ll_each_prf = []
     wts_ll_each_prf = []
     ev_ll_each_prf = []
+    pre_mean_ll_each_prf = []
     scores_hl_each_prf = []
     wts_hl_each_prf = []
     ev_hl_each_prf = []
-
+    pre_mean_hl_each_prf = []
+    
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
@@ -117,15 +123,23 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         features_ll_z = numpy_utils.zscore_in_groups(features_ll, zgroup_labels_ll)
         features_hl_z = numpy_utils.zscore_in_groups(features_hl, zgroup_labels_hl)
 
-        scores_ll, wts_ll, ev_ll = do_pca(features_ll_z, max_pc_to_retain, zscore_first=False)
+        _, wts_ll, pre_mean_ll, ev_ll = do_pca(features_ll_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                      zscore_first=False)
+        feat_submean_ll = features_ll_z - np.tile(pre_mean_ll[np.newaxis,:], [features_ll_z.shape[0],1])
+        scores_ll = feat_submean_ll @ wts_ll.T
         scores_ll_each_prf.append(scores_ll)
         wts_ll_each_prf.append(wts_ll)
         ev_ll_each_prf.append(ev_ll)
-
-        scores_hl, wts_hl, ev_hl = do_pca(features_hl_z, max_pc_to_retain, zscore_first=False)
+        pre_mean_ll_each_prf.append(pre_mean_ll)
+        
+        _, wts_hl, pre_mean_hl, ev_hl = do_pca(features_hl_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                      zscore_first=False)
+        feat_submean_hl = features_hl_z - np.tile(pre_mean_hl[np.newaxis,:], [features_hl_z.shape[0],1])
+        scores_hl = feat_submean_hl @ wts_hl.T
         scores_hl_each_prf.append(scores_hl)
         wts_hl_each_prf.append(wts_hl)
         ev_hl_each_prf.append(ev_hl)
+        pre_mean_hl_each_prf.append(pre_mean_hl)
         
         print('size of wts_hl:')
         print(wts_hl.shape)    
@@ -139,11 +153,13 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
 
     fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject, n_ori, n_sf))
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_ll_each_prf,'wts': wts_ll_each_prf, 'ev': ev_ll_each_prf})
+    np.save(fn2save, {'scores': scores_ll_each_prf,'wts': wts_ll_each_prf, \
+                      'ev': ev_ll_each_prf, 'pre_mean': pre_mean_ll_each_prf})
 
     fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject, n_ori, n_sf))
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_hl_each_prf, 'wts': wts_hl_each_prf, 'ev': ev_hl_each_prf})
+    np.save(fn2save, {'scores': scores_hl_each_prf, 'wts': wts_hl_each_prf, \
+                      'ev': ev_hl_each_prf,  'pre_mean': pre_mean_hl_each_prf})
 
     
 def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_first=False):
@@ -169,18 +185,23 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         data_set.close() 
     elapsed = time.time() - t
     print('Took %.5f seconds to load file'%elapsed)
-    # ignoring the last column which has values for "no contour" which are on a larger scale.
-#     features_each_prf = values[:,0:150,:]
     features_each_prf = values
 
     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
 
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+    
+    
     print('Size of features array for this image set is:')
     print(features_each_prf.shape)
 
     scores_each_prf = []
     wts_each_prf = []
     ev_each_prf = []
+    pre_mean_each_prf = []
    
     for prf_model_index in range(n_prfs):
 
@@ -195,14 +216,23 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
 
-        scores, wts, ev = do_pca(features_in_prf_z, max_pc_to_retain, zscore_first=False)
+        # finding pca solution for just training data
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                      zscore_first=False)
+
+        # now projecting all the data incl. val into same subspace
+        feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
+        scores = feat_submean @ wts.T
+        
         scores_each_prf.append(scores)
         wts_each_prf.append(wts)
         ev_each_prf.append(ev)
+        pre_mean_each_prf.append(pre_mean)
 
     fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, 'ev': ev_each_prf})
+    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
+                      'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
 def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     """
@@ -232,9 +262,8 @@ def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     values = None            
     wts = pca.components_
     ev = pca.explained_variance_
-#     print(ev)
-#     print(np.sum(ev))
     ev = ev/np.sum(ev)*100
+    pre_mean = pca.mean_
     
     print('First element of ev: %.2f'%ev[0])
     # print this out as a check...if it is always 1, this can mean something is wrong w data.
@@ -245,7 +274,7 @@ def do_pca(values, max_pc_to_retain=None, zscore_first=False):
         n_comp_needed = n_comp
         print('Requires more than %d components to explain 95 pct var'%n_comp_needed)
     
-    return scores, wts, ev
+    return scores, wts, pre_mean, ev
 
 
 if __name__ == '__main__':

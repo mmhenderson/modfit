@@ -12,7 +12,7 @@ subj=1
 debug=0
 type=sketch_tokens
 zscore=0
-max_pc_to_retain=100
+max_pc_to_retain=151
 
 source ~/myenv/bin/activate
 cd ../

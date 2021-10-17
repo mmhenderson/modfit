@@ -1,3 +1,4 @@
+
 """
 These are all semi-general functions that are run before model fitting (file name to save, make feature extractors etc.)
 """
@@ -111,14 +112,13 @@ def get_gabor_solo_model_name(ridge, n_ori, n_sf):
 
     return model_name
 
-def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, use_lda_animacy_st_feats):
+def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
+                                 lda_discrim_type, max_pc_to_retain):
 
     if use_pca_st_feats==True:       
-        model_name = 'sketch_tokens_pca'
-    elif use_lda_animacy_st_feats==True:
-        model_name = 'sketch_tokens_lda_animacy'
+        model_name = 'sketch_tokens_pca_max%ddim'%max_pc_to_retain
     elif use_lda_st_feats==True:
-        model_name = 'sketch_tokens_lda'
+        model_name = 'sketch_tokens_lda_%s'%lda_discrim_type
     else:        
         model_name = 'sketch_tokens'
     
@@ -177,6 +177,20 @@ def get_prf_models(aperture_rf_range=1.1):
     print(models[-1,:])
     
     return aperture, models
+
+def load_precomputed_prfs(fitting_type):
+    
+    if fitting_type=='sketch_tokens':
+        prf_params_fn = os.path.join(default_paths.save_fits_path, \
+                                 'S01/sketch_tokens/Oct-11-2021_1756_51/all_fit_params')
+    else:
+        raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
+
+    print('Loading pre-computed pRF estimates for all voxels from %s'%prf_params_fn)
+    out = torch.load(prf_params_fn)
+    best_model_each_voxel = out['best_params'][5][:,0]
+    
+    return best_model_each_voxel
 
 def get_gabor_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
     

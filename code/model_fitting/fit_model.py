@@ -37,9 +37,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
-             do_fitting = True, do_val = True, do_stack=True, do_varpart = True, date_str = 0, \
+             do_fitting = True, use_precomputed_prfs = False, do_val = True, do_stack=True, \
+             do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
-             use_pca_st_feats = False, use_lda_st_feats = False, use_lda_animacy_st_feats = False, \
+             use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
              do_pca_bdcn = True, do_pca_pyr_hl = False, \
              min_pct_var = 99, max_pc_to_retain = 400, \
              map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, \
@@ -80,7 +81,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'ridge': ridge,
         'debug': debug,
         'up_to_sess': up_to_sess,
-        'shuff_rnd_seed': shuff_rnd_seed
+        'shuff_rnd_seed': shuff_rnd_seed,
+        'use_precomputed_prfs': use_precomputed_prfs
         }
         # Might be some more things to save, depending what kind of fitting this is
         if 'bdcn' in fitting_type:
@@ -99,7 +101,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             'max_pc_to_retain': max_pc_to_retain,           
             'use_pca_st_feats': use_pca_st_feats, 
             'use_lda_st_feats': use_lda_st_feats,
-            'use_lda_animacy_st_feats': use_lda_animacy_st_feats,
+            'lda_discrim_type': lda_discrim_type, 
             })
             
         if 'pyramid' in fitting_type:
@@ -166,16 +168,16 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         if use_pca_st_feats:
             # not allowing both of these to be true
             use_lda_st_feats = False
-            use_lda_animacy_st_feats = False
+            lda_discrim_type=None
         model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
-                                                                     use_lda_st_feats, use_lda_animacy_st_feats)   
+                                                                     use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
         name1 = 'sketch_tokens'
         
     else:
         raise ValueError('your string for fitting_type was not recognized')
         
     if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, use_lda_animacy_st_feats)   
+        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
         model_name = model_name + '_plus_' + model_name2
     elif 'plus_bdcn' in fitting_type:
         model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
@@ -212,8 +214,13 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range) 
     
+    if use_precomputed_prfs:
+        best_model_each_voxel = initialize_fitting.load_precomputed_prfs(fitting_type)
+    else:
+        best_model_each_voxel = None
+        
     if 'pyramid' in fitting_type:
         
         # Set up the pyramid
@@ -250,7 +257,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, use_lda_animacy_feats = use_lda_animacy_st_feats)
+                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
         
     elif 'bdcn' in fitting_type:
         
@@ -267,7 +274,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
         _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, use_lda_animacy_feats = use_lda_animacy_st_feats)
+                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
     
@@ -304,11 +311,12 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         shuffle=True 
         best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order = \
                             fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
-                                                       _feature_extractor, models, \
-                                                       lambdas, zscore=zscore_features, add_bias=add_bias, \
-                                                       voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
-                                                       shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
-                                                       dtype=fpX, debug=debug)
+                                   _feature_extractor, models, \
+                                   lambdas, best_model_each_voxel = best_model_each_voxel, \
+                                   zscore=zscore_features, add_bias=add_bias, \
+                                   voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
+                                   shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
+                                   dtype=fpX, debug=debug)
         trn_holdout_voxel_data_pred = best_train_holdout_preds
         
         if 'plus' in fitting_type:
@@ -421,12 +429,13 @@ if __name__ == '__main__':
              zscore_features = args.zscore_features==1, ridge = args.ridge==1, \
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
              random_voxel_data = args.random_voxel_data==1, \
-             do_fitting = args.do_fitting==1, do_val = args.do_val==1, do_stack = args.do_stack==1, \
+             do_fitting = args.do_fitting==1, use_precomputed_prfs = args.use_precomputed_prfs==1, \
+             do_val = args.do_val==1, do_stack = args.do_stack==1, \
              do_varpart = args.do_varpart==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca_pyr_hl = args.do_pca_pyr_hl==1, use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \
-             use_lda_animacy_st_feats = args.use_lda_animacy_st_feats==1, \
+             lda_discrim_type = args.lda_discrim_type, \
              do_pca_bdcn = args.do_pca_bdcn==1, \
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
              n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \

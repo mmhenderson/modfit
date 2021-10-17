@@ -14,6 +14,8 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
+debug=0
+
 subj=1
 volume_space=1
 up_to_sess=40
@@ -24,17 +26,22 @@ zscore_features=1
 
 fitting_type=sketch_tokens
 use_pca_st_feats=0
-use_lda_st_feats=0
-use_lda_animacy_st_feats=1
-min_pct_var=100
-max_pc_to_retain=11
+use_lda_st_feats=1
+# lda_discrim_type=indoor_outdoor
+lda_discrim_type=animal
 
+use_precomputed_prfs=1
 do_stack=0
-
-debug=0
-
 
 
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --use_lda_animacy_st_feats $use_lda_animacy_st_feats --min_pct_var $min_pct_var --max_pc_to_retain $max_pc_to_retain --debug $debug --fitting_type $fitting_type --do_stack $do_stack
+python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --lda_discrim_type $lda_discrim_type --debug $debug --fitting_type $fitting_type --do_stack $do_stack --use_precomputed_prfs $use_precomputed_prfs
+
+lda_discrim_type=vehicle
+
+python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --lda_discrim_type $lda_discrim_type --debug $debug --fitting_type $fitting_type --do_stack $do_stack --use_precomputed_prfs $use_precomputed_prfs
+
+lda_discrim_type=food
+
+python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --lda_discrim_type $lda_discrim_type --debug $debug --fitting_type $fitting_type --do_stack $do_stack --use_precomputed_prfs $use_precomputed_prfs

@@ -37,6 +37,8 @@ def get_args():
     
     parser.add_argument("--do_fitting", type=int,default=1,
                     help="want to do model training? 1 for yes, 0 for no")
+    parser.add_argument("--use_precomputed_prfs", type=int, default=0, 
+                    help="want to use prf estimates that were already computed? 1 for yes, 0 for no")
     parser.add_argument("--do_val", type=int,default=1,
                     help="want to do model validation? 1 for yes, 0 for no")
     parser.add_argument("--do_stack", type=int,default=1,
@@ -99,8 +101,8 @@ def get_args():
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")
     parser.add_argument("--use_lda_st_feats", type=int, default=0,
                     help="Want to use reduced dim (LDA) version of sketch tokens features?")
-    parser.add_argument("--use_lda_animacy_st_feats", type=int, default=0,
-                    help="Want to use reduced dim (LDA) version of sketch tokens features?")
+    parser.add_argument("--lda_discrim_type", type=str, default='animacy',
+                    help="What labels are used to compute LDA features?")
                              
     args = parser.parse_args()
     

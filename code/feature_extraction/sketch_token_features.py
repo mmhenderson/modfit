@@ -14,7 +14,7 @@ class sketch_token_feature_extractor(nn.Module):
     
     def __init__(self, subject, device,\
                  use_pca_feats = False, min_pct_var = 99, max_pc_to_retain = 100, \
-                 use_lda_feats = False, lda_discrim_type = None):
+                 use_lda_feats = False, lda_discrim_type = None, zscore_in_groups = False):
         
         super(sketch_token_feature_extractor, self).__init__()
         
@@ -48,10 +48,17 @@ class sketch_token_feature_extractor(nn.Module):
                 print(lda_discrim_type)
                 raise ValueError('--lda_discrim_type was not recognized')
         else:
-            self.n_features = 151
+            self.n_features = 150 # 151
             self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
             self.min_pct_var = None
             self.max_pc_to_retain = None  
+            if zscore_in_groups:
+                self.zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
+                self.zgroup_labels = self.zgroup_labels[0,0:self.n_features]
+                print('groups for z-scoring: ')
+                print(np.unique(self.zgroup_labels))
+            else:
+                self.zgroup_labels = None
             
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)

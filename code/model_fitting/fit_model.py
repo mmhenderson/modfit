@@ -23,7 +23,7 @@ from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting
 import arg_parser as arg_parser
-import merge_features, fwrf_fit, fwrf_predict
+import merge_features, fwrf_fit, fwrf_predict, reconstruct
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()
@@ -35,10 +35,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              n_ori = 4, n_sf = 4, nonlin_fn = False,  padding_mode = 'circular', \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
-             zscore_features = True, ridge = True, \
+             zscore_features = True, zscore_in_groups = False, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, use_precomputed_prfs = False, do_val = True, do_stack=True, \
-             do_varpart = True, date_str = 0, \
+             do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
              do_pca_bdcn = True, do_pca_pyr_hl = False, \
@@ -77,12 +77,21 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'partial_models_used_for_stack': partial_models_used_for_stack,
         'train_r2': train_r2, 
         'train_cc': train_cc,
-        'zscore_features': zscore_features,        
+        'zscore_features': zscore_features, 
+        'zscore_in_groups': zscore_in_groups,
         'ridge': ridge,
         'debug': debug,
         'up_to_sess': up_to_sess,
         'shuff_rnd_seed': shuff_rnd_seed,
-        'use_precomputed_prfs': use_precomputed_prfs
+        'use_precomputed_prfs': use_precomputed_prfs,
+        'pop_recons': pop_recons,
+        'pop_recon_r2': pop_recon_r2, 
+        'pop_recon_corrcoef': pop_recon_corrcoef,
+        'pop_recon_angle': pop_recon_angle,
+        'voxel_recons': voxel_recons,
+        'voxel_recon_r2': voxel_recon_r2, 
+        'voxel_recon_corrcoef': voxel_recon_corrcoef,
+        'voxel_recon_angle': voxel_recon_angle,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if 'bdcn' in fitting_type:
@@ -189,7 +198,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
     
     # decide what voxels to use  
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space, include_all=True)
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space, include_all=True, include_body=True)
 
     sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
@@ -257,7 +266,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
+                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, zscore_in_groups = zscore_in_groups)
         
     elif 'bdcn' in fitting_type:
         
@@ -274,7 +283,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
         _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
+                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
     
@@ -344,6 +353,14 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         stack_result=None
         stack_result_lo=None
         partial_models_used_for_stack=None
+        pop_recons=None
+        pop_recon_r2=None
+        pop_recon_corrcoef=None 
+        pop_recon_angle=None
+        voxel_recons=None
+        voxel_recon_r2=None
+        voxel_recon_corrcoef=None 
+        voxel_recon_angle=None
         
         save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
@@ -387,9 +404,10 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         print('about to start validation')
         sys.stdout.flush()
         
-        val_cc, val_r2, val_voxel_data_pred  = fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, \
-                                                                                val_stim_data, _feature_extractor, \
-                                   sample_batch_size=sample_batch_size, voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
+        val_cc, val_r2, val_voxel_data_pred  = \
+            fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, \
+                     _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
+                                         voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
                                      
         save_all(fn2save, fitting_type)
         
@@ -412,6 +430,38 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         else:
             print('Skipping stacking analysis because you only have one set of features.')
 
+    ######### INVERTED ENCODING MODEL #############################
+    sys.stdout.flush()
+    if do_roi_recons: 
+
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start ROI reconstruction analysis')
+        sys.stdout.flush()
+
+        roi_def = roi_utils.get_combined_rois(subject, volume_space=volume_space, \
+                                      include_all=True, include_body=True, verbose=False)
+        pop_recons, pop_recon_r2, pop_recon_corrcoef, pop_recon_angle = \
+            reconstruct.get_population_recons(best_params, models, val_voxel_data, roi_def, val_stim_data, \
+                                      _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
+        save_all(fn2save, fitting_type)
+        
+    sys.stdout.flush()
+    if do_voxel_recons: 
+
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start voxelwise reconstruction analysis')
+        sys.stdout.flush()
+
+        voxel_recons, voxel_recon_r2, voxel_recon_corrcoef, voxel_recon_angle = \
+            reconstruct.get_single_voxel_recons(best_params, models, val_voxel_data, val_stim_data, \
+                                      _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
+        save_all(fn2save, fitting_type)
+        
+           
+            
+            
     ########## SUPPORT FUNCTIONS HERE ###############
 
 if __name__ == '__main__':
@@ -426,12 +476,14 @@ if __name__ == '__main__':
              n_ori = args.n_ori, n_sf = args.n_sf, nonlin_fn = args.nonlin_fn==1,  padding_mode = args.padding_mode, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
-             zscore_features = args.zscore_features==1, ridge = args.ridge==1, \
+             zscore_features = args.zscore_features==1, zscore_in_groups = args.zscore_in_groups==1, \
+             ridge = args.ridge==1, \
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
              random_voxel_data = args.random_voxel_data==1, \
              do_fitting = args.do_fitting==1, use_precomputed_prfs = args.use_precomputed_prfs==1, \
              do_val = args.do_val==1, do_stack = args.do_stack==1, \
-             do_varpart = args.do_varpart==1, date_str = args.date_str, \
+             do_varpart = args.do_varpart==1, do_roi_recons = args.do_roi_recons==1, \
+             do_voxel_recons = args.do_voxel_recons==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              do_pca_pyr_hl = args.do_pca_pyr_hl==1, use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \

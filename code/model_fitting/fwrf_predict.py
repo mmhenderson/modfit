@@ -5,12 +5,13 @@ import numpy as np
 import copy
 import torch
 from cvxopt import matrix, solvers
+import scipy.stats
 
 from utils import numpy_utils, torch_utils, stats_utils
 
 
-def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_extractor, \
-                                   sample_batch_size=100, voxel_batch_size=100, debug=False, dtype=np.float32):
+def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_extractor, zscore=False,\
+                       sample_batch_size=100, voxel_batch_size=100, debug=False, dtype=np.float32):
     
     """ 
     Evaluate trained model, leaving out a subset of features at a time.
@@ -30,6 +31,18 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     n_features_max = _feature_extractor.max_features
     n_partial_versions = len(partial_version_names)
     
+    if zscore:
+        if hasattr(_feature_extractor, 'zgroup_labels') and \
+                        _feature_extractor.zgroup_labels is not None:
+            zscore_in_groups = True
+            zgroup_labels = _feature_extractor.zgroup_labels
+            print('will z-score columns in groups')
+        else:
+            zscore_in_groups = False
+            print('will z-score each column')
+    else:
+        print('will not z-score')
+    
     # val_cc is the correlation coefficient bw real and predicted responses across trials, for each voxel.
     val_cc  = np.zeros(shape=(n_voxels, n_partial_versions), dtype=dtype)
     val_r2 = np.zeros(shape=(n_voxels, n_partial_versions), dtype=dtype)
@@ -44,7 +57,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     start_time = time.time()    
     with torch.no_grad(): # make sure local gradients are off to save memory
         
-        # First gather texture features for all pRFs.
+        # First gather features for all pRFs. There are fewer pRFs than voxels, so it is faster
+        # to loop over pRFs first, then voxels.
         
         _feature_extractor.clear_big_features()
         
@@ -57,13 +71,26 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
             all_feat_concat, feature_inds_defined = _feature_extractor(images, prf_models[mm,:], mm, fitting_mode=False)
             
-            pred_models[:,feature_inds_defined,mm] = torch_utils.get_value(all_feat_concat)
+            all_feat_concat = torch_utils.get_value(all_feat_concat)
+            if zscore:
+                if zscore_in_groups:
+                    all_feat_concat = numpy_utils.zscore_in_groups(all_feat_concat, zgroup_labels)
+                else:
+                    all_feat_concat = scipy.stats.zscore(all_feat_concat, axis=0)
+                # if any entries in std are zero or nan, this gives bad result - fix these now.
+                # these bad entries will also be zero in weights, so doesn't matter. 
+                # just want to avoid nans.
+                all_feat_concat[np.isnan(all_feat_concat)] = 0.0 
+                all_feat_concat[np.isinf(all_feat_concat)] = 0.0 
+                        
+            pred_models[:,feature_inds_defined,mm] = all_feat_concat
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined
             
         _feature_extractor.clear_big_features()
         
+        # Next looping over all voxels in batches.
+        
         vv=-1
-        ## Looping over voxels here in batches, will eventually go through all.
         for rv, lv in numpy_utils.iterate_range(0, n_voxels, voxel_batch_size):
             vv=vv+1
             print('Getting predictions for voxels [%d-%d] of %d'%(rv[0],rv[-1],n_voxels))
@@ -81,11 +108,16 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 features_to_use = masks[:,pp]==1
                 print('Includes %d features'%np.sum(features_to_use))
 
+                
+                # here is where we choose the right set of features for each voxel, based
+                # on its fitted prf.
                 # [trials x features x voxels]
                 features_full = pred_models[:,:,best_model_inds[rv,pp]]
+                
                 # Take out the relevant features now
                 features_full = features_full[:,features_to_use,:]
-                # Note there may be some zeros in this matrix, if we used fewer than the max number of features.
+                # Note there may be some zeros in this matrix, if we used fewer than the 
+                # max number of features.
                 # But they are zero in weight matrix too, so turns out ok.
 
                 _weights = torch_utils._to_torch(weights[rv,:,pp], device=device)   
@@ -98,35 +130,17 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 print('size of weights is:')
                 print(_weights.shape)
 
-                if features_mt is not None:
-                    _features_m = torch_utils._to_torch(features_mt[rv,:], device=device)
-                    _features_m = _features_m[:,features_to_use]
-                if features_st is not None:
-                    _features_s = torch_utils._to_torch(features_st[rv,:], device=device)
-                    _features_s = _features_s[:,features_to_use]
-
                 pred_block = np.full(fill_value=0, shape=(n_trials, lv), dtype=dtype)
 
                 # Now looping over validation set trials in batches
                 for rt, lt in numpy_utils.iterate_range(0, n_trials, sample_batch_size):
 
-                    _features = torch_utils._to_torch(features_full[rt,:], device=device) # trials x features
-                    if features_mt is not None:    
-                        # features_m is [nvoxels x nfeatures] - need [trials x features x voxels]
-                        _features = _features - torch.tile(torch.unsqueeze(_features_m, dim=0), [_features.shape[0], 1, 1]).moveaxis([1],[2])
-
-                    if features_st is not None:
-                        _features = _features/torch.tile(torch.unsqueeze(_features_s, dim=0), [_features.shape[0], 1, 1]).moveaxis([1],[2])
-                        # if any entries in std are zero or nan, this gives bad result - fix these now.
-                        # these bad entries will also be zero in weights, so doesn't matter. just want to avoid nans.
-                        _features[torch.isnan(_features)] = 0.0 
-                        _features[torch.isinf(_features)] = 0.0
-                        
-                    # features is [#samples, #features, #voxels] - swap dims to [#voxels, #samples, features]
+                    _features = torch_utils._to_torch(features_full[rt,:,:], device=device)
+                    # features is [#samples, #features, #voxels]
+                    # swap dims to [#voxels, #samples, features]
                     _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
                     # weights is [#voxels, #features]
                     # _r will be [#voxels, #samples, 1] - then [#samples, #voxels]
-
                     _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
 
                     if _bias is not None:

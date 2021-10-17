@@ -22,6 +22,7 @@ ridge=1
 sample_batch_size=100
 voxel_batch_size=100
 zscore_features=1
+zscore_in_groups=1
 
 fitting_type=sketch_tokens
 use_pca_st_feats=0
@@ -33,6 +34,9 @@ do_stack=0
 
 debug=0
 
+do_roi_recons=1
+do_voxel_recons=1
+
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --min_pct_var $min_pct_var --max_pc_to_retain $max_pc_to_retain --debug $debug --fitting_type $fitting_type --do_stack $do_stack
+python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --min_pct_var $min_pct_var --max_pc_to_retain $max_pc_to_retain --debug $debug --fitting_type $fitting_type --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons 

@@ -21,7 +21,8 @@ def get_args():
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=int,default=1,
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
-    
+    parser.add_argument("--zscore_in_groups", type=int,default=1,
+                    help="want to z-score groups of columns together, rather than each individually?")
    
     
     parser.add_argument("--shuffle_images", type=int,default=0,
@@ -45,6 +46,10 @@ def get_args():
                     help="want to do stacking analysis? 1 for yes, 0 for no")
     parser.add_argument("--do_varpart", type=int,default=1,
                     help="want to do variance partition? 1 for yes, 0 for no")
+    parser.add_argument("--do_roi_recons", type=int,default=1,
+                    help="want to do population level recons? 1 for yes, 0 for no")
+    parser.add_argument("--do_voxel_recons", type=int,default=1,
+                    help="want to do single voxel recons? 1 for yes, 0 for no")
     parser.add_argument("--date_str", type=int,default=0,
                     help="what date was the model fitting done (only if you're starting from validation step.)")
     

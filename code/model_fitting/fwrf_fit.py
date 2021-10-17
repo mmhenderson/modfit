@@ -165,11 +165,22 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         best_w_params = np.concatenate([best_w_params, np.zeros(shape=(n_voxels,1,n_partial_versions), dtype=dtype)], axis=1)
 
     if zscore:
-        features_mean = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
-        features_std  = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
+        if hasattr(_feature_extractor, 'zgroup_labels') and \
+                        _feature_extractor.zgroup_labels is not None:
+            zscore_in_groups = True
+            features_mean = None
+            features_std = None
+            zgroup_labels = _feature_extractor.zgroup_labels
+            print('will z-score columns in groups')
+        else:
+            zscore_in_groups = False
+            features_mean = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
+            features_std  = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
+            print('will z-score each column')
     else:
         features_mean = None
         features_std = None
+        print('will not z-score')
 
     start_time = time.time()
     vox_loop_time = 0
@@ -201,10 +212,14 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
             n_features_actual = features.shape[1]
             
             if zscore:  
-                features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
-                features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
-                features -= features_m
-                features /= features_s    
+                if zscore_in_groups:
+                    features = numpy_utils.zscore_in_groups(features, zgroup_labels)
+                else:
+                    # otherwise do each column separately, this is usual way
+                    features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
+                    features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
+                    features -= features_m
+                    features /= features_s    
 
             if add_bias:
                 features = np.concatenate([features, np.ones(shape=(len(features), 1), dtype=dtype)], axis=1)
@@ -312,7 +327,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         best_lambdas[arv,pp] = lambda_inds
                         best_losses[arv,pp] = loss_values[imp]                        
                         best_prf_models[arv,pp] = m
-                        if zscore and pp==0:
+                        if zscore and not zscore_in_groups and pp==0:
                             
                             # only need to update the mean/std if we're working with the full model, 
                             # because those will be same for all partial versions.

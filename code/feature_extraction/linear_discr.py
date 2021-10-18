@@ -24,6 +24,8 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
     elapsed = time.time() - t
     print('Took %.5f seconds to load file'%elapsed)
     features_each_prf = values
+    n_features = 150
+    features_each_prf = features_each_prf[:,0:n_features,:]
 
     # Choose where to save results
     path_to_save = os.path.join(path_to_load, 'LDA')
@@ -32,7 +34,8 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
 
     # how to do z-scoring? can set up groups of columns here.
     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
-
+    zgroup_labels = zgroup_labels[0:n_features]
+    
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
@@ -137,7 +140,9 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
         print(features_in_prf.shape)
         
         # z-score in advance of computing lda 
-        features_in_prf_z = numpy_utils.zscore_in_groups(features_in_prf, zgroup_labels)
+        features_in_prf_z = np.zeros_like(features_in_prf)
+        features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
 
         # Identify the LDA subspace, based on training data only.
         _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \

@@ -120,9 +120,13 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         assert(n_hl_feats==features_hl.shape[1])
         
         # z-score each group of columns.
-        features_ll_z = numpy_utils.zscore_in_groups(features_ll, zgroup_labels_ll)
-        features_hl_z = numpy_utils.zscore_in_groups(features_hl, zgroup_labels_hl)
-
+        features_ll_z = np.zeros_like(features_ll)
+        features_ll_z[trninds,:] = numpy_utils.zscore_in_groups(features_ll[trninds,:], zgroup_labels_ll)
+        features_ll_z[~trninds,:] = numpy_utils.zscore_in_groups(features_ll[~trninds,:], zgroup_labels_ll)
+        features_hl_z = np.zeros_like(features_hl)
+        features_hl_z[trninds,:] = numpy_utils.zscore_in_groups(features_hl[trninds,:], zgroup_labels_hl)
+        features_hl_z[~trninds,:] = numpy_utils.zscore_in_groups(features_hl[~trninds,:], zgroup_labels_hl)
+        
         _, wts_ll, pre_mean_ll, ev_ll = do_pca(features_ll_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
                                                       zscore_first=False)
         feat_submean_ll = features_ll_z - np.tile(pre_mean_ll[np.newaxis,:], [features_ll_z.shape[0],1])
@@ -211,10 +215,13 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
         
         features_in_prf = features_each_prf[:,:,prf_model_index]
-        features_in_prf_z = numpy_utils.zscore_in_groups(features_in_prf, zgroup_labels)
+        
+        features_in_prf_z = np.zeros_like(features_in_prf)
+        features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
            
         print('Size of features array for this image set and prf is:')
-        print(features_in_prf.shape)
+        print(features_in_prf_z.shape)
 
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\

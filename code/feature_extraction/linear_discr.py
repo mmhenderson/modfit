@@ -34,7 +34,7 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
 
     # how to do z-scoring? can set up groups of columns here.
     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
-    zgroup_labels = zgroup_labels[0:n_features]
+    zgroup_labels = zgroup_labels[0,0:n_features]
     
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)

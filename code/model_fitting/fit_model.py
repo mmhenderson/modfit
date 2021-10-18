@@ -84,14 +84,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'up_to_sess': up_to_sess,
         'shuff_rnd_seed': shuff_rnd_seed,
         'use_precomputed_prfs': use_precomputed_prfs,
-        'pop_recons': pop_recons,
-        'pop_recon_r2': pop_recon_r2, 
-        'pop_recon_corrcoef': pop_recon_corrcoef,
-        'pop_recon_angle': pop_recon_angle,
-        'voxel_recons': voxel_recons,
-        'voxel_recon_r2': voxel_recon_r2, 
-        'voxel_recon_corrcoef': voxel_recon_corrcoef,
-        'voxel_recon_angle': voxel_recon_angle,
+        'pop_recs': pop_recs,
+        'voxel_recs': voxel_recs
         }
         # Might be some more things to save, depending what kind of fitting this is
         if 'bdcn' in fitting_type:
@@ -155,8 +149,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
     if 'pyramid' in fitting_type:
         model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, do_pca_hl = do_pca_pyr_hl)
-#         feature_types_exclude = []
-        feature_types_exclude = ['pixel']
+        feature_types_exclude = []
         name1 = 'pyramid_texture'
         
     elif 'gabor_texture' in fitting_type:        
@@ -186,7 +179,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         raise ValueError('your string for fitting_type was not recognized')
         
     if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
+        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
+                                                                      lda_discrim_type, max_pc_to_retain)   
         model_name = model_name + '_plus_' + model_name2
     elif 'plus_bdcn' in fitting_type:
         model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
@@ -195,10 +189,12 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if do_stack:
         model_name += '_stacked'
         
-    output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str)
+    output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, \
+                                                           random_images, random_voxel_data, debug, date_str)
     
     # decide what voxels to use  
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, volume_space, include_all=True, include_body=True)
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, \
+                                                            volume_space, include_all=True, include_body=True)
 
     sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
@@ -236,12 +232,14 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         compute_features = False
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
-        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=sample_batch_size, \
-                                      subject=subject, feature_types_exclude=feature_types_exclude, n_prf_sd_out=n_prf_sd_out,\
+        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
+                                      sample_batch_size=sample_batch_size, \
+                                      subject=subject, feature_types_exclude=feature_types_exclude, \
+                                      n_prf_sd_out=n_prf_sd_out,\
                                       aperture=aperture, do_varpart = do_varpart, \
                                       group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
-                                      do_pca_hl = do_pca_pyr_hl, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                                                                                  device=device)
+                                      do_pca_hl = do_pca_pyr_hl, min_pct_var = min_pct_var, \
+                                      max_pc_to_retain = max_pc_to_retain, device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'gabor' in fitting_type:
@@ -276,7 +274,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                   n_prf_sd_out = n_prf_sd_out, \
                                                    batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
                                                 downsample_factor = downsample_factor, do_nms = do_nms, \
-                                             do_pca = do_pca_bdcn, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                             do_pca = do_pca_bdcn, min_pct_var = min_pct_var, \
+                                                                  max_pc_to_retain = max_pc_to_retain)
 
         
     if 'plus_sketch_tokens' in fitting_type:
@@ -295,7 +294,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                                                       n_prf_sd_out = n_prf_sd_out, \
                                                        batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
                                                     downsample_factor = downsample_factor, do_nms = do_nms, \
-                                              do_pca = do_pca_bdcn, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                              do_pca = do_pca_bdcn, min_pct_var = min_pct_var, \
+                                                                       max_pc_to_retain = max_pc_to_retain)
             
             _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'bdcn'], do_varpart = do_varpart)
@@ -353,14 +353,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         stack_result=None
         stack_result_lo=None
         partial_models_used_for_stack=None
-        pop_recons=None
-        pop_recon_r2=None
-        pop_recon_corrcoef=None 
-        pop_recon_angle=None
-        voxel_recons=None
-        voxel_recon_r2=None
-        voxel_recon_corrcoef=None 
-        voxel_recon_angle=None
+        pop_recs=None
+        voxel_recs=None
         
         save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
@@ -441,9 +435,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
         roi_def = roi_utils.get_combined_rois(subject, volume_space=volume_space, \
                                       include_all=True, include_body=True, verbose=False)
-        pop_recons, pop_recon_r2, pop_recon_corrcoef, pop_recon_angle = \
-            reconstruct.get_population_recons(best_params, models, val_voxel_data, roi_def, val_stim_data, \
-                                      _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
+        pop_recs = \
+            reconstruct.get_population_recons(best_params, models, val_voxel_data, roi_def, \
+                  val_stim_data, _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
         save_all(fn2save, fitting_type)
         
     sys.stdout.flush()
@@ -454,7 +448,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         print('about to start voxelwise reconstruction analysis')
         sys.stdout.flush()
 
-        voxel_recons, voxel_recon_r2, voxel_recon_corrcoef, voxel_recon_angle = \
+        voxel_recs = \
             reconstruct.get_single_voxel_recons(best_params, models, val_voxel_data, val_stim_data, \
                                       _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
         save_all(fn2save, fitting_type)

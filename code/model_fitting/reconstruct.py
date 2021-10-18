@@ -1,12 +1,13 @@
 from __future__ import division
 import sys
+import os
 import time
 import numpy as np
 import copy
 import torch
 import scipy.stats
 
-from utils import numpy_utils, torch_utils, stats_utils
+from utils import numpy_utils, torch_utils, stats_utils, default_paths
 
 def get_population_recons(best_params, prf_models, voxel_data, roi_def, images, _feature_extractor, \
                           zscore=False, debug=False, dtype=np.float32):
@@ -163,7 +164,7 @@ def get_population_recons(best_params, prf_models, voxel_data, roi_def, images, 
     return pop_recons, recon_r2, recon_corrcoef, recon_angle
 
 
-def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _feature_extractor, \
+def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _feature_extractor,\
                           zscore=False, debug=False, dtype=np.float32):
     
     """ 
@@ -197,10 +198,29 @@ def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _featur
     pred_models = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
     feature_inds_defined_each_prf = np.full(fill_value=0, shape=(n_features_max, n_prfs), dtype=bool)
 
-    voxel_recons = np.zeros((n_trials, n_features, n_voxels),dtype=dtype)
-
-    recon_r2 = np.zeros((n_trials, n_voxels))
-    recon_angle = np.zeros((n_trials, n_voxels))
+    print('Preallocating arrays')
+       
+    # loading pre-computed linear discriminant analysis features
+    # only have these made for sketch tokens so far
+    assert('sketch_tokens' in _feature_extractor.features_file)      
+    sketch_token_feat_path = default_paths.sketch_token_feat_path
+    axes_to_do = ['animacy','indoor_outdoor']
+    n_sem_axes = len(axes_to_do)
+    sem_proj_slope = np.zeros((n_voxels, n_sem_axes))
+    sem_proj_inter = np.zeros((n_voxels, n_sem_axes))
+    sem_proj_r2 = np.zeros((n_voxels, n_sem_axes))
+    recon_sem_proj = np.zeros((n_trials, n_voxels, n_sem_axes))
+    actual_sem_proj = np.zeros((n_trials, n_voxels, n_sem_axes))
+    
+    lda_result_list = []
+    for aa, discrim_type in enumerate(axes_to_do):
+        features_file = os.path.join(sketch_token_feat_path, 'LDA', \
+                                                  'S%d_LDA_%s.npy'%(_feature_extractor.subject, discrim_type))
+        print('loading from %s'%features_file)
+        lda_result = np.load(features_file, allow_pickle=True).item()
+        lda_result_list.append(lda_result)
+        
+#     recon_angle = np.zeros((n_trials, n_voxels))
     recon_corrcoef = np.zeros((n_trials, n_voxels))
 
     start_time = time.time()    
@@ -242,6 +262,8 @@ def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _featur
                 # this population approach won't work if the features are not same across prfs.
                 assert(np.all(feature_inds_defined ==feature_inds_defined_each_prf[:,0]))
 
+            sys.stdout.flush()
+            
         _feature_extractor.clear_big_features()
 
         for vv in range(n_voxels):
@@ -249,6 +271,7 @@ def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _featur
             if vv>1 and debug:
                 break
             print('processing voxel %d of %d'%(vv, n_voxels))
+            sys.stdout.flush()
             # weights is [voxels x features]
             W = weights[vv:vv+1,:,0]
             feature_inds = feature_inds_defined_each_prf[:,0]
@@ -261,24 +284,58 @@ def get_single_voxel_recons(best_params, prf_models, voxel_data, images, _featur
             # [trials x features]
             recon = recon.T
 
-            voxel_recons[:,:,vv] = recon
+#             voxel_recons[:,:,vv] = recon
 
             # "ground truth" feature for each trial
-            feature_vector = pred_models[:,feature_inds,best_model_inds[vv,0]]
+            mm = best_model_inds[vv,0]
+            feature_vector = pred_models[:,feature_inds,mm]
            
-            # computing r2 for each single-trial recon (i.e. over the features dim)
-            # so need to transpose for this fn
-            recon_r2[:,vv] = stats_utils.get_r2(feature_vector.T, recon.T)
+            # computing corr coef for each single-trial recon (i.e. over the features dim)
             recon_corrcoef[:,vv] = stats_utils.get_corrcoef(feature_vector.T, recon.T)
-            dp = np.sum(feature_vector*recon, axis=1)
-            cosangle = dp / (np.sqrt(np.sum(feature_vector**2, axis=1)) * \
-                             np.sqrt(np.sum(recon**2, axis=1)))
-            recon_angle[:,vv] = np.arccos(cosangle) * 180/np.pi
+#             # dot product of mean centered recon w real feature
+#             feature_vector_centered = feature_vector - np.tile(np.mean(feature_vector, \
+#                                                    axis=1, keepdims=True), [1,n_features])
+#             recon_centered = recon - np.tile(np.mean(recon, axis=1, keepdims=True),[1, n_features])
+#             dp = np.sum(feature_vector_centered*recon_centered, axis=1)
+#             cosangle = dp / (np.sqrt(np.sum(feature_vector_centered**2, axis=1)) * \
+#                              np.sqrt(np.sum(recon_centered**2, axis=1)))
+#             recon_angle[:,vv] = np.arccos(cosangle) * 180/np.pi
+            
+            # now going to project the reconstruction onto various semantic axes
+           
+            for aa, discrim_type in enumerate(axes_to_do):
+                
+                lda_result = lda_result_list[aa]
+                lda_wts = lda_result['wts'][mm]
+                lda_pre_mean = lda_result['pre_mean'][mm]
 
-        recon_r2 = np.nan_to_num(recon_r2)
-        recon_corrcoef = np.nan_to_num(recon_corrcoef)
-        recon_angle = np.nan_to_num(recon_angle)
+                # Projecting both the "real" feature vector and the 
+                # "reconstruction" onto the semantic axis
+                features_submean = feature_vector - np.tile(lda_pre_mean[np.newaxis,:], [n_trials,1])
+                features_proj = features_submean @ lda_wts
+                recon_submean = recon - np.tile(lda_pre_mean[np.newaxis,:], [n_trials,1])
+                recon_proj = recon_submean @ lda_wts
+
+                # finding the slope of relationship between real and actual projections
+                a = np.concatenate([features_proj, np.ones(np.shape(features_proj))], axis=1)
+                b = recon_proj
+                x = np.linalg.pinv(a) @ b
+                slope = x[0]
+                inter = x[1]
+
+                b_pred = a[:,0]*slope + inter
+                ssr = np.sum((b_pred-b[:,0])**2)
+                sst = np.sum((b[:,0] - np.mean(b[:,0]))**2)
+                r2 = 1-ssr/sst
+                    
+                sem_proj_slope[vv,aa] = slope
+                sem_proj_inter[vv,aa] = inter
+                sem_proj_r2[vv,aa] = r2   
         
-    return voxel_recons, recon_r2, recon_corrcoef, recon_angle
+                recon_sem_proj[:,vv,aa] = np.squeeze(recon_proj)
+                actual_sem_proj[:,vv,aa] = np.squeeze(features_proj)
+        
+    return recon_corrcoef, sem_proj_slope, sem_proj_inter, sem_proj_r2, \
+                    recon_sem_proj, actual_sem_proj, axes_to_do
 
     

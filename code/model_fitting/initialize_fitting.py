@@ -177,11 +177,13 @@ def get_prf_models(aperture_rf_range=1.1):
     
     return aperture, models
 
-def load_precomputed_prfs(fitting_type):
+def load_precomputed_prfs(fitting_type, subject):
     
-    if fitting_type=='sketch_tokens':
+    if fitting_type=='sketch_tokens' and subject==1:
+#         prf_params_fn = os.path.join(default_paths.save_fits_path, \
+#                                  'S01/sketch_tokens/Oct-11-2021_1756_51/all_fit_params')
         prf_params_fn = os.path.join(default_paths.save_fits_path, \
-                                 'S01/sketch_tokens/Oct-11-2021_1756_51/all_fit_params')
+                                 'S01/sketch_tokens/Oct-18-2021_1719_32/all_fit_params')
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 

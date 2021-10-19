@@ -23,7 +23,7 @@ ridge=1
 sample_batch_size=100
 voxel_batch_size=100
 zscore_features=1
-zscore_in_groups=1
+zscore_in_groups=0
 
 fitting_type=sketch_tokens
 use_pca_st_feats=0

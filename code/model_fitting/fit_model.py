@@ -41,8 +41,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
-             do_pca_bdcn = True, do_pca_pyr_hl = False, \
+             do_pca_bdcn = True, use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
              min_pct_var = 99, max_pc_to_retain = 400, \
+             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100,\
              map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, \
              downsample_factor = 1.0, do_nms = False):
     
@@ -109,9 +110,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             
         if 'pyramid' in fitting_type:
             dict2save.update({
-            'pc': pc,
             'min_pct_var': min_pct_var,
-            'max_pc_to_retain': max_pc_to_retain,   
+            'max_pc_to_retain_pyr_ll': max_pc_to_retain_pyr_ll,
+            'max_pc_to_retain_pyr_hl': max_pc_to_retain_pyr_hl,
+            'use_pca_pyr_feats_ll': use_pca_pyr_feats_ll,
+            'use_pca_pyr_feats_hl': use_pca_pyr_feats_hl,
             'feature_info':feature_info,
             'group_all_hl_feats': group_all_hl_feats,
             })
@@ -148,7 +151,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing pca, because the pca weight matrix is not saved in between trn/val.')
         
     if 'pyramid' in fitting_type:
-        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, do_pca_hl = do_pca_pyr_hl)
+        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll = use_pca_pyr_feats_ll, use_pca_pyr_feats_hl = use_pca_pyr_feats_hl)
         feature_types_exclude = []
         name1 = 'pyramid_texture'
         
@@ -233,13 +236,14 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                                      sample_batch_size=sample_batch_size, \
-                                      subject=subject, feature_types_exclude=feature_types_exclude, \
-                                      n_prf_sd_out=n_prf_sd_out,\
-                                      aperture=aperture, do_varpart = do_varpart, \
-                                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
-                                      do_pca_hl = do_pca_pyr_hl, min_pct_var = min_pct_var, \
-                                      max_pc_to_retain = max_pc_to_retain, device=device)
+                  sample_batch_size=sample_batch_size, \
+                  subject=subject, feature_types_exclude=feature_types_exclude, \
+                  n_prf_sd_out=n_prf_sd_out,\
+                  aperture=aperture, do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
+                  group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
+                  use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
+                  min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
+                  max_pc_to_retain_hl = max_pc_to_retain_pyr_ll, device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'gabor' in fitting_type:
@@ -479,10 +483,15 @@ if __name__ == '__main__':
              do_varpart = args.do_varpart==1, do_roi_recons = args.do_roi_recons==1, \
              do_voxel_recons = args.do_voxel_recons==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
-             do_pca_pyr_hl = args.do_pca_pyr_hl==1, use_pca_st_feats = args.use_pca_st_feats==1, \
+             use_pca_pyr_feats_ll = args.use_pca_pyr_feats_ll==1, \
+             use_pca_pyr_feats_hl = args.use_pca_pyr_feats_hl==1, \
+             use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \
              lda_discrim_type = args.lda_discrim_type, \
              do_pca_bdcn = args.do_pca_bdcn==1, \
-             min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, map_ind = args.map_ind, \
+             min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, \
+             max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
+             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
+             map_ind = args.map_ind, \
              n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \
              downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)

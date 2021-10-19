@@ -67,9 +67,9 @@ def get_args():
                     help="How many pRF stddevs to use in patches? Default is 2")
     
     # Stuff that is specific to 'gabor' or 'texture' models
-    parser.add_argument("--n_ori", type=int,default=36,
+    parser.add_argument("--n_ori", type=int,default=4,
                     help="number of orientation channels to use")
-    parser.add_argument("--n_sf", type=int,default=12,
+    parser.add_argument("--n_sf", type=int,default=4,
                     help="number of spatial frequency channels to use")
     parser.add_argument("--group_all_hl_feats", type=int,default=1,
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
@@ -82,12 +82,18 @@ def get_args():
     # Stuff that is specific to PCA
     parser.add_argument("--do_pca_bdcn", type=int, default=1,
                     help="want to do PCA on BDCN features before fitting? 1 for yes, 0 for no")
-    parser.add_argument("--do_pca_pyr_hl", type=int, default=1,
+    parser.add_argument("--use_pca_pyr_feats_ll", type=int, default=1,
+                    help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
+    parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
                     help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
     
     parser.add_argument("--min_pct_var", type=int,default=95,
                     help="minimum percent var to use when choosing num pcs to retain, default 95")
     parser.add_argument("--max_pc_to_retain", type=int,default=100,
+                    help="maximum number of pcs to retain, default 100")
+    parser.add_argument("--max_pc_to_retain_pyr_ll", type=int,default=100,
+                    help="maximum number of pcs to retain, default 100")
+    parser.add_argument("--max_pc_to_retain_pyr_hl", type=int,default=100,
                     help="maximum number of pcs to retain, default 100")
     
     # Stuff that is specific to BDCN model

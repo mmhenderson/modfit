@@ -259,7 +259,7 @@ def plot_cc_each_roi(subject, fitting_type,out, roi_def=None, skip_inds=None, fi
         plt.savefig(os.path.join(fig_save_folder,'corr_each_roi.png'))
         
         
-def plot_r2_vs_nc(subject, fitting_type, out, roi_def=None, skip_inds=None, fig_save_folder=None, fig_size=None):
+def plot_r2_vs_nc(subject, fitting_type, out, roi_def=None, skip_inds=None, axlims = None, fig_save_folder=None, fig_size=None):
 
     """
     Create scatter plots for each ROI, comparing each voxel's R2 prediction to the noise ceiling.
@@ -270,8 +270,9 @@ def plot_r2_vs_nc(subject, fitting_type, out, roi_def=None, skip_inds=None, fig_
     val_r2 = out['val_r2'][:,0]
 
     inds2use = np.ones(np.shape(val_r2))==1
-
-    sp = plot_utils.scatter_plot(color=None, xlabel='Noise Ceiling', ylabel='R2', xlims=[-0.1, 0.7], ylims=[-0.1, 0.7], \
+    if axlims is None:
+        axlims = [-0.1, 0.7]
+    sp = plot_utils.scatter_plot(color=None, xlabel='Noise Ceiling', ylabel='R2', xlims=axlims, ylims=axlims, \
                       xticks=[0, 0.2, 0.4, 0.6], yticks=[0, 0.2, 0.4, 0.6],\
                                                             show_diagonal=True, show_axes=True);
 

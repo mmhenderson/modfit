@@ -26,8 +26,8 @@ zscore_features=1
 zscore_in_groups=0
 
 fitting_type=pyramid_texture
-use_pca_pyr_feats_ll=1
-use_pca_pyr_feats_hl=1
+use_pca_pyr_feats_ll=0
+use_pca_pyr_feats_hl=0
 
 min_pct_var=95
 max_pc_to_retain_pyr_ll=100

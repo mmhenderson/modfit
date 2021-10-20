@@ -76,7 +76,12 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 if zscore_in_groups:
                     all_feat_concat = numpy_utils.zscore_in_groups(all_feat_concat, zgroup_labels)
                 else:
-                    all_feat_concat = scipy.stats.zscore(all_feat_concat, axis=0)
+                    # using mean and std that were computed on training set during fitting - keeping 
+                    # these pars constant here seems to improve fits. 
+                    tiled_mean = np.tile(features_mt[mm,:], [n_trials, 1])
+                    tiled_std = np.tile(features_st[mm,:], [n_trials, 1])
+                    all_feat_concat = (all_feat_concat - tiled_mean)/tiled_std
+#                     all_feat_concat = scipy.stats.zscore(all_feat_concat, axis=0)
                 # if any entries in std are zero or nan, this gives bad result - fix these now.
                 # these bad entries will also be zero in weights, so doesn't matter. 
                 # just want to avoid nans.

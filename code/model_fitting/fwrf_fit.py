@@ -174,8 +174,8 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
             print('will z-score columns in groups')
         else:
             zscore_in_groups = False
-            features_mean = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
-            features_std  = np.zeros(shape=(n_voxels, max_features), dtype=dtype)
+            features_mean = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
+            features_std  = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
             print('will z-score each column')
     else:
         features_mean = None
@@ -219,7 +219,11 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                     features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
                     features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
                     features -= features_m
-                    features /= features_s    
+                    features /= features_s   
+                    # saving these for later so we can exactly reproduce this normalization
+                    # when doing validation pass...
+                    features_mean[m,feature_inds_defined] = features_m
+                    features_std[m,feature_inds_defined] = features_s
 
             if add_bias:
                 features = np.concatenate([features, np.ones(shape=(len(features), 1), dtype=dtype)], axis=1)
@@ -327,20 +331,20 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
                         best_lambdas[arv,pp] = lambda_inds
                         best_losses[arv,pp] = loss_values[imp]                        
                         best_prf_models[arv,pp] = m
-                        if zscore and not zscore_in_groups and pp==0:
+#                         if zscore and not zscore_in_groups and pp==0:
                             
-                            # only need to update the mean/std if we're working with the full model, 
-                            # because those will be same for all partial versions.
-                            fmean_tmp = copy.deepcopy(features_mean[arv,:])
-                            fstd_tmp = copy.deepcopy(features_std[arv,:])
-                            fmean_tmp[:,nonzero_inds_full[0:-1]] = features_m[0,nonzero_inds_short[0:-1]] 
-                            # broadcast over updated voxels
-                            fmean_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
-                            fstd_tmp[:,nonzero_inds_full[0:-1]] = features_s[0,nonzero_inds_short[0:-1]] 
-                            # broadcast over updated voxels
-                            fstd_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
-                            features_mean[arv,:] = fmean_tmp
-                            features_std[arv,:] = fstd_tmp
+#                             # only need to update the mean/std if we're working with the full model, 
+#                             # because those will be same for all partial versions.
+#                             fmean_tmp = copy.deepcopy(features_mean[arv,:])
+#                             fstd_tmp = copy.deepcopy(features_std[arv,:])
+#                             fmean_tmp[:,nonzero_inds_full[0:-1]] = features_m[0,nonzero_inds_short[0:-1]] 
+#                             # broadcast over updated voxels
+#                             fmean_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
+#                             fstd_tmp[:,nonzero_inds_full[0:-1]] = features_s[0,nonzero_inds_short[0:-1]] 
+#                             # broadcast over updated voxels
+#                             fstd_tmp[:,~nonzero_inds_full[0:-1]] = 0.0
+#                             features_mean[arv,:] = fmean_tmp
+#                             features_std[arv,:] = fstd_tmp
                             
                         # taking the weights associated with the best lambda value
                         # remember that they won't fill entire matrix, rest of values stay at zero

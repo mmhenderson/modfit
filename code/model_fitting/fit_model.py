@@ -138,17 +138,17 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         print('\nSaving to %s\n'%fn2save)
         torch.save(dict2save, fn2save, pickle_protocol=4)
 
-    if date_str==0:
+    if date_str==0 or date_str=='':
         date_str = None
         
-    if do_fitting==False and date_str is None:
+    if do_fitting==False and not date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
 
     if do_fitting==True and date_str is not None:
         raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
 
-    if do_fitting==False and (do_pca_pyr_hl or do_pca_st or do_pca_bdcn):
-        raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing pca, because the pca weight matrix is not saved in between trn/val.')
+    if do_fitting==False and do_pca_bdcn:
+        raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing bdcn pca, because the pca weight matrix is not saved in between trn/val.')
         
     if 'pyramid' in fitting_type:
         model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll = use_pca_pyr_feats_ll, use_pca_pyr_feats_hl = use_pca_pyr_feats_hl)
@@ -246,7 +246,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                   group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
                   use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
                   min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
-                  max_pc_to_retain_hl = max_pc_to_retain_pyr_ll, device=device)
+                  max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'gabor' in fitting_type:

@@ -50,7 +50,7 @@ def get_args():
                     help="want to do population level recons? 1 for yes, 0 for no")
     parser.add_argument("--do_voxel_recons", type=int,default=1,
                     help="want to do single voxel recons? 1 for yes, 0 for no")
-    parser.add_argument("--date_str", type=int,default=0,
+    parser.add_argument("--date_str", type=str,default='',
                     help="what date was the model fitting done (only if you're starting from validation step.)")
     
      

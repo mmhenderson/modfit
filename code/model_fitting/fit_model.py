@@ -17,8 +17,8 @@ import skimage.transform
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from feature_extraction import texture_statistics_gabor, sketch_token_features
-from feature_extraction import texture_statistics_pyramid
+from feature_extraction import texture_statistics_gabor, sketch_token_features, \
+                texture_statistics_pyramid, alexnet_features
 from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting as initialize_fitting
@@ -31,7 +31,8 @@ device = initialize_fitting.init_cuda()
 #################################################################################################
         
     
-def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
+def fit_fwrf(fitting_type, fitting_type2=None, \
+             subject=1, volume_space = True, up_to_sess = 1, \
              n_ori = 4, n_sf = 4, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
@@ -43,7 +44,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
              use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
              min_pct_var = 99, max_pc_to_retain = 400, \
-             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100):
+             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
+             alexnet_layer_name='Conv5_ReLU'):
     
     def save_all(fn2save, fitting_type):
         """
@@ -53,6 +55,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'subject': subject,
         'volume_space': volume_space,
         'fitting_type': fitting_type,
+        'fitting_type2': fitting_type2,
         'voxel_mask': voxel_mask,
         'brain_nii_shape': brain_nii_shape,
         'image_order': image_order,
@@ -128,10 +131,16 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             'autocorr_output_pix': autocorr_output_pix,
             'group_all_hl_feats': group_all_hl_feats,
             })
+        if 'alexnet' in fitting_type:
+            dict2save.update({
+            'alexnet_layer_name': alexnet_layer_name
+            })
             
         print('\nSaving to %s\n'%fn2save)
         torch.save(dict2save, fn2save, pickle_protocol=4)
 
+    if fitting_type2=='':
+        fitting_type2 = None
     if date_str==0 or date_str=='':
         date_str = None
         
@@ -162,17 +171,29 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             use_lda_st_feats = False
             lda_discrim_type=None
         model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
-                                                                     use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
+                                         use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
         name1 = 'sketch_tokens'
         
-    else:
-        raise ValueError('your string for fitting_type was not recognized')
+    elif 'alexnet' in fitting_type:
+        model_name = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)   
+        name1 = 'alexnet'
         
-    if 'plus_sketch_tokens' in fitting_type:
-        model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
-                                                                      lda_discrim_type, max_pc_to_retain)   
-        model_name = model_name + '_plus_' + model_name2
-            
+    else:
+        raise ValueError('fitting type "%s" not recognized'%fitting_type2)
+        
+    if fitting_type2 is not None:
+        if 'sketch_tokens' in fitting_type2:
+            model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
+                                                                          lda_discrim_type, max_pc_to_retain)   
+            name2 = 'sketch_tokens'
+        elif 'alexnet' in fitting_type2:
+            model_name2 = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)
+            name2 = 'alexnet'
+        else: 
+            raise ValueError('fitting type 2 "%s" not recognized'%fitting_type2)
+        model_name = model_name + '_plus_' + model_name2    
+
+    
     if do_stack:
         stack_result = None
         stack_result_lo = None
@@ -195,23 +216,23 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
 
     sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
+    image_inds_only = True
     # get all data and corresponding images, in two splits. always fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
             image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, \
-                                      sessions=sessions, image_inds_only = True, \
+                                      sessions=sessions, image_inds_only = image_inds_only, \
                                       voxel_mask=voxel_mask, volume_space=volume_space, \
                                       zscore_betas_within_sess=zscore_betas_within_sess, \
                                   shuffle_images=shuffle_images, random_images=random_images, \
                                     random_voxel_data=random_voxel_data)
 
-    
-    if 'gabor' in fitting_type or 'sketch_tokens' in fitting_type or 'pyramid' in fitting_type:
+    if image_inds_only==True:
         # For this model, the features are pre-computed, so we will just load them rather than passing in images.
         # Going to pass the image indices (into 10,000 dim array) instead of images to fitting and val functions, 
         # which will tell which features to load.
         trn_stim_data = image_order_trn
         val_stim_data = image_order_val
-        
+   
     # More params for fitting
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
     # Params for the spatial aspect of the model (possible pRFs)
@@ -263,14 +284,40 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
                  use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, zscore_in_groups = zscore_in_groups)
     
-    if 'plus_sketch_tokens' in fitting_type:
+    elif 'alexnet' in fitting_type:
         
-        _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
-                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
-        _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
-                                                                           [name1,'sketch_tokens'], do_varpart = do_varpart)
+        if alexnet_layer_name=='all_conv':
+            assert(fitting_type2 is None)
+            fe = []
+            n_layers = 5
+            names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
+            for ll in range(n_layers):
+                fe.append(alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                                             layer_name=names[ll], device=device))
+            _feature_extractor = merge_features.combined_feature_extractor(fe, names, do_varpart=do_varpart)
+               
+        else:
+            _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                                             layer_name=alexnet_layer_name, device=device)
     
+        
+    if fitting_type2 is not None:
+
+        if 'sketch_tokens' in fitting_type2:
+
+            _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                     use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                     use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
+            
+        elif 'alexnet' in fitting_type2:
+            assert(alexnet_layer_name is not 'all_conv')
+            _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                                             layer_name=alexnet_layer_name, device=device)
+            
+            
+        _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
+                                                                           [name1,name2], do_varpart = do_varpart)
+
     #### DO THE ACTUAL MODEL FITTING HERE ####
     
     if do_fitting:
@@ -288,6 +335,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
         # always using true.
         shuffle=True 
+        print(len(trn_stim_data))
+    
         best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order = \
                             fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
                                    _feature_extractor, models, \
@@ -413,7 +462,8 @@ if __name__ == '__main__':
 
     # now actually call the function to execute fitting...
  
-    fit_fwrf(fitting_type = args.fitting_type, subject=args.subject, volume_space = args.volume_space, \
+    fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \
+             subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, \
              n_ori = args.n_ori, n_sf = args.n_sf,
              group_all_hl_feats = args.group_all_hl_feats, \
@@ -434,5 +484,6 @@ if __name__ == '__main__':
              lda_discrim_type = args.lda_discrim_type, \
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, \
              max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
-             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl)
+             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
+             alexnet_layer_name = args.alexnet_layer_name)
              

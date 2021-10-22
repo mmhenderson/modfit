@@ -72,6 +72,15 @@ def get_save_path(subject, volume_space, model_name, shuffle_images, random_imag
     
     return output_dir, fn2save
  
+def get_alexnet_model_name(alexnet_layer_name):
+    
+    if 'ReLU' in alexnet_layer_name:
+        name = alexnet_layer_name.split('_')[0]
+    else:
+        name = alexnet_layer_name
+    model_name = 'alexnet_%s'%name
+    
+    return model_name
     
 def get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll=False, use_pca_pyr_feats_hl=False):
 

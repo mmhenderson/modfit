@@ -16,6 +16,8 @@ def get_args():
     
     parser.add_argument("--fitting_type", type=str,default='texture_pyramid',
                     help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo'")
+    parser.add_argument("--fitting_type2", type=str,default='',
+                    help="additional fitting type, for variance partition?")
                         
     parser.add_argument("--ridge", type=int,default=1,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
@@ -93,6 +95,10 @@ def get_args():
     parser.add_argument("--lda_discrim_type", type=str, default='animacy',
                     help="What labels are used to compute LDA features?")
                              
+    # specific to alexnet
+    parser.add_argument("--alexnet_layer_name", type=str, default='', 
+                       help="What layer of alexnet to use?")
+        
     args = parser.parse_args()
     
     # print values of a few key things to the command line...

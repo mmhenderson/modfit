@@ -34,11 +34,9 @@ pyramid_texture_feat_path_localnode = '/scratch/mmhender/features/pyramid_textur
 sketch_token_feat_path = os.path.join(root, 'features/sketch_tokens/')
 sketch_token_feat_path_localnode = '/scratch/mmhender/features/sketch_tokens/'
 
-# Path where all the BDCN code lives
-bdcn_path = '/user_data/mmhender/toolboxes/BDCN/'
-
 # Path where AlexNet features will be saved
-alexnet_activ_path = '/lab_data/tarrlab/common/datasets/features/NSD/alexnet_full'
+alexnet_feat_path = os.path.join(root, 'features/alexnet/')
+alexnet_feat_path_localnode = '/scratch/mmhender/features/alexnet/'
 
 # Path to the COCO API toolbox
 # https://github.com/cocodataset/cocoapi

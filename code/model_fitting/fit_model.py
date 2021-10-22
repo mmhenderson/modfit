@@ -17,7 +17,7 @@ import skimage.transform
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from feature_extraction import texture_statistics_gabor, bdcn_features, sketch_token_features
+from feature_extraction import texture_statistics_gabor, sketch_token_features
 from feature_extraction import texture_statistics_pyramid
 from utils import nsd_utils, roi_utils, default_paths
 
@@ -32,7 +32,7 @@ device = initialize_fitting.init_cuda()
         
     
 def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
-             n_ori = 4, n_sf = 4, nonlin_fn = False,  padding_mode = 'circular', \
+             n_ori = 4, n_sf = 4, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, zscore_in_groups = False, ridge = True, \
@@ -41,11 +41,9 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
              do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
-             do_pca_bdcn = True, use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
+             use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
              min_pct_var = 99, max_pc_to_retain = 400, \
-             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100,\
-             map_ind = -1, n_prf_sd_out = 2, mult_patch_by_prf = True, \
-             downsample_factor = 1.0, do_nms = False):
+             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100):
     
     def save_all(fn2save, fitting_type):
         """
@@ -64,7 +62,6 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'aperture': aperture,
         'aperture_rf_range': aperture_rf_range,
         'models': models,        
-        'n_prf_sd_out': n_prf_sd_out,
         'best_losses': best_losses,           
         'best_lambdas': best_lambdas,
         'best_params': best_params,       
@@ -72,12 +69,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'val_cc': val_cc,
         'val_r2': val_r2,    
         'partial_masks': partial_masks, 
-        'partial_version_names': partial_version_names,
-        'stack_result': stack_result,
-        'stack_result_lo': stack_result_lo,
-        'partial_models_used_for_stack': partial_models_used_for_stack,
-        'train_r2': train_r2, 
-        'train_cc': train_cc,
+        'partial_version_names': partial_version_names,        
         'zscore_features': zscore_features, 
         'zscore_in_groups': zscore_in_groups,
         'ridge': ridge,
@@ -85,20 +77,24 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         'up_to_sess': up_to_sess,
         'shuff_rnd_seed': shuff_rnd_seed,
         'use_precomputed_prfs': use_precomputed_prfs,
-        'pop_recs': pop_recs,
-        'voxel_recs': voxel_recs
         }
         # Might be some more things to save, depending what kind of fitting this is
-        if 'bdcn' in fitting_type:
+        if do_stack:
             dict2save.update({
-            'pc': pc,
-            'min_pct_var': min_pct_var,
-            'max_pc_to_retain': max_pc_to_retain,           
-            'mult_patch_by_prf': mult_patch_by_prf,
-            'do_nms': do_nms, 
-            'downsample_factor': downsample_factor,
+            'stack_result': stack_result,
+            'stack_result_lo': stack_result_lo,
+            'partial_models_used_for_stack': partial_models_used_for_stack,
+            'train_r2': train_r2, 
+            'train_cc': train_cc,
             })
-            
+        if do_roi_recons:
+            dict2save.update({
+            'pop_recs': pop_recs
+            })
+        if do_voxel_recons:
+            dict2save.update({
+            'voxel_recs': voxel_recs
+            })
         if 'sketch_tokens' in fitting_type:
             dict2save.update({
             'min_pct_var': min_pct_var,
@@ -129,8 +125,6 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
             'orient_filters_complex': _gabor_ext_complex.filter_stack, 
             'feature_types_exclude': feature_types_exclude,
             'feature_info':feature_info,
-            'nonlin_fn': nonlin_fn,
-            'padding_mode': padding_mode,
             'autocorr_output_pix': autocorr_output_pix,
             'group_all_hl_feats': group_all_hl_feats,
             })
@@ -147,9 +141,6 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
     if do_fitting==True and date_str is not None:
         raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
 
-    if do_fitting==False and do_pca_bdcn:
-        raise ValueError('Cannot start midway through the process (--do_fitting=False) when doing bdcn pca, because the pca weight matrix is not saved in between trn/val.')
-        
     if 'pyramid' in fitting_type:
         model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll = use_pca_pyr_feats_ll, use_pca_pyr_feats_hl = use_pca_pyr_feats_hl)
         feature_types_exclude = []
@@ -164,11 +155,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         model_name = initialize_fitting.get_gabor_solo_model_name(ridge, n_ori, n_sf)
         feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
         name1 = 'gabor_solo'
-        
-    elif 'bdcn' in fitting_type:
-        model_name = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)   
-        name1 = 'bdcn'
-        
+    
     elif 'sketch_tokens' in fitting_type:
         if use_pca_st_feats:
             # not allowing both of these to be true
@@ -185,12 +172,19 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
                                                                       lda_discrim_type, max_pc_to_retain)   
         model_name = model_name + '_plus_' + model_name2
-    elif 'plus_bdcn' in fitting_type:
-        model_name2 = initialize_fitting.get_bdcn_model_name(do_pca_bdcn, map_ind)
-        model_name = model_name + '_plus_' + model_name2
-               
+            
     if do_stack:
+        stack_result = None
+        stack_result_lo = None
+        partial_models_used_for_stack = None
+        train_r2 = None
+        train_cc = None
         model_name += '_stacked'
+        
+    if do_voxel_recons:
+        voxel_recs = None
+    if do_roi_recons:
+        pop_recs = None
         
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, \
                                                            random_images, random_voxel_data, debug, date_str)
@@ -239,10 +233,8 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         # Initialize the "texture" model which builds on first level feature maps
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                  sample_batch_size=sample_batch_size, \
                   subject=subject, feature_types_exclude=feature_types_exclude, \
-                  n_prf_sd_out=n_prf_sd_out,\
-                  aperture=aperture, do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
+                  do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
                   group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
                   use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
                   min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
@@ -253,15 +245,13 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         
         # Set up the Gabor filtering modules
         _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf, padding_mode=padding_mode, device=device, \
-                                                                     nonlin_fn=nonlin_fn);    
+                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device);    
         # Initialize the "texture" model which builds on first level feature maps
         autocorr_output_pix=5
         compute_features = False
         _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
                                                                                 subject=subject,\
-                                                sample_batch_size=sample_batch_size, autocorr_output_pix=autocorr_output_pix, \
-                                                n_prf_sd_out=n_prf_sd_out, aperture=aperture, \
+                                                autocorr_output_pix=autocorr_output_pix, \
                                                 feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
                                                 group_all_hl_feats=group_all_hl_feats, compute_features = compute_features, \
                                                                                 device=device)      
@@ -272,19 +262,7 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
                  use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, zscore_in_groups = zscore_in_groups)
-        
-    elif 'bdcn' in fitting_type:
-        
-         # Set up the contour feature extractor
-        pretrained_model_file = os.path.join(default_paths.bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
-        _feature_extractor = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
-                                                                  n_prf_sd_out = n_prf_sd_out, \
-                                                   batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
-                                                downsample_factor = downsample_factor, do_nms = do_nms, \
-                                             do_pca = do_pca_bdcn, min_pct_var = min_pct_var, \
-                                                                  max_pc_to_retain = max_pc_to_retain)
-
-        
+    
     if 'plus_sketch_tokens' in fitting_type:
         
         _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
@@ -292,21 +270,6 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                  use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
                                                                            [name1,'sketch_tokens'], do_varpart = do_varpart)
-    
-        
-    elif 'plus_bdcn' in fitting_type:
-             # Set up the contour feature extractor
-            pretrained_model_file = os.path.join(default_paths.bdcn_path,'params','bdcn_pretrained_on_bsds500.pth')
-            _feature_extractor2 = bdcn_features.bdcn_feature_extractor(pretrained_model_file, device, aperture=aperture, \
-                                                                      n_prf_sd_out = n_prf_sd_out, \
-                                                       batch_size=10, map_ind=map_ind, mult_patch_by_prf=mult_patch_by_prf,
-                                                    downsample_factor = downsample_factor, do_nms = do_nms, \
-                                              do_pca = do_pca_bdcn, min_pct_var = min_pct_var, \
-                                                                       max_pc_to_retain = max_pc_to_retain)
-            
-            _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
-                                                                           [name1,'bdcn'], do_varpart = do_varpart)
-    
     
     #### DO THE ACTUAL MODEL FITTING HERE ####
     
@@ -335,33 +298,11 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
                                    dtype=fpX, debug=debug)
         trn_holdout_voxel_data_pred = best_train_holdout_preds
         
-        if 'plus' in fitting_type:
-            pc = []
-            for m in _feature_extractor.modules:           
-                if hasattr(m, 'pct_var_expl'):
-                    pcm = [m.pct_var_expl, m.min_pct_var,  m.n_comp_needed]                  
-                else:
-                    pcm = None
-                pc.append(pcm)
-        else:
-            m = _feature_extractor
-            if hasattr(m, 'pct_var_expl'):
-                pc = [m.pct_var_expl, m.min_pct_var,  m.n_comp_needed]
-            else:
-                pc = None
-            
         partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
             
         sys.stdout.flush()
         val_cc=None
         val_r2=None
-        train_cc=None
-        train_r2=None
-        stack_result=None
-        stack_result_lo=None
-        partial_models_used_for_stack=None
-        pop_recs=None
-        voxel_recs=None
         
         save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
@@ -374,25 +315,25 @@ def fit_fwrf(fitting_type, subject=1, volume_space = True, up_to_sess = 1, \
         best_losses = out['best_losses']
         best_lambdas = out['best_lambdas']
         best_params = out['best_params']
-        feature_info = out['feature_info']
+        if 'feature_info' in list(out.keys()):
+            feature_info = out['feature_info']
         val_cc = out['val_cc']
         val_r2 = out['val_r2']
-        pc = out['pc']
-        pc2save = pc
-        if 'shuff_rnd_seed' in list(out.keys()):
-            shuff_rnd_seed=out['shuff_rnd_seed']
-        else:
-            shuff_rnd_seed=0
-            
-        # some checks to make sure we're resuming same process...        
-        assert(np.all(models==out['models']))
-        assert(out['n_prf_sd_out']== n_prf_sd_out)
-        assert(out['zscore_features']==zscore_features)
+        if do_stack:
+            train_cc=out['train_cc']
+            train_r2=out['train_r2']
+            stack_result=out['stack_result']
+            stack_result_lo =out['stack_result_lo']
+            partial_models_used_for_stack=out['partial_models_used_for_stack']
+        if do_roi_recons:
+            pop_recs=None
+        if do_voxel_recons:
+            voxel_recs=None
+     
+        shuff_rnd_seed=out['shuff_rnd_seed']
+        
         assert(out['up_to_sess']==up_to_sess)
-        assert(out['best_params'][1].shape[1]==feature_info[0].shape[0])
-        assert(out['best_params'][1].shape[0]==voxel_index[0].shape[0])
-         
-
+       
     if val_cc is not None:
         do_val=False
         print('\nValidation is already done! not going to run it again.')       
@@ -474,7 +415,7 @@ if __name__ == '__main__':
  
     fit_fwrf(fitting_type = args.fitting_type, subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, \
-             n_ori = args.n_ori, n_sf = args.n_sf, nonlin_fn = args.nonlin_fn==1,  padding_mode = args.padding_mode, \
+             n_ori = args.n_ori, n_sf = args.n_sf,
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, zscore_in_groups = args.zscore_in_groups==1, \
@@ -491,10 +432,7 @@ if __name__ == '__main__':
              use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \
              lda_discrim_type = args.lda_discrim_type, \
-             do_pca_bdcn = args.do_pca_bdcn==1, \
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, \
              max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
-             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
-             map_ind = args.map_ind, \
-             n_prf_sd_out = args.n_prf_sd_out, mult_patch_by_prf = args.mult_patch_by_prf==1, \
-             downsample_factor = args.downsample_factor, do_nms = args.do_nms==1)
+             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl)
+             

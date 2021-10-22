@@ -15,7 +15,7 @@ def get_args():
     
     
     parser.add_argument("--fitting_type", type=str,default='texture_pyramid',
-                    help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo', 'bdcn', 'texture_pyramid_plus_bdcn'")
+                    help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo'")
                         
     parser.add_argument("--ridge", type=int,default=1,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
@@ -61,11 +61,7 @@ def get_args():
     
     parser.add_argument("--shuff_rnd_seed", type=int,default=0,
                     help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
-    
-        
-    parser.add_argument("--n_prf_sd_out", type=int, default=2, 
-                    help="How many pRF stddevs to use in patches? Default is 2")
-    
+   
     # Stuff that is specific to 'gabor' or 'texture' models
     parser.add_argument("--n_ori", type=int,default=4,
                     help="number of orientation channels to use")
@@ -73,15 +69,8 @@ def get_args():
                     help="number of spatial frequency channels to use")
     parser.add_argument("--group_all_hl_feats", type=int,default=1,
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
-    parser.add_argument("--nonlin_fn", type=int,default=0,
-                    help="want to apply a nonlinearity to each feature before fitting encoding model? 1 for yes, 0 for no")
-    parser.add_argument("--padding_mode", type=str,default='circular',
-                    help="how to pad when doing convolution during gabor feature generation? opts are 'circular','reflect','constant','replicate'; default is circular.")
-        
-        
+    
     # Stuff that is specific to PCA
-    parser.add_argument("--do_pca_bdcn", type=int, default=1,
-                    help="want to do PCA on BDCN features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--use_pca_pyr_feats_ll", type=int, default=1,
                     help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
     parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
@@ -95,18 +84,7 @@ def get_args():
                     help="maximum number of pcs to retain, default 100")
     parser.add_argument("--max_pc_to_retain_pyr_hl", type=int,default=100,
                     help="maximum number of pcs to retain, default 100")
-    
-    # Stuff that is specific to BDCN model
-    parser.add_argument("--map_ind", type=int, default=-1, 
-                    help="which map to use in BDCN model? Default is -1 which gives fused map")    
-    parser.add_argument("--do_nms", type=int, default=1,
-                    help="In BDCN model, want to apply non-maximal suppression to thin edge maps? 1 for yes, 0 for no")
-    parser.add_argument("--downsample_factor", type=np.float32, default=1,
-                    help="In BDCN model, downsample edge maps before getting feautures? 1 for yes, 0 for no")
-
-    parser.add_argument("--mult_patch_by_prf", type=int, default=1,
-                    help="For BDCN model, want to multiply the feature map patch by pRF gaussian? 1 for yes, 0 for no")
-    
+  
     # Specific to sketch tokens
     parser.add_argument("--use_pca_st_feats", type=int, default=0,
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")
@@ -120,7 +98,7 @@ def get_args():
     # print values of a few key things to the command line...
     if args.debug==1:
         print('USING DEBUG MODE...')
-    if args.ridge==1 and 'pca' not in args.fitting_type:
+    if args.ridge==1:
         print('will perform ridge regression for a range of positive lambdas.')
     else:
         print('will fix ridge parameter at 0.0')    

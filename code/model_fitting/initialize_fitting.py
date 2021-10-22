@@ -123,25 +123,6 @@ def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
     
     return model_name
 
-
-def get_bdcn_model_name(do_pca, map_ind):
-
-    if do_pca==True:       
-        # ridge regression, testing several positive lambda values (default)
-        model_name = 'bdcn_pca'
-    else:        
-        # fixing lambda at zero, so it turns into ordinary least squares
-        model_name = 'bdcn'
-    
-    if map_ind==-1:
-        model_name += '_fused'
-    else:
-        model_name += '_map%d'%map_ind
-        
-    return model_name
-
-        
-    
 def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10):
 
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))
@@ -193,7 +174,7 @@ def load_precomputed_prfs(fitting_type, subject):
     
     return best_model_each_voxel
 
-def get_gabor_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
+def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonlin_fn=False):
     
     """
     Creating first-level feature extractor modules for the Gabor models.
@@ -202,7 +183,7 @@ def get_gabor_feature_map_fn(n_ori, n_sf, padding_mode, device, nonlin_fn):
     _gabor_ext_complex = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
                                                                              log_spacing = True, \
                  pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, complex_cell=True, \
-                                         padding_mode = 'circular', RGB=False, device = device)
+                                         padding_mode = padding_mode, RGB=False, device = device)
 
     _gabor_ext_simple = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
                                                                             log_spacing = True,

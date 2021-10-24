@@ -126,6 +126,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
                         # creating a "flat" pRF here which will average across entire feature map.
                         prf_scaled = torch.ones(prf_scaled.shape)
                         prf_scaled = prf_scaled/torch.sum(prf_scaled)
+                        prf_scaled = prf_scaled.to(device)
 
                     if mult_patch_by_prf:
                         # This effectively restricts the spatial location, so no need to crop

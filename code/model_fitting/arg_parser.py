@@ -11,7 +11,8 @@ def get_args():
                     help="want to do fitting with volume space or surface space data? 1 for volume, 0 for surface.")
     parser.add_argument("--up_to_sess", type=int,default=1,
                     help="analyze sessions 1-#")
-    
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which grid of candidate prfs?")
     
     
     parser.add_argument("--fitting_type", type=str,default='texture_pyramid',

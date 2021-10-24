@@ -279,7 +279,7 @@ class bar_plot:
 class scatter_plot:
        
     def __init__(self, color=None, xlabel=None, ylabel=None, xlims=None, ylims=None, xticks=None, yticks=None, \
-                 title=None, show_diagonal=True, show_axes=True):
+                 title=None, show_diagonal=True, show_axes=True, square=True):
 
         self.color = color
         self.xlabel = xlabel
@@ -290,7 +290,8 @@ class scatter_plot:
         self.yticks = yticks
         self.title = title
         self.show_diagonal = show_diagonal
-        self.show_axes = show_axes       
+        self.show_axes = show_axes   
+        self.square = square
         
     def create(self, data, new_fig=True, figsize=None, minimal_labels=False):
     
@@ -305,14 +306,9 @@ class scatter_plot:
             color = self.color
             
         plt.plot(data[:,0], data[:,1],'.',color=color)
-        plt.axis('square')
+        if self.square==True:
+            plt.axis('square')
         
-        if self.show_diagonal:
-            plt.plot(self.xlims, self.ylims, color=[0.8, 0.8, 0.8])
-        if self.show_axes:
-            plt.axvline(color=[0.8, 0.8, 0.8])
-            plt.axhline(color=[0.8, 0.8, 0.8])
-
         if not minimal_labels:
             if self.xlabel is not None:
                 plt.xlabel(self.xlabel)
@@ -333,6 +329,20 @@ class scatter_plot:
         if self.ylims is not None:
             plt.ylim(self.ylims)
             
+        if self.show_diagonal:
+            if self.xlims is None:
+                xlim = plt.gca().get_xlim()
+            else:
+                xlim = self.xlims
+            if self.ylims is None:
+                ylim = plt.gca().get_ylim()
+            else:
+                ylim = self.ylims
+            
+            plt.plot(xlim,ylim, color=[0.8, 0.8, 0.8])
+        if self.show_axes:
+            plt.axvline(color=[0.8, 0.8, 0.8])
+            plt.axhline(color=[0.8, 0.8, 0.8])
             
 class violin_plot:
        

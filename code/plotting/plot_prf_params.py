@@ -236,6 +236,7 @@ def get_prf_pars_deg(out, screen_eccen_deg=8.4):
     pp=0
     best_ecc_deg  = np.sqrt(np.square(best_models_deg[:,pp,0]) + np.square(best_models_deg[:,pp,1]))
     best_angle_deg  = np.mod(np.arctan2(best_models_deg[:,pp,1], best_models_deg[:,pp,0])*180/np.pi, 360)
+    best_angle_deg[best_ecc_deg==0.0] = np.nan
     best_size_deg = best_models_deg[:,pp,2]
     
     return best_ecc_deg, best_angle_deg, best_size_deg

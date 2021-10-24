@@ -45,7 +45,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
              use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
              min_pct_var = 99, max_pc_to_retain = 400, \
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
-             alexnet_layer_name='Conv5_ReLU'):
+             alexnet_layer_name='Conv5_ReLU', \
+             which_prf_grid=1):
     
     def save_all(fn2save, fitting_type):
         """
@@ -237,8 +238,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range) 
-    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid) 
+
     if use_precomputed_prfs:
         best_model_each_voxel = initialize_fitting.load_precomputed_prfs(fitting_type,subject)
         print(trn_voxel_data.shape)
@@ -293,12 +294,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
             for ll in range(n_layers):
                 fe.append(alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                                             layer_name=names[ll], device=device))
+                                             layer_name=names[ll], device=device, which_prf_grid=which_prf_grid))
             _feature_extractor = merge_features.combined_feature_extractor(fe, names, do_varpart=do_varpart)
                
         else:
             _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                                             layer_name=alexnet_layer_name, device=device)
+                                 layer_name=alexnet_layer_name, device=device, which_prf_grid=which_prf_grid)
     
         
     if fitting_type2 is not None:
@@ -306,13 +307,13 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         if 'sketch_tokens' in fitting_type2:
 
             _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
-                     use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                     use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
+                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+             use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
             
         elif 'alexnet' in fitting_type2:
             assert(alexnet_layer_name is not 'all_conv')
             _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                                             layer_name=alexnet_layer_name, device=device)
+                                 layer_name=alexnet_layer_name, device=device, which_prf_grid=which_prf_grid)
             
             
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
@@ -485,5 +486,6 @@ if __name__ == '__main__':
              min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, \
              max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
              max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
-             alexnet_layer_name = args.alexnet_layer_name)
+             alexnet_layer_name = args.alexnet_layer_name, \
+             which_prf_grid = args.which_prf_grid)
              

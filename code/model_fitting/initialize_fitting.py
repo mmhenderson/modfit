@@ -151,16 +151,25 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
     return holdout_size, lambdas
 
 
-def get_prf_models(aperture_rf_range=1.1):
+def get_prf_models(aperture_rf_range=1.1, which_grid=1):
 
-    # sizes/centers; hard coded, taken from OSF code for fwrf fitting
-    
     aperture = np.float32(1)
-    smin, smax = np.float32(0.04), np.float32(0.4)
-    n_sizes = 8
-
+    
     # models is three columns, x, y, sigma
-    models = prf_utils.model_space_pyramid(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range*aperture)  
+    if which_grid==1:
+        smin, smax = np.float32(0.04), np.float32(0.4)
+        n_sizes = 8
+        models = prf_utils.model_space_pyramid(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range*aperture)  
+    
+    elif which_grid==2 or which_grid==3:
+        smin, smax = np.float32(0.04), np.float32(0.8)
+        n_sizes = 9
+        models = prf_utils.model_space_pyramid2(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range*aperture)  
+        
+    else:
+        raise ValueError('prf grid number not recognized')
+
+    print('number of pRFs: %d'%len(models))
     print('most extreme RF positions:')
     print(models[0,:])
     print(models[-1,:])

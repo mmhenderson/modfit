@@ -14,13 +14,19 @@ n_features_each_layer = extract_alexnet_features.n_features_each_layer
 
 class alexnet_feature_extractor(nn.Module):
     
-    def __init__(self, subject, layer_name, device):
+    def __init__(self, subject, layer_name, device, which_prf_grid=1):
         
         super(alexnet_feature_extractor, self).__init__()
         
         self.subject = subject       
         self.layer_name = layer_name
-        self.features_file = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf.h5py'%(subject, self.layer_name))
+        self.which_prf_grid = which_prf_grid
+        if self.which_prf_grid!=1:
+            self.features_file = os.path.join(alexnet_feat_path, \
+                                      'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
+        else:
+            self.features_file = os.path.join(alexnet_feat_path, \
+                                      'S%d_%s_features_each_prf.h5py'%(subject, self.layer_name))
         layer_ind = [ll for ll in range(len(alexnet_layer_names)) \
                          if alexnet_layer_names[ll]==self.layer_name]
         assert(len(layer_ind)==1)

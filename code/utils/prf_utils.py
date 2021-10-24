@@ -48,6 +48,57 @@ def model_space_pyramid(sigmas, min_spacing, aperture):
         rf += [np.stack([X.flatten(), Y.flatten(), np.full(fill_value=s, shape=X.flatten().shape)], axis=1),]
     return np.concatenate(rf, axis=0)
 
+def model_space_pyramid2(sigmas, min_spacing, aperture):
+    rf = []
+    n_grid_list = [21,15,11,9,7,7,7,7,7]
+    for si, s in enumerate(sigmas):
+        n_grid = n_grid_list[si]
+        X, Y = np.meshgrid(np.linspace(-aperture/2, aperture/2, n_grid),
+                           np.linspace(-aperture/2, aperture/2, n_grid))
+        rf += [np.stack([X.flatten(), Y.flatten(), np.full(fill_value=s, shape=X.flatten().shape)], axis=1),]
+    s = 10.0
+    n_grid = 1;
+    X, Y = X, Y = np.meshgrid(np.linspace(0,0, n_grid),
+                           np.linspace(0,0, n_grid))
+    rf += [np.stack([X.flatten(), Y.flatten(), np.full(fill_value=s, shape=X.flatten().shape)], axis=1),]
+    return np.concatenate(rf, axis=0)
+
+def gauss_2d(center, sd, patch_size, orient_deg=0, aperture=1.0, dtype=np.float32):
+    """
+     Making a little gaussian blob. Can be elongated in one direction relative to other.
+     [sd] is the x and y standard devs, respectively. 
+     center and size are scaled according to the patch size, so that the blob always 
+     has the same center/size relative to image even when patch size is different.
+     aperture defines the number of arbitrary "units" occupied by the whole image
+     units occupied by each pixel = aperture/patch_size.
+        
+     """
+    if (not hasattr(sd,'__len__')) or len(sd)==1:
+        sd = np.array([sd, sd])
+        
+    aspect_ratio = sd[0] / sd[1]
+    orient_rad = orient_deg/180*np.pi
+    
+    # first meshgrid over image space
+    x,y = np.meshgrid(np.linspace(-aperture/2, aperture/2, patch_size), \
+                      np.linspace(-aperture/2, aperture/2, patch_size))
+    x_centered = x-center[0]
+    center[1] = (-1)*center[1] # negate the y coord so the grid matches w my other code
+    y_centered = y-center[1]
+    
+    # rotate the axes to match desired orientation (if orient=0, this is just regular x and y)
+    x_prime = x_centered * np.cos(orient_rad) + y_centered * np.sin(orient_rad)
+    y_prime = y_centered * np.cos(orient_rad) - x_centered * np.sin(orient_rad)
+
+    # make my gaussian w the desired size/eccentricity
+    gauss = np.exp(-((x_prime)**2 + aspect_ratio**2 * (y_prime)**2)/(2*sd[0]**2))
+    
+    # normalize so it will sum to 1
+    gauss = gauss/np.sum(gauss)
+    
+    gauss = gauss.astype(dtype)
+    
+    return gauss
 
 
 def gaussian_mass(xi, yi, dx, dy, x, y, sigma):

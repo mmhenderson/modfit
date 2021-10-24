@@ -14,10 +14,20 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
+subj=1
 debug=0
+use_node_storage=0
+which_prf_grid=3
+
+source ~/myenv/bin/activate
+
+cd /user_data/mmhender/imStat/code/feature_extraction/
+
+python3 extract_alexnet_features.py --subject $subj --use_node_storage $use_node_storage --debug $debug --which_prf_grid $which_prf_grid
+
+
 up_to_sess=40
 
-subj=1
 volume_space=1
 ridge=1
 sample_batch_size=100
@@ -26,25 +36,12 @@ zscore_features=1
 zscore_in_groups=0
 
 fitting_type=alexnet
-alexnet_layer_name='Conv5_ReLU'
-fitting_type2=sketch_tokens
+alexnet_layer_name=Conv5_ReLU
 
 do_stack=0
 do_roi_recons=0
 do_voxel_recons=0
 
-cd $ROOT/code/model_fitting
+cd  /user_data/mmhender/imStat/code/model_fitting/
 
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --fitting_type2 $fitting_type2
-
-alexnet_layer_name='Conv4_ReLU'
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --fitting_type2 $fitting_type2
-
-alexnet_layer_name='Conv3_ReLU'
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --fitting_type2 $fitting_type2
-
-alexnet_layer_name='Conv2_ReLU'
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --fitting_type2 $fitting_type2
-
-alexnet_layer_name='Conv1_ReLU'
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --fitting_type2 $fitting_type2
+python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --which_prf_grid $which_prf_grid

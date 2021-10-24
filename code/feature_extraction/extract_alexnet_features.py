@@ -34,7 +34,7 @@ alexnet_layer_names.extend(alexnet_fc_layer_names)
 
 n_features_each_layer = [64,64,64, 192,192,192, 384,384, 256,256, 256,256]
 
-def get_features_each_prf(subject, use_node_storage=False, debug=False):
+def get_features_each_prf(subject, use_node_storage=False, debug=False, which_prf_grid=1):
     """
     Extract the portion of CNN feature maps corresponding to pRF defined in "models"
     Return list of the features in each pRF, for each layer of interest.
@@ -57,7 +57,8 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False):
     # Params for the spatial aspect of the model (possible pRFs)
     aperture = 1.0
     aperture_rf_range = 1.1
-    aperture, prf_models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, prf_models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
+                                                             which_grid=which_prf_grid)    
 
     # Fix these params
     n_prf_sd_out = 2
@@ -110,12 +111,21 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False):
                     print([x,y,sigma])
                     n_pix = maps_full_field.shape[1]
 
-                     # Define the RF for this "model" version
-                    prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                                              dtype=np.float32)[2], device=device)
+                    # Define the RF for this "model" version
+                    if which_prf_grid==3:
+                        prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                           patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
+                    else:
+                        prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
+                                                  dtype=np.float32)[2], device=device)
                     minval = torch.min(prf)
                     maxval = torch.max(prf-minval)
                     prf_scaled = (prf - minval)/maxval
+
+                    if sigma==10:
+                        # creating a "flat" pRF here which will average across entire feature map.
+                        prf_scaled = torch.ones(prf_scaled.shape)
+                        prf_scaled = prf_scaled/torch.sum(prf_scaled)
 
                     if mult_patch_by_prf:
                         # This effectively restricts the spatial location, so no need to crop
@@ -123,7 +133,6 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False):
                     else:
                         # This is a coarser way of choosing which spatial region to look at
                         # Crop the patch +/- n SD away from center
-                        n_pf_sd_out = 2
                         bbox = texture_utils.get_bbox_from_prf(prf_params, prf.shape, n_prf_sd_out, \
                                                        min_pix=None, verbose=False, force_square=False)
                         print('bbox to crop is:')
@@ -142,7 +151,12 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False):
 
         # Now save the results, one file for each alexnet layer 
         for ii, ll in enumerate(layer_inds):
-            fn2save = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf.h5py'%(subject, alexnet_layer_names[ll]))
+            if which_prf_grid==1:
+                fn2save = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf.h5py'%(subject, \
+                                                                                   alexnet_layer_names[ll]))
+            else:
+                fn2save = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
+                                                                      alexnet_layer_names[ll], which_prf_grid))
             print('Writing prf features to %s\n'%fn2save)
 
             t = time.time()
@@ -224,7 +238,9 @@ if __name__ == '__main__':
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which version of prf grid to use")
     
     args = parser.parse_args()
     
-    get_features_each_prf(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1)
+    get_features_each_prf(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)

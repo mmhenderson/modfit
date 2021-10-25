@@ -49,7 +49,7 @@ def get_full_volume(values, voxel_mask, shape):
     return full_vals
 
 
-def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, roi_def=None, \
+def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, vox2plot = None, roi_def=None, \
                        mins=None, maxes=None, cmaps=None):
 
     """
@@ -121,8 +121,11 @@ def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, roi_def=No
         cmaps = [cmaps[0] for ll in range(len(names))]  
     
     for ni, name in enumerate(names):
+        map_thresh = maps[ni]
+        if vox2plot is not None:          
+            map_thresh[~vox2plot] = np.nan
         if volume_space:
-            dat2plot[name] = cortex.Volume(data = get_full_volume(maps[ni], voxel_mask, nii_shape), \
+            dat2plot[name] = cortex.Volume(data = get_full_volume(map_thresh, voxel_mask, nii_shape), \
                                                     cmap=cmaps[ni], subject=substr, vmin=mins[ni], vmax=maxes[ni],\
                                            xfmname=xfmname, mask=mask_3d)
         else:

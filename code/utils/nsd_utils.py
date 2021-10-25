@@ -8,7 +8,7 @@ import nibabel as nib
 import pandas as pd
 import pickle
 
-from utils import default_paths
+from utils import default_paths, roi_utils
 
 def get_paths():      
     return default_paths.nsd_root, default_paths.stim_root, default_paths.beta_root
@@ -303,3 +303,28 @@ def get_subj_df(subject):
     subject_df = stim_info.loc[subject_idx[ss,:]-1]
 
     return subject_df
+
+
+def load_prf_mapping_pars(subject, voxel_mask=None):
+    
+    """
+    Load parameters of pRF fits for each voxel, obtained during independent pRF mapping expt.
+    Stimuli are sweeping bars w objects, see:
+    https://natural-scenes-dataset.s3-us-east-2.amazonaws.com/nsddata/experiments/prf/prf_screencapture.mp4
+    """
+    
+    if voxel_mask is None:
+        voxel_mask, _, _, _, _ = \
+        roi_utils.get_voxel_roi_info(subject, volume_space=True, include_all=True, \
+                           include_body=True,verbose=False)
+        
+    prf_path = os.path.join(default_paths.nsd_root, 'nsddata','ppdata','subj%02d'%subject,'func1pt8mm')
+
+    angle = load_from_nii(os.path.join(prf_path, 'prf_angle.nii.gz')).flatten()[voxel_mask]
+    eccen = load_from_nii(os.path.join(prf_path, 'prf_eccentricity.nii.gz')).flatten()[voxel_mask]
+    size = load_from_nii(os.path.join(prf_path, 'prf_size.nii.gz')).flatten()[voxel_mask]
+    exponent = load_from_nii(os.path.join(prf_path, 'prf_exponent.nii.gz')).flatten()[voxel_mask]
+    gain = load_from_nii(os.path.join(prf_path, 'prf_gain.nii.gz')).flatten()[voxel_mask]
+    rsq = load_from_nii(os.path.join(prf_path, 'prf_R2.nii.gz')).flatten()[voxel_mask]/100
+            
+    return angle, eccen, size, exponent, gain, rsq

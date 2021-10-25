@@ -17,7 +17,7 @@ from feature_extraction import sketch_token_features
 device = initialize_fitting.init_cuda()
 
     
-def extract_features(subject, use_node_storage=False, debug=False):
+def extract_features(subject, use_node_storage=False, debug=False, which_prf_grid=1):
     
     if use_node_storage:
         sketch_token_feat_path = default_paths.sketch_token_feat_path_localnode
@@ -27,7 +27,8 @@ def extract_features(subject, use_node_storage=False, debug=False):
     # Params for the spatial aspect of the model (possible pRFs)
     aperture = 1.0
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
+                                                             which_grid=which_prf_grid)    
     
     # Fix these params
     map_resolution = 227  
@@ -40,11 +41,15 @@ def extract_features(subject, use_node_storage=False, debug=False):
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    features_each_prf = sketch_token_features.get_features_each_prf(features_file, models, mult_patch_by_prf=mult_patch_by_prf, \
-                                                                    do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=aperture, \
-                                                                    debug=debug, device=device)
+    features_each_prf = sketch_token_features.get_features_each_prf(features_file, models, \
+                                            mult_patch_by_prf=mult_patch_by_prf, \
+                                            do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=aperture, \
+                                            which_prf_grid=which_prf_grid, debug=debug, device=device)
 
-    fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+    if which_prf_grid==1:
+        fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+    else:
+        fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
 
     print('Writing prf features to %s\n'%fn2save)
     
@@ -68,7 +73,9 @@ if __name__ == '__main__':
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which version of prf grid to use")
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1)
+    extract_features(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)

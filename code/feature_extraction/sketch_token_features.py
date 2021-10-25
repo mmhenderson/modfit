@@ -12,7 +12,7 @@ sketch_token_feat_path = default_paths.sketch_token_feat_path
 
 class sketch_token_feature_extractor(nn.Module):
     
-    def __init__(self, subject, device,\
+    def __init__(self, subject, device, which_prf_grid=1, \
                  use_pca_feats = False, min_pct_var = 99, max_pc_to_retain = 100, \
                  use_lda_feats = False, lda_discrim_type = None, zscore_in_groups = False):
         
@@ -22,7 +22,8 @@ class sketch_token_feature_extractor(nn.Module):
         
         self.use_pca_feats = use_pca_feats
         self.use_lda_feats = use_lda_feats
-        self.lda_discrim_type = lda_discrim_type
+        self.lda_discrim_type = lda_discrim_type        
+        self.which_prf_grid = which_prf_grid
         
         if self.use_pca_feats:
             self.n_features = 151
@@ -49,7 +50,11 @@ class sketch_token_feature_extractor(nn.Module):
                 raise ValueError('--lda_discrim_type was not recognized')
         else:
             self.n_features = 150 # 151
-            self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+            if self.which_prf_grid==1:
+                self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
+            else:
+                self.features_file = os.path.join(sketch_token_feat_path, \
+                                          'S%d_features_each_prf_grid%d.h5py'%(subject, self.which_prf_grid))
             self.min_pct_var = None
             self.max_pc_to_retain = None  
             if zscore_in_groups:
@@ -168,7 +173,7 @@ class sketch_token_feature_extractor(nn.Module):
         return features, feature_inds_defined
      
     
-def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_pool=True, \
+def get_features_each_prf(features_file, models, which_prf_grid=1, mult_patch_by_prf=True, do_avg_pool=True, \
                           batch_size=100, aperture=1.0, debug=False, device=None):
     """
     Extract the portion of the feature maps corresponding to each prf in 'models'
@@ -220,12 +225,22 @@ def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_
             print([x,y,sigma])
             n_pix = map_resolution
 
-             # Define the RF for this "model" version
-            prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                                      dtype=np.float32)[2], device=device)
+            # Define the RF for this "model" version
+            if which_prf_grid==3:
+                prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
+            else:
+                prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
+                                          dtype=np.float32)[2], device=device)
             minval = torch.min(prf)
             maxval = torch.max(prf-minval)
             prf_scaled = (prf - minval)/maxval
+
+            if sigma==10:
+                # creating a "flat" pRF here which will average across entire feature map.
+                prf_scaled = torch.ones(prf_scaled.shape)
+                prf_scaled = prf_scaled/torch.sum(prf_scaled)
+                prf_scaled = prf_scaled.to(device)
 
             if mult_patch_by_prf:         
                 # This effectively restricts the spatial location, so no need to crop

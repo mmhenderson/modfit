@@ -65,6 +65,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         'voxel_ncsnr': voxel_ncsnr, 
         'aperture': aperture,
         'aperture_rf_range': aperture_rf_range,
+        'which_prf_grid': which_prf_grid,
         'models': models,        
         'best_losses': best_losses,           
         'best_lambdas': best_lambdas,
@@ -282,6 +283,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
     elif 'sketch_tokens' in fitting_type:
 
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                 which_prf_grid=which_prf_grid, \
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
                  use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, zscore_in_groups = zscore_in_groups)
     
@@ -306,9 +308,11 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
 
         if 'sketch_tokens' in fitting_type2:
 
-            _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+            _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, \
+                device=device,which_prf_grid=which_prf_grid, \
                  use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-             use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,zscore_in_groups = zscore_in_groups)
+             use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,\
+                                       zscore_in_groups = zscore_in_groups)
             
         elif 'alexnet' in fitting_type2:
             assert(alexnet_layer_name is not 'all_conv')

@@ -240,3 +240,46 @@ def get_prf_pars_deg(out, screen_eccen_deg=8.4):
     best_size_deg = best_models_deg[:,pp,2]
     
     return best_ecc_deg, best_angle_deg, best_size_deg
+
+
+def plot_prf_grid(prf_models, xy_circ = [-0.4, -0.4], screen_eccen_deg = 8.4):
+
+    """
+    Visualize grid of pRF positions at each level of size.
+    """
+    
+    unique_sizes = np.unique(np.round(prf_models[:,2],4))
+    plt.figure(figsize=(18,12));
+
+    for si, size in enumerate(unique_sizes):
+
+        inds = np.where(np.round(prf_models[:,2],4)==size)[0]
+        
+        prf_models_plot = prf_models[inds,:]
+        ind = np.argmin(np.abs(prf_models_plot[:,0] - xy_circ[0]) + np.abs(prf_models_plot[:,1] - xy_circ[1]))
+        xy_circ_actual = [prf_models_plot[ind,0], prf_models_plot[ind,1]]
+
+        plt.subplot(3,4,si+1)
+        ax = plt.gca()
+        plt.plot(prf_models[inds,0]*screen_eccen_deg, prf_models[inds,1]*screen_eccen_deg, '.')
+        plt.plot(xy_circ_actual[0]*screen_eccen_deg, xy_circ_actual[1]*screen_eccen_deg, '.',color='k')
+        circ = matplotlib.patches.Circle((xy_circ_actual[0]*screen_eccen_deg, xy_circ_actual[1]*screen_eccen_deg), \
+                                         size*screen_eccen_deg, color = [0.2, 0.2, 0.2], fill=False)
+        ax.add_artist(circ)
+        plt.axis('square')
+        plt.xlim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+        plt.ylim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+        plt.xticks(np.arange(-8,9,4))
+        plt.yticks(np.arange(-8,9,4))
+
+        plt.plot([screen_eccen_deg/2,screen_eccen_deg/2], [screen_eccen_deg/2, -screen_eccen_deg/2],color=[0.8, 0.8, 0.8])
+        plt.plot([-screen_eccen_deg/2,-screen_eccen_deg/2], [screen_eccen_deg/2, -screen_eccen_deg/2],color=[0.8, 0.8, 0.8])
+        plt.plot([-screen_eccen_deg/2,screen_eccen_deg/2], [screen_eccen_deg/2, screen_eccen_deg/2],color=[0.8, 0.8, 0.8])
+        plt.plot([-screen_eccen_deg/2,screen_eccen_deg/2], [-screen_eccen_deg/2, -screen_eccen_deg/2],color=[0.8, 0.8, 0.8])
+
+        if si>7:
+            plt.xlabel('x coord (deg)')
+        if np.mod(si,4)==0:
+            plt.ylabel('y coord (deg)')
+
+        plt.title('pRF sigma=%.2f deg'%(size*screen_eccen_deg))

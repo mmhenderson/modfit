@@ -16,7 +16,8 @@ from feature_extraction import texture_statistics_pyramid
 
 device = initialize_fitting.init_cuda()
 
-def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, debug=False):
+def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, \
+                     which_prf_grid=1, debug=False):
     
     if use_node_storage:
         pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path_localnode
@@ -28,14 +29,11 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     image_data = nsd_utils.get_image_data(subject)  
     image_data = nsd_utils.image_uncolorize_fn(image_data)
 
-#     # Need to have size a multiple of 8, for the pyramid to work right
-#     process_at_size=240
-#     resample_fn = torch.nn.Upsample((process_at_size, process_at_size), mode="bilinear", align_corners=True)
-
     # Params for the spatial aspect of the model (possible pRFs)
     aperture = 1.0
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
+                                                         which_grid=which_prf_grid)    
 
     # Set up the pyramid
     feature_types_exclude = []
@@ -89,7 +87,12 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
 
             sys.stdout.flush()
                 
-    fn2save = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
+    if which_prf_grid==1:
+        fn2save = os.path.join(pyramid_texture_feat_path, \
+                           'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
+    else:
+        fn2save = os.path.join(pyramid_texture_feat_path, \
+                       'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
 
     print('Writing prf features to %s\n'%fn2save)
     
@@ -120,7 +123,9 @@ if __name__ == '__main__':
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which version of prf grid to use")
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage, debug = args.debug==1)
+    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid = args.which_prf_grid)

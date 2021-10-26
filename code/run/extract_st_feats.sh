@@ -11,7 +11,7 @@
 subj=1
 debug=0
 use_node_storage=1
-which_prf_grid=3
+which_prf_grid=4
 
 source ~/myenv/bin/activate
 
@@ -48,9 +48,6 @@ then
     fi
 fi
 
-python3 extract_sketch_token_features.py --subject $subj --use_node_storage $use_node_storage --debug $debug --which_prf_grid $which_prf_grid
-
-which_prf_grid=2
 python3 extract_sketch_token_features.py --subject $subj --use_node_storage $use_node_storage --debug $debug --which_prf_grid $which_prf_grid
 
 if [ $use_node_storage == 1 ]

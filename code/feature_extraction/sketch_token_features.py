@@ -173,7 +173,7 @@ class sketch_token_feature_extractor(nn.Module):
         return features, feature_inds_defined
      
     
-def get_features_each_prf(features_file, models, which_prf_grid=1, mult_patch_by_prf=True, do_avg_pool=True, \
+def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_pool=True, \
                           batch_size=100, aperture=1.0, debug=False, device=None):
     """
     Extract the portion of the feature maps corresponding to each prf in 'models'
@@ -226,12 +226,8 @@ def get_features_each_prf(features_file, models, which_prf_grid=1, mult_patch_by
             n_pix = map_resolution
 
             # Define the RF for this "model" version
-            if which_prf_grid==3:
-                prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                                   patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
-            else:
-                prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                                          dtype=np.float32)[2], device=device)
+            prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                               patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
             minval = torch.min(prf)
             maxval = torch.max(prf-minval)
             prf_scaled = (prf - minval)/maxval

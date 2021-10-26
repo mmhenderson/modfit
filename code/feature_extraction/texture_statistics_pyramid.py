@@ -22,9 +22,12 @@ class texture_feature_extractor(nn.Module):
     Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma]
     """
     
-    def __init__(self,_fmaps_fn, subject=None, sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
-                 aperture=1.0, do_varpart=False, zscore_in_groups=False, group_all_hl_feats=False, compute_features=True, \
-                use_pca_feats_ll=False, use_pca_feats_hl=False, min_pct_var = 99, max_pc_to_retain_ll = 100, \
+    def __init__(self,_fmaps_fn, subject=None, which_prf_grid=1, \
+                 sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
+                 aperture=1.0, do_varpart=False, zscore_in_groups=False, group_all_hl_feats=False, \
+                 compute_features=True, \
+                 use_pca_feats_ll=False, use_pca_feats_hl=False, min_pct_var = 99, \
+                 max_pc_to_retain_ll = 100, \
                  max_pc_to_retain_hl=100, device=None):
         
         super(texture_feature_extractor, self).__init__()
@@ -38,6 +41,7 @@ class texture_feature_extractor(nn.Module):
         self.n_prf_sd_out = n_prf_sd_out
         self.aperture = aperture
         self.device = device       
+        self.which_prf_grid = which_prf_grid
         
         self.do_varpart = do_varpart
         self.group_all_hl_feats = group_all_hl_feats
@@ -90,7 +94,10 @@ class texture_feature_extractor(nn.Module):
         self.compute_features = compute_features
         
         if not self.compute_features:
-            self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(self.subject, self.n_ori, self.n_sf))
+            if self.which_prf_grid==1:
+                self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(self.subject, self.n_ori, self.n_sf))
+            else:
+                 self.features_file = os.path.join(pyramid_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(self.subject, self.n_ori, self.n_sf, self.which_prf_grid))
             if not os.path.exists(self.features_file):
                 raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                
             self.prf_batch_size=50
@@ -542,9 +549,6 @@ class steerable_pyramid_extractor(nn.Module):
 
         return fmaps_complex, fmaps_resid, fmaps_lowpass_recon, fmaps_coarser_upsampled
     
-   
-
-
 def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n_prf_sd_out=2, aperture=1.0, device=None, keep_orig_shape=False):
 
     """
@@ -629,9 +633,9 @@ def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n
             npix_each_scale.reverse()
 
         # First working with the finest scale (original image)
-        n_pix = npix_each_scale[-1]      
-        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
-        spatial_weights = g[2][0]
+        n_pix = npix_each_scale[-1]   
+        spatial_weights = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32)
         patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[-1])
 
         # Gather pixel-wise statistics here 
@@ -653,9 +657,9 @@ def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n
         variance_highpass_resid[batch_inds,0] = torch.squeeze(wvar)
 
         # Next work with the low-pass reconstruction (most coarse scale, smallest npix)
-        n_pix = npix_each_scale[0]       
-        g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
-        spatial_weights = g[2][0]
+        n_pix = npix_each_scale[0]              
+        spatial_weights = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32)
         patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[0])
 
         lowpass_rec = fmaps_lowpass_recon[0]
@@ -675,8 +679,8 @@ def get_higher_order_features(fmaps, images, prf_params, sample_batch_size=20, n
          
             # Scale specific things - get the prf at this resolution of interest    
             n_pix = npix_each_scale[ff+1]           
-            g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
-            spatial_weights = g[2][0]
+            spatial_weights = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32)
             patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True, min_pix=autocorr_output_pix[1+ff])
 
             # Get the low-pass reconstruction at this scale

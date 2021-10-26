@@ -3,6 +3,55 @@ import numpy as np
 import math
 from scipy.special import erf
 
+def make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
+                          eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16):
+    
+    """
+    Create a grid of pRF positions/sizes that are evenly spaced in polar angle.
+    Sizes and eccentricities are logarithmically spaced.
+    Units for size/sigma are relative to image aperture size (1.0 units)
+    To convert to degrees, multiply these values by degrees of display (8.4 degrees for NSD expts)
+    """
+
+    sigma_vals = np.logspace(np.log10(sigma_range[0]), np.log10(sigma_range[1]), n_sigma_steps)
+    # min eccen should usually be zero, accounting for this here
+    eccen_vals = np.logspace(np.log10(eccen_range[0]+0.1), np.log10(eccen_range[1]+0.1), n_eccen_steps) - 0.1
+    angle_step = 2*np.pi/n_angle_steps
+    angle_vals = np.linspace(0,np.pi*2-angle_step, n_angle_steps)
+
+    eccen_vals = eccen_vals.astype(np.float32)
+    angle_vals = angle_vals.astype(np.float32)
+    sigma_vals = sigma_vals.astype(np.float32)
+
+    # First, create the grid of all possible combinations.
+    x_vals = (eccen_vals[:,np.newaxis] * np.cos(angle_vals[np.newaxis,:]))
+    y_vals = (eccen_vals[:,np.newaxis] * np.sin(angle_vals[np.newaxis,:]))
+
+    x_vals = np.tile(np.reshape(x_vals, [n_angle_steps*n_eccen_steps, 1]), [n_sigma_steps,1])
+    y_vals = np.tile(np.reshape(y_vals, [n_angle_steps*n_eccen_steps, 1]), [n_sigma_steps,1])
+
+    sigma_vals = np.repeat(sigma_vals, n_angle_steps*n_eccen_steps)[:,np.newaxis]
+
+    prf_params = np.concatenate([x_vals, y_vals, sigma_vals], axis=1)
+
+    # Now removing a few of these that we don't want to actually use - some duplicates, 
+    # and some that go entirely outside the image region.
+    unrows, inds = np.unique(prf_params, axis=0, return_index=True)
+    prf_params = prf_params[np.sort(inds),:]
+
+    # what is the approx spatial extent of the pRF? Assume 2 standard deviations.
+    n_std = 1
+    left_extent = prf_params[:,0] - prf_params[:,2]*n_std
+    right_extent = prf_params[:,0] + prf_params[:,2]*n_std
+    top_extent = prf_params[:,1] + prf_params[:,2]*n_std
+    bottom_extent = prf_params[:,1] - prf_params[:,2]*n_std
+
+    out_of_bounds = (left_extent > 0.5) | (right_extent < -0.5) | (top_extent < -0.5) | (bottom_extent > 0.5)
+
+    prf_params = prf_params[~out_of_bounds,:]
+
+    return prf_params
+
 class subdivision_1d(object):
     def __init__(self, n_div=1, dtype=np.float32):
         self.length = n_div

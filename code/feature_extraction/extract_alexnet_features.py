@@ -1,6 +1,7 @@
 import numpy as np
 import sys, os
 import argparse
+import gc
 import torch
 import time
 import h5py
@@ -62,7 +63,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
 
     # Fix these params
     n_prf_sd_out = 2
-    batch_size = 100
+    batch_size = 50
     mult_patch_by_prf = True
     do_avg_pool = True
     
@@ -74,7 +75,6 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
     n_prfs = len(prf_models)
     features_each_prf = [np.zeros((n_images, n_features_each_layer[ll], n_prfs),dtype=dtype) for ll in layer_inds]
 
-    batch_size=100    
     n_batches = int(np.ceil(n_images/batch_size))
 
     with torch.no_grad():
@@ -91,7 +91,9 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
             # need to tile to 3 so alexnet weights will be right size
             image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
 
-
+            gc.collect()
+            torch.cuda.empty_cache()
+            
             activ_batch = get_alexnet_activations_batch(image_batch, layer_inds, device=device)
 
             for ll in range(n_layers):
@@ -112,12 +114,8 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
                     n_pix = maps_full_field.shape[1]
 
                     # Define the RF for this "model" version
-                    if which_prf_grid==3:
-                        prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                                           patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
-                    else:
-                        prf = torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                                                  dtype=np.float32)[2], device=device)
+                    prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                               patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
                     minval = torch.min(prf)
                     maxval = torch.max(prf-minval)
                     prf_scaled = (prf - minval)/maxval

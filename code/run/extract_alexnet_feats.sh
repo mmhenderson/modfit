@@ -9,9 +9,9 @@
 #SBATCH --time=8-00:00:00
 
 subj=1
-debug=1
+debug=0
 use_node_storage=0
-which_prf_grid=3
+which_prf_grid=4
 
 source ~/myenv/bin/activate
 

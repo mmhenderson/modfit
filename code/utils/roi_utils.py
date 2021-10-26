@@ -9,7 +9,6 @@ ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[1
 
 from utils import default_paths
 from utils import nsd_utils
-from utils.nsd_utils import load_from_nii, load_from_mgz
 
 def get_paths():      
     return default_paths.nsd_root, default_paths.stim_root, default_paths.beta_root
@@ -158,20 +157,20 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
         if verbose:
             print('\nVolume space: ROI defs are located at: %s\n'%roi_path)
 
-        nsd_general_full = load_from_nii(os.path.join(roi_path, 'nsdgeneral.nii.gz')).flatten()
+        nsd_general_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'nsdgeneral.nii.gz')).flatten()
             
-        prf_labels_full  = load_from_nii(os.path.join(roi_path, 'prf-visualrois.nii.gz'))
+        prf_labels_full  = nsd_utils.load_from_nii(os.path.join(roi_path, 'prf-visualrois.nii.gz'))
         # save the shape, so we can project back to volume space later.
         brain_nii_shape = np.array(prf_labels_full.shape)
         prf_labels_full = prf_labels_full.flatten()
 
-        kast_labels_full = load_from_nii(os.path.join(roi_path, 'Kastner2015.nii.gz')).flatten()
-        face_labels_full = load_from_nii(os.path.join(roi_path, 'floc-faces.nii.gz')).flatten()
-        place_labels_full = load_from_nii(os.path.join(roi_path, 'floc-places.nii.gz')).flatten()
-        body_labels_full = load_from_nii(os.path.join(roi_path, 'floc-bodies.nii.gz')).flatten()
+        kast_labels_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'Kastner2015.nii.gz')).flatten()
+        face_labels_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'floc-faces.nii.gz')).flatten()
+        place_labels_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'floc-places.nii.gz')).flatten()
+        body_labels_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'floc-bodies.nii.gz')).flatten()
         
         # Masks of ncsnr values for each voxel 
-        ncsnr_full = load_from_nii(os.path.join(beta_root, 'subj%02d'%subject, 'func1pt8mm', \
+        ncsnr_full = nsd_utils.load_from_nii(os.path.join(beta_root, 'subj%02d'%subject, 'func1pt8mm', \
                                                 'betas_fithrf_GLMdenoise_RR', 'ncsnr.nii.gz')).flatten()
 
     else:
@@ -183,35 +182,35 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
         
         # Surface space, concatenate the two hemispheres
         # always go left then right, to match the data which also gets concatenated same way
-        prf_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.prf-visualrois.mgz'))[:,0,0]
-        prf_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.prf-visualrois.mgz'))[:,0,0]
+        prf_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.prf-visualrois.mgz'))[:,0,0]
+        prf_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.prf-visualrois.mgz'))[:,0,0]
         prf_labels_full = np.concatenate((prf_labs1, prf_labs2), axis=0)
 
-        kast_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.Kastner2015.mgz'))[:,0,0]
-        kast_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.Kastner2015.mgz'))[:,0,0]
+        kast_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.Kastner2015.mgz'))[:,0,0]
+        kast_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.Kastner2015.mgz'))[:,0,0]
         kast_labels_full = np.concatenate((kast_labs1, kast_labs2), axis=0)
 
-        face_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.floc-faces.mgz'))[:,0,0]
-        face_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.floc-faces.mgz'))[:,0,0]
+        face_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.floc-faces.mgz'))[:,0,0]
+        face_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.floc-faces.mgz'))[:,0,0]
         face_labels_full = np.concatenate((face_labs1, face_labs2), axis=0)
 
-        place_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.floc-places.mgz'))[:,0,0]
-        place_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.floc-places.mgz'))[:,0,0]
+        place_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.floc-places.mgz'))[:,0,0]
+        place_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.floc-places.mgz'))[:,0,0]
         place_labels_full = np.concatenate((place_labs1, place_labs2), axis=0)
       
-        body_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.floc-bodies.mgz'))[:,0,0]
-        body_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.floc-bodies.mgz'))[:,0,0]
+        body_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.floc-bodies.mgz'))[:,0,0]
+        body_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.floc-bodies.mgz'))[:,0,0]
         body_labels_full = np.concatenate((body_labs1, body_labs2), axis=0)
       
         # Note this part hasn't been tested
-        general_labs1 = load_from_mgz(os.path.join(roi_path, 'lh.nsdgeneral.mgz'))[:,0,0]
-        general_labs2 = load_from_mgz(os.path.join(roi_path, 'rh.nsdgeneral.mgz'))[:,0,0]
+        general_labs1 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'lh.nsdgeneral.mgz'))[:,0,0]
+        general_labs2 = nsd_utils.load_from_mgz(os.path.join(roi_path, 'rh.nsdgeneral.mgz'))[:,0,0]
         nsd_general_full = np.concatenate((general_labs1, general_labs2), axis=0)
   
         # Masks of ncsnr values for each voxel 
-        n1 = load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
+        n1 = nsd_utils.load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
                                                 'betas_fithrf_GLMdenoise_RR', 'lh.ncsnr.mgh')).flatten()
-        n2 = load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
+        n2 = nsd_utils.load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
                                                 'betas_fithrf_GLMdenoise_RR', 'rh.ncsnr.mgh')).flatten()
         ncsnr_full = np.concatenate((n1, n2), axis=0)
   

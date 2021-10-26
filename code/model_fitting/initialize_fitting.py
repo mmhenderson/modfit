@@ -166,6 +166,10 @@ def get_prf_models(aperture_rf_range=1.1, which_grid=1):
         n_sizes = 9
         models = prf_utils.model_space_pyramid2(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range*aperture)  
         
+    elif which_grid==4:
+        models = prf_utils.make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
+                              eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16)
+        
     else:
         raise ValueError('prf grid number not recognized')
 

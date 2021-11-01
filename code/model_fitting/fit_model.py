@@ -257,6 +257,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         # Initialize the "texture" model which builds on first level feature maps
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
                   subject=subject, feature_types_exclude=feature_types_exclude, \
+                  which_prf_grid=which_prf_grid, \
                   do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
                   group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
                   use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \

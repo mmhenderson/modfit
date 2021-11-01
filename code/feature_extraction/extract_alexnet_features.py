@@ -35,14 +35,17 @@ alexnet_layer_names.extend(alexnet_fc_layer_names)
 
 n_features_each_layer = [64,64,64, 192,192,192, 384,384, 256,256, 256,256]
 
-def get_features_each_prf(subject, use_node_storage=False, debug=False, which_prf_grid=1):
+def get_features_each_prf(subject, use_node_storage=False, debug=False, \
+                          which_prf_grid=1, padding_mode=None):
     """
     Extract the portion of CNN feature maps corresponding to pRF defined in "models"
     Return list of the features in each pRF, for each layer of interest.
     """
     
     device = initialize_fitting.init_cuda()
-    
+    if padding_mode=='':
+        padding_mode = None
+        
     if use_node_storage:
         alexnet_feat_path = default_paths.alexnet_feat_path_localnode
     else:
@@ -94,7 +97,8 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
             gc.collect()
             torch.cuda.empty_cache()
             
-            activ_batch = get_alexnet_activations_batch(image_batch, layer_inds, device=device)
+            activ_batch = get_alexnet_activations_batch(image_batch, layer_inds, \
+                                                        device=device, padding_mode=padding_mode)
 
             for ll in range(n_layers):
 
@@ -151,11 +155,22 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
         # Now save the results, one file for each alexnet layer 
         for ii, ll in enumerate(layer_inds):
             if which_prf_grid==1:
-                fn2save = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf.h5py'%(subject, \
-                                                                                   alexnet_layer_names[ll]))
+                if padding_mode is not None:
+                    fn2save = os.path.join(alexnet_feat_path, \
+                       'S%d_%s_%s_features_each_prf.h5py'%(subject, \
+                                                       alexnet_layer_names[ll], padding_mode))
+                else:
+                    fn2save = os.path.join(alexnet_feat_path, \
+                           'S%d_%s_features_each_prf.h5py'%(subject, alexnet_layer_names[ll]))
             else:
-                fn2save = os.path.join(alexnet_feat_path, 'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
-                                                                      alexnet_layer_names[ll], which_prf_grid))
+                if padding_mode is not None:
+                    fn2save = os.path.join(alexnet_feat_path, \
+                       'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, \
+                                           alexnet_layer_names[ll], padding_mode, which_prf_grid))
+                else:    
+                    fn2save = os.path.join(alexnet_feat_path, \
+                       'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
+                                               alexnet_layer_names[ll], which_prf_grid))
             print('Writing prf features to %s\n'%fn2save)
 
             t = time.time()
@@ -168,7 +183,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, which_pr
             print('Took %.5f sec to write file'%elapsed)
 
 
-def get_alexnet_activations_batch(image_batch, layer_inds, device=None):
+def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_mode=None):
 
     """
     Get activations for images in NSD, passed through pretrained AlexNet.
@@ -180,6 +195,16 @@ def get_alexnet_activations_batch(image_batch, layer_inds, device=None):
        
     # first loading pre-trained model from torch model zoo
     model = models.alexnet(pretrained=True).float().to(device)
+    if padding_mode is not None:
+        # change padding type for all convolutional layers, "reflect" is a
+        # good way to minimize edge artifacts.
+        for ff in model.features:
+            if hasattr(ff, 'padding_mode'):
+                ff.padding_mode=padding_mode
+                print('changing padding mode to %s'%padding_mode)
+                print(ff)
+                
+                
     model.eval()
     model_name='AlexNet'
 
@@ -239,7 +264,9 @@ if __name__ == '__main__':
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")
+    parser.add_argument("--padding_mode", type=str,default='',
+                    help="padding mode for alexnet convolutional layers")
     
     args = parser.parse_args()
     
-    get_features_each_prf(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)
+    get_features_each_prf(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid, padding_mode = args.padding_mode)

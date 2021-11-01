@@ -15,7 +15,7 @@ cd ../../
 ROOT=$(pwd)
 
 debug=0
-up_to_sess=10
+up_to_sess=40
 
 subj=1
 volume_space=1
@@ -37,7 +37,7 @@ cd $ROOT/code/model_fitting
 
 python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --which_prf_grid $which_prf_grid
 
-up_to_sess=40
+which_prf_grid=4
 
 python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --which_prf_grid $which_prf_grid
 

@@ -9,11 +9,15 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
     
-def find_lda_axes(subject, discrim_type='animacy', debug=False):
+def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False):
 
     # load full-dimension features, already computed 
     path_to_load = default_paths.sketch_token_feat_path
-    features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
+    if which_prf_grid!=1:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, \
+                                                                                        which_prf_grid))
+    else:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     print('Loading pre-computed features from %s'%features_file)
@@ -46,7 +50,8 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
 
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
+                                                         which_grid=which_prf_grid)    
     n_prfs = models.shape[0]
     
     scores_each_prf = []
@@ -155,8 +160,9 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
         labels_pred = clf.predict(features_in_prf_z)
         pre_mean = clf.xbar_
         
-        val_acc = np.mean(labels_pred[valinds]==labels[valinds])
-        val_dprime = stats_utils.get_dprime(labels_pred[valinds], labels[valinds], un=unvals)
+        val_acc = np.mean(labels_pred[valinds & ims_to_use]==labels[valinds & ims_to_use])
+        val_dprime = stats_utils.get_dprime(labels_pred[valinds & ims_to_use], \
+                                            labels[valinds & ims_to_use], un=unvals)
         print('Validation data prediction accuracy = %.2f pct'%(val_acc*100))
         print('Validation data dprime = %.2f'%(val_dprime))
         print('Proportion predictions each category:')        
@@ -177,7 +183,11 @@ def find_lda_axes(subject, discrim_type='animacy', debug=False):
         
         sys.stdout.flush()
 
-    fn2save = os.path.join(path_to_save, 'S%d_LDA_%s.npy'%(subject, discrim_type))
+    if which_prf_grid!=1:
+        fn2save = os.path.join(path_to_save, 'S%d_LDA_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
+    else:
+        fn2save = os.path.join(path_to_save, 'S%d_LDA_%s.npy'%(subject, discrim_type))
+
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
                       'pre_mean': pre_mean_each_prf, \
@@ -273,18 +283,17 @@ if __name__ == '__main__':
                     help="what semantic labels are we using to classify?")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
-
-    parser.add_argument("--do_features", type=int, default=0, 
-                    help="want to find category diagnostic features and save them?")
-    
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which prf grid to use")
+   
     args = parser.parse_args()
 
     if args.debug:
         print('DEBUG MODE\n')
         
     if args.feature_type=='sketch_tokens':
-        if args.do_features:
-            find_lda_axes(subject=args.subject, debug=args.debug==1, discrim_type=args.discrim_type)
+       
+        find_lda_axes(subject=args.subject, debug=args.debug==1, discrim_type=args.discrim_type, which_prf_grid=args.which_prf_grid)
        
     else:
         raise ValueError('--feature_type %s is not recognized'%args.feature_type)

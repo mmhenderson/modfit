@@ -10,5 +10,14 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/utils/
 
-python3 get_prf_labels.py 
+subject=1
+debug=0
+which_prf_grid=3
+
+python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
+
+which_prf_grid=4
+
+python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
+
 

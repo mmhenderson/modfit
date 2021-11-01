@@ -205,7 +205,7 @@ def write_binary_labels_csv(subject, stuff=False):
     
     return
 
-def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False, debug=False):
+def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False, which_prf_grid=1, debug=False):
     """
     Creating a csv file where columns are binary labels for the presence/absence of categories
     and supercategories in COCO.
@@ -217,7 +217,7 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
  
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid)    
 
     # Get masks for every pRF (circular), in coords of NSD images
     n_prfs = len(models)
@@ -229,8 +229,8 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
         prf_params = models[prf_ind,:] 
         x,y,sigma = prf_params
         aperture=1.0
-        prf = prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                                              dtype=np.float32)[2]
+        prf = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                               patch_size=n_pix, aperture=aperture, dtype=np.float32)
         # Creating a mask 2 SD from the center
         # cutoff of 0.14 approximates +/-2 SDs
         prf_mask = prf/np.max(prf)>0.14
@@ -322,7 +322,11 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
             has_animate = np.any(animate_columns, axis=1)
             binary_df['has_animate'] = has_animate.astype('int')
 
-        folder2save = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
+        if which_prf_grid!=1:
+            folder2save = os.path.join(default_paths.stim_labels_root, \
+                                           'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+        else:
+            folder2save = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
         if not os.path.exists(folder2save):
             os.makedirs(folder2save)
         if stuff:

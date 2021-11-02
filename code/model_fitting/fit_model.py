@@ -45,7 +45,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
              use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
              min_pct_var = 99, max_pc_to_retain = 400, \
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
-             alexnet_layer_name='Conv5_ReLU', \
+             alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              which_prf_grid=1):
     
     def save_all(fn2save, fitting_type):
@@ -135,7 +135,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             })
         if 'alexnet' in fitting_type:
             dict2save.update({
-            'alexnet_layer_name': alexnet_layer_name
+            'alexnet_layer_name': alexnet_layer_name,
+            'alexnet_padding_mode': alexnet_padding_mode,
             })
             
         print('\nSaving to %s\n'%fn2save)
@@ -145,6 +146,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         fitting_type2 = None
     if date_str==0 or date_str=='':
         date_str = None
+    if alexnet_padding_mode=='':
+        alexnet_padding_mode=None
         
     if do_fitting==False and not date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
@@ -297,12 +300,14 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
             for ll in range(n_layers):
                 fe.append(alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                             layer_name=names[ll], device=device, which_prf_grid=which_prf_grid))
+                             layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
+                                                                 padding_mode = alexnet_padding_mode))
             _feature_extractor = merge_features.combined_feature_extractor(fe, names, do_varpart=do_varpart)
                
         else:
             _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                 layer_name=alexnet_layer_name, device=device, which_prf_grid=which_prf_grid)
+                                     layer_name=alexnet_layer_name, device=device, \
+                                    which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
     
         
     if fitting_type2 is not None:
@@ -318,11 +323,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         elif 'alexnet' in fitting_type2:
             assert(alexnet_layer_name is not 'all_conv')
             _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                 layer_name=alexnet_layer_name, device=device, which_prf_grid=which_prf_grid)
+                                 layer_name=alexnet_layer_name, device=device, \
+                                 which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
             
             
-        _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, _feature_extractor2], \
-                                                                           [name1,name2], do_varpart = do_varpart)
+        _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, \
+                                _feature_extractor2], [name1,name2], do_varpart = do_varpart)
 
     #### DO THE ACTUAL MODEL FITTING HERE ####
     
@@ -492,5 +498,6 @@ if __name__ == '__main__':
              max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
              max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
              alexnet_layer_name = args.alexnet_layer_name, \
+             alexnet_padding_mode = args.alexnet_padding_mode, \
              which_prf_grid = args.which_prf_grid)
              

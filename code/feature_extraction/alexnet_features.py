@@ -14,28 +14,40 @@ n_features_each_layer = extract_alexnet_features.n_features_each_layer
 
 class alexnet_feature_extractor(nn.Module):
     
-    def __init__(self, subject, layer_name, device, which_prf_grid=1):
+    def __init__(self, subject, layer_name, device, which_prf_grid=1, padding_mode=None):
         
         super(alexnet_feature_extractor, self).__init__()
         
         self.subject = subject       
         self.layer_name = layer_name
         self.which_prf_grid = which_prf_grid
+        self.padding_mode = padding_mode
+        
         if self.which_prf_grid!=1:
-            self.features_file = os.path.join(alexnet_feat_path, \
-                                      'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
+            if self.padding_mode is not None:
+                self.features_file = os.path.join(alexnet_feat_path, \
+                  'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, \
+                                                             self.padding_mode, self.which_prf_grid))
+            else:
+                self.features_file = os.path.join(alexnet_feat_path, \
+                  'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
         else:
-            self.features_file = os.path.join(alexnet_feat_path, \
+            if self.padding_mode is not None:
+                self.features_file = os.path.join(alexnet_feat_path, \
+                      'S%d_%s_%s_features_each_prf.h5py'%(subject, self.layer_name, self.padding_mode))
+            else:
+                self.features_file = os.path.join(alexnet_feat_path, \
                                       'S%d_%s_features_each_prf.h5py'%(subject, self.layer_name))
+        if not os.path.exists(self.features_file):
+            raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
+
         layer_ind = [ll for ll in range(len(alexnet_layer_names)) \
                          if alexnet_layer_names[ll]==self.layer_name]
         assert(len(layer_ind)==1)
         layer_ind = layer_ind[0]
         
         self.n_features = n_features_each_layer[layer_ind]
-        if not os.path.exists(self.features_file):
-            raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
-
+        
         self.device = device
         self.do_varpart=False # only one set of features in this model for now, not doing variance partition
 

@@ -99,7 +99,9 @@ def get_args():
     # specific to alexnet
     parser.add_argument("--alexnet_layer_name", type=str, default='', 
                        help="What layer of alexnet to use?")
-        
+    parser.add_argument("--alexnet_padding_mode", type=str, default='', 
+                       help="What padding mode for alexnet conv layers? default zeros.")
+
     args = parser.parse_args()
     
     # print values of a few key things to the command line...

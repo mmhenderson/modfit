@@ -94,3 +94,35 @@ def get_shared_unique_var(combined, just_a, just_b):
     return shared_ab, unique_a, unique_b
 
 
+def von_mises_deg(xx,mu,k,a=None,b=None,normalize=True,axis_size_deg = 180):
+  
+    """
+    Make a von mises function over the range in xx.
+    Input should be in 180 deg or 360 deg space, can specify space in degrees.
+    mu = center
+    k = concentration parameter
+    a = amplitude (height)
+    b = baseline
+    if normalize=True, a and b are applied following normalization to range 0-1. 
+    generally want to normalize first, otherwise height will vary with k.
+    
+    """ 
+    if k<10**(-15):
+        print('WARNING: k is too small, might get precision errors')
+    
+    xx_rad2pi = np.float128(xx/axis_size_deg*2*np.pi)
+    mu_rad2pi = mu/axis_size_deg*2*np.pi
+    yy = np.exp(k*(np.cos(xx_rad2pi-mu_rad2pi)-1))
+    
+    if normalize:
+        # make the y values span from 0-1
+        yy = yy-np.min(yy)
+        yy = yy/np.max(yy)
+    
+    # then apply the entered amplitude and baseline.
+    if a is not None:
+        yy *= a
+    if b is not None:
+        yy += b
+
+    return yy

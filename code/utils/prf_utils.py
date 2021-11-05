@@ -39,7 +39,7 @@ def make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
     unrows, inds = np.unique(prf_params, axis=0, return_index=True)
     prf_params = prf_params[np.sort(inds),:]
 
-    # what is the approx spatial extent of the pRF? Assume 2 standard deviations.
+    # what is the approx spatial extent of the pRF? Assume 1 standard deviation.
     n_std = 1
     left_extent = prf_params[:,0] - prf_params[:,2]*n_std
     right_extent = prf_params[:,0] + prf_params[:,2]*n_std

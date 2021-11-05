@@ -144,12 +144,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
 
     if fitting_type2=='':
         fitting_type2 = None
-    if date_str==0 or date_str=='':
+    if date_str==0 or date_str=='0' or date_str=='':
         date_str = None
     if alexnet_padding_mode=='':
         alexnet_padding_mode=None
         
-    if do_fitting==False and not date_str is None:
+    if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
 
     if do_fitting==True and date_str is not None:
@@ -406,11 +406,15 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         torch.cuda.empty_cache()
         print('about to start validation')
         sys.stdout.flush()
-        
+        # Here is where any model-specific additional initialization steps are done
+        # Includes initializing pca params arrays, if doing pca
+        image_size = None
+        _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
         val_cc, val_r2, val_voxel_data_pred  = \
             fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, \
                      _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
                                          voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
+        partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
                                      
         save_all(fn2save, fitting_type)
         
@@ -471,7 +475,7 @@ if __name__ == '__main__':
     
     # get all the arguments (in separate file because there are many)
     args = arg_parser.get_args()
-
+   
     # now actually call the function to execute fitting...
  
     fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \

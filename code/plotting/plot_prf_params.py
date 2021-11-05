@@ -5,7 +5,7 @@ import numpy as np
 import os
 from utils import roi_utils
 
-def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=None, cc_cutoff = 0.20, screen_eccen_deg = 8.4, \
+def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=None, r2_cutoff = 0.10, screen_eccen_deg = 8.4, \
                             fig_save_folder = None):
 
     """
@@ -35,13 +35,13 @@ def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=
     is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
     is_body = np.arange(0, n_rois)>=nret+nface+nplace
     
-    val_cc = out['val_cc'][:,0]
-    abv_thresh = val_cc>cc_cutoff
+    val_r2 = out['val_r2'][:,0]
+    abv_thresh = val_r2>r2_cutoff
     
     plt.figure(figsize=(24,18))
 
-    npy = int(np.ceil(np.sqrt(n_rois)))
-    npx = int(np.ceil(n_rois/npy))
+    npy = int(np.ceil(np.sqrt(n_rois-len(skip_inds))))
+    npx = int(np.ceil((n_rois-len(skip_inds))/npy))
 
     pi = 0
     for rr in range(n_rois):
@@ -75,10 +75,17 @@ def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=
 
             plt.axis('square')
 
-            plt.xlim([-screen_eccen_deg, screen_eccen_deg])
-            plt.ylim([-screen_eccen_deg, screen_eccen_deg])
+            plt.xlim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+            plt.ylim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
             plt.xticks(np.arange(-8,9,4))
             plt.yticks(np.arange(-8,9,4))
+
+            boxcolor = [0.6, 0.6, 0.6]
+            plt.plot([screen_eccen_deg/2,screen_eccen_deg/2], [screen_eccen_deg/2, -screen_eccen_deg/2],color=boxcolor)
+            plt.plot([-screen_eccen_deg/2,-screen_eccen_deg/2], [screen_eccen_deg/2, -screen_eccen_deg/2],color=boxcolor)
+            plt.plot([-screen_eccen_deg/2,screen_eccen_deg/2], [screen_eccen_deg/2, screen_eccen_deg/2],color=boxcolor)
+            plt.plot([-screen_eccen_deg/2,screen_eccen_deg/2], [-screen_eccen_deg/2, -screen_eccen_deg/2],color=boxcolor)
+
             if pi==(npx-1)*npy+1:
                 plt.xlabel('x coord (deg)')
                 plt.ylabel('y coord (deg)')
@@ -87,23 +94,28 @@ def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=
                 plt.yticks([])
             plt.title('%s (%d vox)'%(rname, len(inds2use)))
 
-    plt.suptitle('pRF estimates\nshowing all voxels with corr > %.2f\nS%02d, %s'%(cc_cutoff, subject, fitting_type));
+    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\nS%02d, %s'%(r2_cutoff, subject, fitting_type));
 
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'spatial_prf_distrib.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'spatial_prf_distrib.png'))
 
 
-def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, cc_cutoff=0.2, screen_eccen_deg = 8.4, \
+
+def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, r2_cutoff=0.10, screen_eccen_deg = 8.4, \
                        fig_save_folder=None ):
     """
     Create a scatter plot for each ROI, showing the size of each voxel's best pRF estimate versus its eccentricity.
     """
 
-    size_lims = screen_eccen_deg*np.array([0, 0.5])
-    eccen_lims = [-1, screen_eccen_deg]
     
     best_ecc_deg, best_angle_deg, best_size_deg = get_prf_pars_deg(out, screen_eccen_deg)
+    
+    fits_ignore = np.round(best_size_deg,0)==84 
+    # ignoring this pRF, because this size value is made up - this
+    # pRF was actually just a flat function covering whole visual field.
+    size_lims = [-1, 1.25*np.max(best_size_deg[~fits_ignore])]
+    eccen_lims = [-1,  1.25*np.max(best_ecc_deg)]
     if roi_def is None:
         roi_def = roi_utils.get_combined_rois(subject,verbose=False)
     
@@ -122,12 +134,12 @@ def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, 
     is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
     is_body = np.arange(0, n_rois)>=nret+nface+nplace
     
-    val_cc = out['val_cc'][:,0]
-    abv_thresh = val_cc>cc_cutoff
+    val_r2 = out['val_r2'][:,0]
+    abv_thresh = val_r2>r2_cutoff
     
-    npx = int(np.ceil(np.sqrt(n_rois)))
-    npy = int(np.ceil(n_rois/npx))
-    
+    npy = int(np.ceil(np.sqrt(n_rois-len(skip_inds))))
+    npx = int(np.ceil((n_rois-len(skip_inds))/npy))
+
     plt.figure(figsize=(24,20))
 
     pi=0
@@ -147,14 +159,23 @@ def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, 
                 inds_this_roi = bodylabs==(rr-nret-nface-nplace)
                 rname = body_names[rr-nret-nface-nplace]
 
-            inds2use = np.where(np.logical_and(inds_this_roi, abv_thresh))[0]
+            inds2use = np.where(inds_this_roi & abv_thresh & ~fits_ignore)[0]
 
             pi+=1
             plt.subplot(npx,npy,pi)
             ax = plt.gca()
 
-            plt.plot(best_ecc_deg[inds2use], best_size_deg[inds2use], '.')
+            xvals = best_ecc_deg[inds2use]
+            yvals = best_size_deg[inds2use]
+            plt.plot(xvals, yvals, '.')
 
+            X = np.concatenate([xvals[:,np.newaxis], np.ones((len(inds2use),1))], axis=1)
+            y = yvals[:,np.newaxis]
+            linefit =  np.linalg.pinv(X) @ y
+            
+            yhat = xvals*linefit[0] + linefit[1]
+            plt.plot(xvals, yhat, '-', color=[0.6, 0.6, 0.6])
+            
             plt.xlim(eccen_lims)
             plt.ylim(size_lims)
             if pi==(npx-1)*npy+1:
@@ -164,15 +185,17 @@ def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, 
                 plt.xticks([])
                 plt.yticks([])
 
+            plt.axhline(0,color=[0.8, 0.8, 0.8])
+            plt.axvline(0,color=[0.8, 0.8, 0.8])
             plt.title('%s (%d vox)'%(rname, len(inds2use)))
 
-    plt.suptitle('pRF estimates\nshowing all voxels with corr > %.2f\nS%02d, %s'%(cc_cutoff, subject, fitting_type))
+    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\nS%02d, %s'%(r2_cutoff, subject, fitting_type))
     
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'size_vs_eccen.png'))
         plt.savefig(os.path.join(fig_save_folder,'size_vs_eccen.pdf'))
         
-        
+            
 
 def plot_prf_stability_partial_versions(subject, out, cc_cutoff = 0.2, screen_eccen_deg = 8.4, fig_save_folder = None):
     

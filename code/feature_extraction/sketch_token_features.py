@@ -244,7 +244,7 @@ def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_
             else:
                 # This is a coarser way of choosing which spatial region to look at
                 # Crop the patch +/- n SD away from center
-                n_pf_sd_out = 2
+                n_prf_sd_out = 2
                 bbox = texture_utils.get_bbox_from_prf(prf_params, prf.shape, n_prf_sd_out, min_pix=None, verbose=False, force_square=False)
                 print('bbox to crop is:')
                 print(bbox)

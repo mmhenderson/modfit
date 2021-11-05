@@ -16,8 +16,11 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
     if which_prf_grid!=1:
         features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, \
                                                                                         which_prf_grid))
+        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
+                                                                                          which_prf_grid))
     else:
         features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
+        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     print('Loading pre-computed features from %s'%features_file)
@@ -76,7 +79,7 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
         print('Of these, proportion indoor:')
         print(np.mean(labels[ims_to_use]==1))
         unvals = np.unique(labels[ims_to_use])        
-
+   
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
@@ -86,7 +89,7 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
 
         # Gather semantic labels for the images, specific to this pRF position. 
         if discrim_type=='animacy':
-            coco_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject, \
+            coco_labels_fn = os.path.join(labels_folder, \
                                           'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
             print('Reading labels from %s...'%coco_labels_fn)
             coco_df = pd.read_csv(coco_labels_fn, index_col=0)
@@ -105,7 +108,7 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
             ims_to_use = ims_to_use
             
         elif discrim_type=='all_supcat':
-            coco_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject, \
+            coco_labels_fn = os.path.join(labels_folder, \
                                           'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
             print('Reading labels from %s...'%coco_labels_fn)
             coco_df = pd.read_csv(coco_labels_fn, index_col=0)
@@ -124,7 +127,7 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
             print(np.unique(labels[ims_to_use]))
             
         elif discrim_type=='person' or discrim_type=='food' or discrim_type=='vehicle' or discrim_type=='animal':
-            coco_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject, \
+            coco_labels_fn = os.path.join(labels_folder, \
                                           'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
             print('Reading labels from %s...'%coco_labels_fn)
             coco_df = pd.read_csv(coco_labels_fn, index_col=0)

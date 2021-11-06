@@ -4,6 +4,25 @@ from matplotlib import cm
 import numpy as np
 import os
 from utils import roi_utils
+      
+def get_prf_pars_deg(out, screen_eccen_deg=8.4):
+    """
+    Convert the saved estimates of prf position/sd into eccentricity, angle, etc in degrees.
+    """
+    if len(out['best_params'])==7:
+        best_models, weights, bias, features_mt, features_st, best_model_inds, _ = out['best_params']
+    else:
+        best_models, weights, bias, features_mt, features_st, best_model_inds = out['best_params']
+    best_models_deg = best_models * screen_eccen_deg
+    if len(best_models_deg.shape)==2:
+        best_models_deg = np.expand_dims(best_models_deg, axis=1)
+    pp=0
+    best_ecc_deg  = np.sqrt(np.square(best_models_deg[:,pp,0]) + np.square(best_models_deg[:,pp,1]))
+    best_angle_deg  = np.mod(np.arctan2(best_models_deg[:,pp,1], best_models_deg[:,pp,0])*180/np.pi, 360)
+    best_angle_deg[best_ecc_deg==0.0] = np.nan
+    best_size_deg = best_models_deg[:,pp,2]
+    
+    return best_ecc_deg, best_angle_deg, best_size_deg
 
 def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=None, r2_cutoff = 0.10, screen_eccen_deg = 8.4, \
                             fig_save_folder = None):
@@ -242,28 +261,6 @@ def plot_prf_stability_partial_versions(subject, out, cc_cutoff = 0.2, screen_ec
     if fig_save_folder:
         plt.savefig(os.path.join(fig_save_folder,'prf_stability_holdout.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'prf_stability_holdout.png'))
-
-        
-        
-def get_prf_pars_deg(out, screen_eccen_deg=8.4):
-    """
-    Convert the saved estimates of prf position/sd into eccentricity, angle, etc in degrees.
-    """
-    if len(out['best_params'])==7:
-        best_models, weights, bias, features_mt, features_st, best_model_inds, _ = out['best_params']
-    else:
-        best_models, weights, bias, features_mt, features_st, best_model_inds = out['best_params']
-    best_models_deg = best_models * screen_eccen_deg
-    if len(best_models_deg.shape)==2:
-        best_models_deg = np.expand_dims(best_models_deg, axis=1)
-    pp=0
-    best_ecc_deg  = np.sqrt(np.square(best_models_deg[:,pp,0]) + np.square(best_models_deg[:,pp,1]))
-    best_angle_deg  = np.mod(np.arctan2(best_models_deg[:,pp,1], best_models_deg[:,pp,0])*180/np.pi, 360)
-    best_angle_deg[best_ecc_deg==0.0] = np.nan
-    best_size_deg = best_models_deg[:,pp,2]
-    
-    return best_ecc_deg, best_angle_deg, best_size_deg
-
 
 def plot_prf_grid(prf_models, xy_circ = [-0.4, -0.4], screen_eccen_deg = 8.4):
 

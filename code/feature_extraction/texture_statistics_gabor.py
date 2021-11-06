@@ -22,7 +22,8 @@ class texture_feature_extractor(nn.Module):
     
     Inputs to the forward pass are images and pRF parameters of interest [x,y,sigma].
     """
-    def __init__(self,_fmaps_fn_complex, _fmaps_fn_simple, subject=None, sample_batch_size=100, \
+    def __init__(self,_fmaps_fn_complex, _fmaps_fn_simple, subject=None, which_prf_grid=1, \
+                 sample_batch_size=100, \
                  autocorr_output_pix=3, n_prf_sd_out=2, aperture=1.0, \
                  feature_types_exclude=None,  do_varpart=False, group_all_hl_feats=False, \
                  compute_features=True, device=None):
@@ -41,6 +42,7 @@ class texture_feature_extractor(nn.Module):
         self.n_prf_sd_out = n_prf_sd_out
         self.aperture = aperture
         self.device = device      
+        self.which_prf_grid = which_prf_grid
         
         self.do_varpart = do_varpart
         self.group_all_hl_feats = group_all_hl_feats       
@@ -48,13 +50,22 @@ class texture_feature_extractor(nn.Module):
         self.update_feature_list(feature_types_exclude)
         self.do_pca = False
         
-        # if compute features is false, this means the features are already generated, so will be looking for a 
-        # saved h5py file of pre-computed features. If true, will run the extraction step now.
+        # if compute features is false, this means the features are already generated, 
+        # so will be looking for a saved h5py file of pre-computed features. 
+        # If true, will run the extraction step now.
         self.compute_features = compute_features
         self.subject = subject
         
         if not self.compute_features:
-            self.features_file = os.path.join(gabor_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(self.subject, self.n_ori, self.n_sf))
+            self.features_file = os.path.join(gabor_texture_feat_path, \
+                      'S%d_features_each_prf_%dori_%dsf'%(self.subject, self.n_ori, self.n_sf))
+            if (len(self.feature_types_include)==1) and \
+                            (self.feature_types_include[0]=='complex_feature_means'):
+                self.features_file += '_gabor_solo'
+            if self.which_prf_grid!=1:
+                self.features_file += '_grid%d'%which_prf_grid                                             
+            self.features_file += '.h5py'
+
             if not os.path.exists(self.features_file):
                 raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                   
             self.prf_batch_size=50
@@ -74,7 +85,8 @@ class texture_feature_extractor(nn.Module):
         else:
             n_prfs = models.shape[0]
             n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
-            self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
+            self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) \
+                                   for bb in range(n_prf_batches)]
  
         self.max_features = self.n_features_total            
 
@@ -85,19 +97,23 @@ class texture_feature_extractor(nn.Module):
                          'complex_within_scale_crosscorrs','simple_within_scale_crosscorrs',\
                          'complex_across_scale_crosscorrs','simple_across_scale_crosscorrs']
         self.feature_types_all = feature_types_all
-        ori_pairs = np.vstack([[[oo1, oo2] for oo2 in np.arange(oo1+1, self.n_ori)] for oo1 in range(self.n_ori) if oo1<self.n_ori-1])
+        ori_pairs = np.vstack([[[oo1, oo2] for oo2 in np.arange(oo1+1, self.n_ori)] \
+                               for oo1 in range(self.n_ori) if oo1<self.n_ori-1])
         n_ori_pairs = np.shape(ori_pairs)[0]
         feature_type_dims = [4,self.n_ori*self.n_sf, self.n_ori*self.n_sf*self.n_phases, \
-                              self.n_ori*self.n_sf*self.autocorr_output_pix**2, self.n_ori*self.n_sf*self.n_phases*self.autocorr_output_pix**2, \
-                              self.n_sf*n_ori_pairs, self.n_sf*n_ori_pairs*self.n_phases, (self.n_sf-1)*self.n_ori**2, (self.n_sf-1)*self.n_ori**2*self.n_phases]
+                              self.n_ori*self.n_sf*self.autocorr_output_pix**2, \
+                             self.n_ori*self.n_sf*self.n_phases*self.autocorr_output_pix**2, \
+                              self.n_sf*n_ori_pairs, self.n_sf*n_ori_pairs*self.n_phases, \
+                             (self.n_sf-1)*self.n_ori**2, (self.n_sf-1)*self.n_ori**2*self.n_phases]
         self.feature_type_dims_all = feature_type_dims        
-         
+                 
         # Decide which features to ignore, or use all features      
         if feature_types_exclude is None:
             feature_types_exclude = []
         # a few shorthands for ignoring sets of features at a time
         if 'crosscorrs' in feature_types_exclude:
-            feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs','complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
+            feature_types_exclude.extend(['complex_within_scale_crosscorrs','simple_within_scale_crosscorrs',\
+                                          'complex_across_scale_crosscorrs','simple_across_scale_crosscorrs'])
         if 'autocorrs' in feature_types_exclude:
             feature_types_exclude.extend(['complex_feature_autocorrs','simple_feature_autocorrs'])
         if 'pixel' in feature_types_exclude:
@@ -110,21 +126,30 @@ class texture_feature_extractor(nn.Module):
         if len(self.feature_types_include)==0:
             raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
             
-        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
+        feature_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) \
+                                    if not feature_types_all[fi] in self.feature_types_exclude]
         # how many features will be needed, in total?
         self.n_features_total = np.sum(feature_dims_include)
         
         # numbers that define which feature types are in which column
-        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) for fi in range(len(feature_dims_include))], axis=1).astype('int'))
+        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_dims_include[fi]]) \
+                                            for fi in range(len(feature_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
+        if (len(self.feature_types_include)==1) and \
+                        (self.feature_types_include[0]=='complex_feature_means'):
+            # this is simplest case where only looking at first-level gabor features
+            self.feature_types_all = [self.feature_types_all[1]]
+            self.feature_type_dims_all = [self.feature_type_dims_all[1]]
+                    
         if self.group_all_hl_feats:
             # In this case pretend there are just two groups of features:
             # Lower-level which includes pixel and gabor-like.
             # Higher-level which includes all autocorrelations and cross-correlations. 
             # This makes it simpler to do variance partition analysis.
             # if do_varpart=False, this does nothing.
-            assert(len(self.feature_types_exclude)==0) # the following lines won't make sense if any features were missing, so check this
+            assert(len(self.feature_types_exclude)==0) 
+            # the following lines won't make sense if any features were missing, so check this
             self.feature_column_labels[self.feature_column_labels<=2] = 0
             self.feature_column_labels[self.feature_column_labels>2] = 1
             self.feature_group_names = ['lower-level', 'higher-level']

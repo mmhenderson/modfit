@@ -13,7 +13,7 @@ use_node_storage=0
 n_ori=12
 n_sf=8
 batch_size=100
-which_prf_grid=3
+which_prf_grid=4
 gabor_solo=1
 source ~/myenv/bin/activate
 
@@ -24,6 +24,4 @@ cd $ROOT/feature_extraction
 
 python3 extract_gabor_texture_features.py --subject $subj --use_node_storage $use_node_storage --n_ori=$n_ori --n_sf=$n_sf --batch_size $batch_size --debug $debug --which_prf_grid $which_prf_grid --gabor_solo $gabor_solo
 
-# which_prf_grid=3
-# python3 extract_gabor_texture_features.py --subject $subj --use_node_storage $use_node_storage --n_ori=$n_ori --n_sf=$n_sf --batch_size $batch_size --debug $debug --which_prf_grid $which_prf_grid --gabor_solo $gabor_solo
 

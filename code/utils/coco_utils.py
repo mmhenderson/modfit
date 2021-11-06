@@ -481,3 +481,76 @@ def write_indoor_outdoor_csv(subject):
     indoor_outdoor_df.to_csv(fn2save, header=True)
 
     return
+
+def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
+
+    """
+    Load csv files containing binary labels for coco images.
+    """
+    
+    if which_prf_grid!=1:
+        labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    else:
+        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
+
+
+    print('loading labels from folders at %s and %s (will be slow...)'%\
+          (default_paths.stim_labels_root, labels_folder))
+    discrim_type_list = ['indoor_outdoor','animacy','person','food','vehicle','animal']
+    n_sem_axes = len(discrim_type_list)
+    n_trials = image_inds.shape[0]
+    n_prfs = models.shape[0]
+
+    labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
+
+    # get indoor/outdoor labels first, this property is defined across whole images  
+    aa=0;
+    discrim_type = discrim_type_list[0]
+    coco_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
+    coco_df = pd.read_csv(coco_labels_fn, index_col=0)
+    ims_to_use = np.sum(np.array(coco_df)==1, axis=1)==1
+    labels = np.array(coco_df['has_indoor'])
+    labels = labels[image_inds].astype(np.float32)
+    labels[~ims_to_use[image_inds]] = np.nan
+    labels_all[:,aa,:] = np.tile(labels[:,np.newaxis], [1,n_prfs])
+    neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] + [np.sum(np.isnan(labels))]
+    if verbose:
+        print('n outdoor/n indoor/n ambiguous:')
+        print(neach)
+
+    for prf_model_index in range(n_prfs):
+
+        if verbose:
+            print('\nProcessing pRF %d of %d'%(prf_model_index, n_prfs))
+        coco_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
+        if verbose:
+            print('Reading labels from %s...'%coco_labels_fn)
+        coco_df = pd.read_csv(coco_labels_fn, index_col=0)
+
+        for aa,discrim_type in enumerate(discrim_type_list[1:]):
+            aa=aa+1
+            
+            # Gather semantic labels for the images, specific to this pRF position. 
+            if discrim_type=='animacy':
+
+                labels = np.array(coco_df['has_animate']).astype(np.float32)
+                labels = labels[image_inds]
+                labels_all[:,aa,prf_model_index] = labels
+                if verbose and (prf_model_index==0):
+                    neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] 
+                    print('no animate/has animate:')
+                    print(neach)
+
+            elif discrim_type=='person' or discrim_type=='food' or discrim_type=='vehicle' or discrim_type=='animal':
+
+                labels = np.array(coco_df[discrim_type]).astype(np.float32)
+                labels = labels[image_inds]
+                labels_all[:,aa,prf_model_index] = labels
+                if verbose and (prf_model_index==0):
+                    neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])]                 
+                    print('no %s/has %s:'%(discrim_type,discrim_type))
+                    print(neach)
+    
+    return labels_all

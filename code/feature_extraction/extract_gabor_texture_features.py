@@ -16,7 +16,7 @@ from feature_extraction import texture_statistics_gabor
 
 device = initialize_fitting.init_cuda()
 
-def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, debug=False):
+def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, gabor_solo=False, which_prf_grid=1, debug=False):
     
     if use_node_storage:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
@@ -31,10 +31,13 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     # Params for the spatial aspect of the model (possible pRFs)
     aperture = 1.0
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid = which_prf_grid)    
 
     # Set up the feature extractor - fixing these parameters
-    feature_types_exclude = []
+    if gabor_solo:
+        feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
+    else:
+        feature_types_exclude = []
     n_prf_sd_out = 2
     padding_mode = 'circular'
     nonlin_fn=False
@@ -59,6 +62,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     n_pix = image_data.shape[2]
     _feature_extractor.init_for_fitting((n_pix, n_pix), models, device)
     n_features = _feature_extractor.n_features_total
+    print('number of features total: %d'%n_features)
     n_images = image_data.shape[0]
     n_prfs = models.shape[0]
     n_batches = int(np.ceil(n_images/batch_size))
@@ -97,7 +101,12 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
 
                 sys.stdout.flush()
 
-    fn2save = os.path.join(gabor_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
+    fn2save = os.path.join(gabor_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf'%(subject, n_ori, n_sf))
+    if gabor_solo:
+        fn2save += '_gabor_solo'
+    if which_prf_grid!=1:
+        fn2save += '_grid%d'%which_prf_grid                                             
+    fn2save += '.h5py'
 
     print('Writing prf features to %s\n'%fn2save)
     
@@ -123,6 +132,10 @@ if __name__ == '__main__':
                     help="how many frequency channels (pyramid levels)?")
     parser.add_argument("--batch_size", type=int,default=100,
                     help="batch size to use for feature extraction")
+    parser.add_argument("--gabor_solo", type=int,default=0,
+                    help="simplest version of this model with only first level gabors? 1 for yes, 0 for no")
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which version of prf grid to use")
     
     parser.add_argument("--use_node_storage", type=int,default=0,
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
@@ -131,4 +144,4 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage, debug = args.debug==1)
+    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage==1, gabor_solo=args.gabor_solo==1, which_prf_grid = args.which_prf_grid, debug = args.debug==1)

@@ -19,7 +19,7 @@ code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, sketch_token_features, \
                 texture_statistics_pyramid, alexnet_features
-from utils import nsd_utils, roi_utils, default_paths
+from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
 import arg_parser as arg_parser
@@ -38,7 +38,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, zscore_in_groups = False, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
-             do_fitting = True, use_precomputed_prfs = False, do_val = True, do_stack=True, \
+             do_fitting = True, use_precomputed_prfs = False, do_val = True, \
+             do_stack=False, do_tuning=True, do_sem_disc=True, \
              do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
@@ -99,6 +100,14 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         if do_voxel_recons:
             dict2save.update({
             'voxel_recs': voxel_recs
+            })
+        if do_tuning:
+            dict2save.update({
+            'corr_each_feature': corr_each_feature
+            })
+        if do_sem_disc:
+            dict2save.update({
+            'discrim_each_axis': discrim_each_axis
             })
         if 'sketch_tokens' in fitting_type:
             dict2save.update({
@@ -211,6 +220,10 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         voxel_recs = None
     if do_roi_recons:
         pop_recs = None
+    if do_tuning:
+        corr_each_feature = None
+    if do_sem_disc:
+        discrim_each_axis = None
         
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, \
                                                            random_images, random_voxel_data, debug, date_str)
@@ -277,11 +290,11 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         autocorr_output_pix=5
         compute_features = False
         _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
-                                                                                subject=subject,\
-                                                autocorr_output_pix=autocorr_output_pix, \
-                                                feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
-                                                group_all_hl_feats=group_all_hl_feats, compute_features = compute_features, \
-                                                                                device=device)      
+                                subject=subject, which_prf_grid=which_prf_grid, \
+                                autocorr_output_pix=autocorr_output_pix, \
+                                feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
+                                group_all_hl_feats=group_all_hl_feats, compute_features = compute_features, \
+                                device=device)      
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
     elif 'sketch_tokens' in fitting_type:
@@ -410,7 +423,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         # Includes initializing pca params arrays, if doing pca
         image_size = None
         _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
-        val_cc, val_r2, val_voxel_data_pred  = \
+        val_cc, val_r2, val_voxel_data_pred, features_each_prf = \
             fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, \
                      _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
                                          voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
@@ -418,7 +431,34 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
                                      
         save_all(fn2save, fitting_type)
         
-    ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ##############################################
+    ### ESTIMATE VOXELS' FEATURE TUNING BASED ON CORRELATION WITH EACH FEATURE ######
+    sys.stdout.flush()
+    if do_tuning:
+  
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start feature tuning analysis')
+        sys.stdout.flush()
+        corr_each_feature = fwrf_predict.get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debug=debug)
+        
+        save_all(fn2save, fitting_type)
+        
+    ### ESTIMATE SEMANTIC DISCRIMINABILITY OF EACH VOXEL'S PREDICTED RESPONSES ######
+    sys.stdout.flush()
+    if do_sem_disc:
+  
+        gc.collect()
+        torch.cuda.empty_cache()
+        print('about to start semantic discriminability analysis')
+        sys.stdout.flush()
+        labels_all = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+                                                 image_inds=val_stim_data, models=models,verbose=False)
+        discrim_each_axis = fwrf_predict.get_semantic_discrim(best_params, labels_all, \
+                                                      val_voxel_data_pred, debug=debug)
+        
+        save_all(fn2save, fitting_type)
+        
+    ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ###########
     sys.stdout.flush()
     if do_stack: 
         
@@ -490,6 +530,7 @@ if __name__ == '__main__':
              random_voxel_data = args.random_voxel_data==1, \
              do_fitting = args.do_fitting==1, use_precomputed_prfs = args.use_precomputed_prfs==1, \
              do_val = args.do_val==1, do_stack = args.do_stack==1, \
+             do_tuning = args.do_tuning==1, do_sem_disc = args.do_sem_disc==1, \
              do_varpart = args.do_varpart==1, do_roi_recons = args.do_roi_recons==1, \
              do_voxel_recons = args.do_voxel_recons==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \

@@ -47,7 +47,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     val_cc  = np.zeros(shape=(n_voxels, n_partial_versions), dtype=dtype)
     val_r2 = np.zeros(shape=(n_voxels, n_partial_versions), dtype=dtype)
 
-    pred_models = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
+    features_each_prf = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
     feature_inds_defined_each_prf = np.full(fill_value=0, shape=(n_features_max, n_prfs), dtype=bool)
     
     # Saving full trial-by-trial predictions for each voxel, each partial model.
@@ -88,7 +88,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 all_feat_concat[np.isnan(all_feat_concat)] = 0.0 
                 all_feat_concat[np.isinf(all_feat_concat)] = 0.0 
                         
-            pred_models[:,feature_inds_defined,mm] = all_feat_concat
+            features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined
             
         _feature_extractor.clear_big_features()
@@ -117,7 +117,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
                 # here is where we choose the right set of features for each voxel, based
                 # on its fitted prf.
                 # [trials x features x voxels]
-                features_full = pred_models[:,:,best_model_inds[rv,pp]]
+                features_full = features_each_prf[:,:,best_model_inds[rv,pp]]
                 
                 # Take out the relevant features now
                 features_full = features_full[:,features_to_use,:]
@@ -166,7 +166,75 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     val_cc = np.nan_to_num(val_cc)
     val_r2 = np.nan_to_num(val_r2) 
     
-    return val_cc, val_r2, pred_voxel_data
+    return val_cc, val_r2, pred_voxel_data, features_each_prf
+
+def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debug=False):
+   
+    """
+    Get an approximate measure of voxels' tuning for particular features, based on how correlated 
+    the predicted responses of the encoding model are with the activation in each feature channel.
+    Better than looking at raw weights because it takes into account covariance structure of 
+    the validation set data.
+    """
+    
+    best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
+    n_voxels = val_voxel_data_pred.shape[1]
+    n_features = features_each_prf.shape[1]
+    corr_each_feature = np.zeros((n_voxels, n_features))
+   
+    for vv in range(n_voxels):
+        
+        if debug and (vv>1):
+            continue
+        print('computing feature tuning for voxel %d of %d\n'%(vv, n_voxels))
+        
+        # voxel's predicted response to validation set trials, based on encoding model.
+        resp = val_voxel_data_pred[:,vv,0]
+        # activation in the feature of interest on each trial.
+        feat_act = features_each_prf[:,:,best_model_inds[vv,0]]
+        
+        corrmat = np.corrcoef(np.tile(resp[:,np.newaxis], [1,n_features]).T, feat_act.T)
+
+        corr_each_feature[vv,:] = corrmat[0,n_features:]
+
+    return corr_each_feature
+
+
+def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=False):
+   
+    """
+    Measure how well voxels' predicted responses distinguish between image patches with 
+    different semantic content (compute d').
+    """
+    
+    best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
+    n_voxels = val_voxel_data_pred.shape[1]
+
+    n_sem_axes = labels_all.shape[1]
+    discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
+    
+    for vv in range(n_voxels):
+        
+        if debug and (vv>1):
+            continue
+        print('computing semantic discriminability for voxel %d of %d\n'%(vv, n_voxels))
+        
+        resp = val_voxel_data_pred[:,vv,0]
+        
+        for aa in range(n_sem_axes):
+            
+            labels = labels_all[:,aa,best_model_inds[vv,0]]
+            inds2use = ~np.isnan(labels)
+            inds1 = (labels==0) & inds2use
+            inds2 = (labels==1) & inds2use
+            if np.any(inds1) and np.any(inds2):
+                # (mu1-mu2) / std
+                discrim_each_axis[vv,aa] = (np.mean(resp[inds1]) - np.mean(resp[inds2]))/ \
+                                                    np.std(resp[inds2use]) 
+            else:
+                discrim_each_axis[vv,aa] = np.nan
+                
+    return discrim_each_axis
 
 
 def run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=False):   

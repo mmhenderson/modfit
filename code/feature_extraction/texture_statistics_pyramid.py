@@ -233,7 +233,7 @@ class texture_feature_extractor(nn.Module):
             assert(prf_model_index in self.prf_batch_inds[batch_to_use])
             self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
             print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
-                                                                              self.prf_batch_inds[batch_to_use][-1], self.features_file))
+                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file))
             self.features_each_prf_batch = None
             self.n_ll_actual_batch = None
             self.n_hl_actual_batch = None

@@ -28,6 +28,8 @@ import merge_features, fwrf_fit, fwrf_predict, reconstruct
 fpX = np.float32
 device = initialize_fitting.init_cuda()
 
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 #################################################################################################
         
     
@@ -163,6 +165,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
 
     if do_fitting==True and date_str is not None:
         raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
+        
+    if not do_fitting and do_stack:
+        raise ValueError('to do stacking analysis, need to start from scratch (--do_fitting=True)')
+    
+    if (do_sem_disc or do_tuning) and not do_val:
+        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')
 
     if 'pyramid' in fitting_type:
         model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll = use_pca_pyr_feats_ll, use_pca_pyr_feats_hl = use_pca_pyr_feats_hl)
@@ -351,10 +359,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         print('\nStarting training...\n')
         if shuff_rnd_seed==0:
             shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))       
-        if debug:
-            print('flipping the models upside down to start w biggest pRFs')
-            models = np.flipud(models)
-
+        
         # add an intercept
         add_bias=True
         # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
@@ -389,29 +394,39 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         best_losses = out['best_losses']
         best_lambdas = out['best_lambdas']
         best_params = out['best_params']
-        if 'feature_info' in list(out.keys()):
-            feature_info = out['feature_info']
         val_cc = out['val_cc']
         val_r2 = out['val_r2']
-        if do_stack:
-            train_cc=out['train_cc']
-            train_r2=out['train_r2']
-            stack_result=out['stack_result']
-            stack_result_lo =out['stack_result_lo']
-            partial_models_used_for_stack=out['partial_models_used_for_stack']
-        if do_roi_recons:
-            pop_recs=None
-        if do_voxel_recons:
-            voxel_recs=None
-     
+        
+        if 'corr_each_feature' in list(out.keys()):
+            assert(do_tuning)
+            corr_each_feature = out['corr_each_feature']
+        if 'discrim_each_axis' in list(out.keys()):
+            assert(do_sem_disc)
+            discrim_each_axis = out['discrim_each_axis']
+        if 'voxel_recs' in list(out.keys()):
+            assert(do_voxel_recons)
+            voxel_recs = out['voxel_recs']
+        if 'pop_recs' in list(out.keys()):
+            assert(do_roi_recons)
+            pop_recs = out['pop_recs']
+        if 'stack_result' in list(out.keys()):
+            assert(do_stack)
+            stack_result = out['stack_result']
+            stack_result_lo = out['stack_result_lo']
+            partial_models_used_for_stack = out['partial_models_used_for_stack']
+            train_r2 = out['train_r2']
+            train_cc = out['train_cc']
+        
         shuff_rnd_seed=out['shuff_rnd_seed']
         
         assert(out['up_to_sess']==up_to_sess)
-       
-    if val_cc is not None:
-        do_val=False
-        print('\nValidation is already done! not going to run it again.')       
-   
+        assert(out['which_prf_grid']==which_prf_grid)
+        
+        image_size = None
+        _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
+        partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
+        
+    
     ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
     sys.stdout.flush()
     if do_val: 
@@ -421,13 +436,11 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         sys.stdout.flush()
         # Here is where any model-specific additional initialization steps are done
         # Includes initializing pca params arrays, if doing pca
-        image_size = None
-        _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
+        
         val_cc, val_r2, val_voxel_data_pred, features_each_prf = \
             fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, \
                      _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
                                          voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
-        partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
                                      
         save_all(fn2save, fitting_type)
         

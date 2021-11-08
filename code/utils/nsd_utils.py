@@ -48,12 +48,12 @@ def ncsnr_to_nc(ncsnr, n=1):
     noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)   
     return noise_ceiling
     
-def get_image_data(subject, shuffle_images=False, random_images=False, native=False):
+def get_image_data(subject, random_images=False, native=False):
 
     """
     Load the set of NSD images that were shown to a given subject.
     This loads a subject-specific array of images, see [get_subject_specific_images] for details.
-    Can also choose to shuffle the images, or insert random noise instead of the images here.
+    Can also choose to insert random noise instead of the images here.
     """
     
     if random_images==False:        
@@ -70,19 +70,6 @@ def get_image_data(subject, shuffle_images=False, random_images=False, native=Fa
 
     print ('image data size:', image_data.shape, ', dtype:', image_data.dtype, ', value range:',\
         np.min(image_data[0]), np.max(image_data[0]))
-
-    if shuffle_images==True:
-
-        shuff_order = np.arange(0,np.shape(image_data)[0])
-        np.random.shuffle(shuff_order)
-        print('\nShuffling image data...')
-        print('\nShuffled order ranges from [%d to %d], first elements are:'%(np.min(shuff_order), np.max(shuff_order)))
-        print(shuff_order[0:10])
-        print('size of orig data matrix:')
-        print(np.shape(image_data))
-        image_data = image_data[shuff_order,:,:,:]
-        print('size of shuffled data matrix:')
-        print(np.shape(image_data))
 
     return image_data
 
@@ -188,7 +175,7 @@ def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=Non
     
     # First load all the images, full brick of 10,000 images. Not in order yet.
     if not image_inds_only:
-        image_data = get_image_data(subject, shuffle_images, random_images)
+        image_data = get_image_data(subject, random_images)
         image_data = image_uncolorize_fn(image_data)
     else:
         image_data = None
@@ -203,6 +190,21 @@ def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=Non
     inds2use = np.isin(session_inds, sessions)
     image_order = image_order[inds2use]
     
+    if shuffle_images:
+        shuff_order = np.arange(0,np.shape(image_order)[0])
+        np.random.shuffle(shuff_order)
+        print('\nShuffling image data...')
+        print('\nShuffled order ranges from [%d to %d], first elements are:'%(np.min(shuff_order), \
+                                                                              np.max(shuff_order)))
+        print(shuff_order[0:10])        
+        print('\nOrig image order ranges from [%d to %d], first elements are:'%(np.min(image_order), \
+                                                                              np.max(image_order)))
+        print(image_order[0:10])        
+        image_order = image_order[shuff_order]
+        print('\nNew image order ranges from [%d to %d], first elements are:'%(np.min(image_order), \
+                                                                              np.max(image_order)))
+        print(image_order[0:10])
+        
     # Now re-ordering the image data into the real sequence, for just the sessions of interest.
     if not image_inds_only:
         image_data_ordered = image_data[image_order]

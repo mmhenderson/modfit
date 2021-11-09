@@ -344,6 +344,9 @@ def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
     if np.isscalar(sessions):
         sessions = [sessions]
     sessions = np.array(sessions)
+    if debug:
+        sessions = [0]
+        
     voxel_mask, _, _, _, _ = roi_utils.get_voxel_roi_info(subject, \
                                                 volume_space=True, include_all=True, \
                                                 include_body=True, verbose=False)

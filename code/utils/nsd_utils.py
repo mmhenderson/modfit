@@ -330,3 +330,56 @@ def load_prf_mapping_pars(subject, voxel_mask=None):
     rsq = load_from_nii(os.path.join(prf_path, 'prf_R2.nii.gz')).flatten()[voxel_mask]/100
             
     return angle, eccen, size, exponent, gain, rsq
+
+
+
+def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
+    
+    """
+    For each voxel, rank images in order of average response 
+    (averaged over duplicate trials) and save as a csv file.
+    Each column in csv is a voxel, each row is a rank position.
+    """
+
+    if np.isscalar(sessions):
+        sessions = [sessions]
+    sessions = np.array(sessions)
+    voxel_mask, _, _, _, _ = roi_utils.get_voxel_roi_info(subject, \
+                                                volume_space=True, include_all=True, \
+                                                include_body=True, verbose=False)
+    voxel_data = load_betas(subject, sessions, voxel_mask=voxel_mask, \
+                              zscore_betas_within_sess=True, \
+                              volume_space=True)    
+    image_order = get_master_image_order()
+    session_inds = get_session_inds_full()
+
+    inds2use = np.isin(session_inds, sessions)
+    image_order = image_order[inds2use]
+
+    n_trials = voxel_data.shape[0]
+    n_voxels = voxel_data.shape[1]
+
+    unique_ims = np.unique(image_order)
+    n_unique_ims = len(unique_ims)
+    avg_dat_each_image = np.zeros((n_unique_ims, n_voxels))
+    for uu, im in enumerate(unique_ims):
+        if debug and (uu>1):
+            continue
+        inds = image_order==im;
+        avg_dat_each_image[uu,:] = np.mean(voxel_data[inds,:], axis=0)
+
+
+    images_ranked_each_voxel = np.zeros((n_unique_ims, n_voxels))
+    for vv in range(n_voxels):
+        if debug and (vv>1):
+            continue
+        image_rank = np.flip(np.argsort(avg_dat_each_image[:,vv]))
+        images_ranked = unique_ims[image_rank]
+        images_ranked_each_voxel[:,vv] = images_ranked
+
+    rank_df = pd.DataFrame(data=images_ranked_each_voxel.astype(int), \
+                           columns=['voxel %d'%vv for vv in range(n_voxels)])
+
+    fn2save = os.path.join(default_paths.stim_root, 'S%d_ranked_images.csv'%subject)
+    print('Saving to %s'%fn2save)
+    rank_df.to_csv(fn2save, header=True)

@@ -26,13 +26,13 @@ class texture_feature_extractor(nn.Module):
                  sample_batch_size=100, \
                  autocorr_output_pix=3, n_prf_sd_out=2, aperture=1.0, \
                  feature_types_exclude=None,  do_varpart=False, group_all_hl_feats=False, \
-                 compute_features=True, device=None):
+                 nonlin_fn = False, compute_features=True, device=None):
         
         super(texture_feature_extractor, self).__init__()
         
         self.fmaps_fn_complex = _fmaps_fn_complex
         self.fmaps_fn_simple = _fmaps_fn_simple
-#         dtype = torch_utils.get_value(next(_fmaps_fn_complex.parameters())).dtype 
+        self.nonlin_fn = nonlin_fn
         self.n_sf = _fmaps_fn_simple.n_sf
         self.n_ori = _fmaps_fn_simple.n_ori
         self.n_phases = _fmaps_fn_simple.n_phases
@@ -62,6 +62,8 @@ class texture_feature_extractor(nn.Module):
             if (len(self.feature_types_include)==1) and \
                             (self.feature_types_include[0]=='complex_feature_means'):
                 self.features_file += '_gabor_solo'
+            if self.nonlin_fn:
+                self.features_file += '_nonlin'
             if self.which_prf_grid!=1:
                 self.features_file += '_grid%d'%which_prf_grid                                             
             self.features_file += '.h5py'

@@ -202,23 +202,33 @@ def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonli
     Creating first-level feature extractor modules for the Gabor models.
     If using 'gabor_solo' mode, then only the mean activations for 'complex' module here is actually used.
     """
-    _gabor_ext_complex = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
-                                                                             log_spacing = True, \
-                 pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, complex_cell=True, \
-                                         padding_mode = padding_mode, RGB=False, device = device)
-
-    _gabor_ext_simple = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, sf_range_cyc_per_stim = (3, 72), \
-                                                                            log_spacing = True,
-                 pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, complex_cell=False, \
-                                        padding_mode = padding_mode, RGB=False, device = device)
-    
     if nonlin_fn:
         # adding a nonlinearity to the filter activations
         print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
-        _fmaps_fn_complex = add_nonlinearity(_gabor_ext_complex, lambda x: torch.log(1+torch.sqrt(x)))
-        _fmaps_fn_simple = add_nonlinearity(_gabor_ext_simple, lambda x: torch.log(1+torch.sqrt(x)))       
+        nonlin = lambda x: torch.log(1+torch.sqrt(x))
     else:
-        _fmaps_fn_complex = _gabor_ext_complex
-        _fmaps_fn_simple = _gabor_ext_simple
+        nonlin = None
+        
+    _gabor_ext_complex = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, \
+                             sf_range_cyc_per_stim = (3, 72), log_spacing = True, \
+                             pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, \
+                             complex_cell=True, padding_mode = padding_mode, nonlin_fn=nonlin, \
+                             RGB=False, device = device)
+
+    _gabor_ext_simple = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, \
+                             sf_range_cyc_per_stim = (3, 72), log_spacing = True, \
+                             pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, \
+                             complex_cell=False, padding_mode = padding_mode, nonlin_fn=nonlin, \
+                             RGB=False, device = device)
     
+#     if nonlin_fn:
+#         # adding a nonlinearity to the filter activations
+#         print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
+#         _fmaps_fn_complex = gabor_feature_extractor.add_nonlinearity(_gabor_ext_complex, lambda x: torch.log(1+torch.sqrt(x)))
+#         _fmaps_fn_complex.n_ori = _gabor_ext_complex.n_ori
+#         _fmaps_fn_simple = gabor_feature_extractor.add_nonlinearity(_gabor_ext_simple, lambda x: torch.log(1+torch.sqrt(x)))       
+#     else:
+    _fmaps_fn_complex = _gabor_ext_complex
+    _fmaps_fn_simple = _gabor_ext_simple
+
     return  _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple

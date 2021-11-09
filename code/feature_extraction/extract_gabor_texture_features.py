@@ -16,7 +16,7 @@ from feature_extraction import texture_statistics_gabor
 
 device = initialize_fitting.init_cuda()
 
-def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, gabor_solo=False, which_prf_grid=1, debug=False):
+def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=False, gabor_solo=False, nonlin_fn=False, which_prf_grid=1, debug=False):
     
     if use_node_storage:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
@@ -40,7 +40,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
         feature_types_exclude = []
     n_prf_sd_out = 2
     padding_mode = 'circular'
-    nonlin_fn=False
+#     nonlin_fn=False
     autocorr_output_pix=5
    
     do_varpart=False # this doesn't do anything here
@@ -104,6 +104,8 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     fn2save = os.path.join(gabor_texture_feat_path, 'S%d_features_each_prf_%dori_%dsf'%(subject, n_ori, n_sf))
     if gabor_solo:
         fn2save += '_gabor_solo'
+    if nonlin_fn:
+        fn2save += '_nonlin'
     if which_prf_grid!=1:
         fn2save += '_grid%d'%which_prf_grid                                             
     fn2save += '.h5py'
@@ -133,7 +135,10 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int,default=100,
                     help="batch size to use for feature extraction")
     parser.add_argument("--gabor_solo", type=int,default=0,
-                    help="simplest version of this model with only first level gabors? 1 for yes, 0 for no")
+                    help="simplest version of this model, only first level gabors? 1 for yes, 0 for no")
+    parser.add_argument("--nonlin_fn", type=int,default=0,
+                    help="want to add nonlinearity to gabor features? 1 for yes, 0 for no")
+    
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")
     
@@ -144,4 +149,4 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage==1, gabor_solo=args.gabor_solo==1, which_prf_grid = args.which_prf_grid, debug = args.debug==1)
+    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, batch_size = args.batch_size, use_node_storage = args.use_node_storage==1, gabor_solo=args.gabor_solo==1, nonlin_fn=args.nonlin_fn==1, which_prf_grid = args.which_prf_grid, debug = args.debug==1)

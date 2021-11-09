@@ -36,7 +36,7 @@ n_sf=8
 do_stack=0
 do_roi_recons=0
 do_voxel_recons=0
-shuffle_images=1
+shuffle_images=0
 
 cd $ROOT/code/model_fitting
 

@@ -35,7 +35,7 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
     
 def fit_fwrf(fitting_type, fitting_type2=None, \
              subject=1, volume_space = True, up_to_sess = 1, \
-             n_ori = 4, n_sf = 4, \
+             n_ori = 4, n_sf = 4, gabor_nonlin_fn=False, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, zscore_in_groups = False, ridge = True, \
@@ -143,6 +143,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             'feature_info':feature_info,
             'autocorr_output_pix': autocorr_output_pix,
             'group_all_hl_feats': group_all_hl_feats,
+            'gabor_nonlin_fn': gabor_nonlin_fn,
             })
         if 'alexnet' in fitting_type:
             dict2save.update({
@@ -293,7 +294,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         
         # Set up the Gabor filtering modules
         _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device);    
+                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device,\
+                                                            nonlin_fn=gabor_nonlin_fn);    
         # Initialize the "texture" model which builds on first level feature maps
         autocorr_output_pix=5
         compute_features = False
@@ -301,7 +303,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
                                 subject=subject, which_prf_grid=which_prf_grid, \
                                 autocorr_output_pix=autocorr_output_pix, \
                                 feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
-                                group_all_hl_feats=group_all_hl_feats, compute_features = compute_features, \
+                                group_all_hl_feats=group_all_hl_feats, nonlin_fn=gabor_nonlin_fn, compute_features = compute_features, \
                                 device=device)      
         feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
@@ -534,7 +536,7 @@ if __name__ == '__main__':
     fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \
              subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, \
-             n_ori = args.n_ori, n_sf = args.n_sf,
+             n_ori = args.n_ori, n_sf = args.n_sf, gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, zscore_in_groups = args.zscore_in_groups==1, \

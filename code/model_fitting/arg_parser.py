@@ -74,6 +74,9 @@ def get_args():
                     help="number of orientation channels to use")
     parser.add_argument("--n_sf", type=int,default=4,
                     help="number of spatial frequency channels to use")
+    parser.add_argument("--gabor_nonlin_fn", type=int,default=0,
+                    help="want to add nonlinearity to gabor features? 1 for yes, 0 for no")
+    
     parser.add_argument("--group_all_hl_feats", type=int,default=0,
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
     

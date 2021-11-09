@@ -50,7 +50,7 @@ class gabor_extractor_multi_scale(nn.Module):
     def __init__(self, n_ori=4, n_sf=4, sf_range_cyc_per_stim = (3, 72), log_spacing = True,
                  pix_per_cycle=4.13, cycles_per_radius=0.7, 
                  radii_per_filter=4, complex_cell=True, padding_mode = 'circular', RGB=False, 
-                    device = None):
+                 nonlin_fn=None, device = None):
     
         super(gabor_extractor_multi_scale, self).__init__()
         
@@ -63,6 +63,10 @@ class gabor_extractor_multi_scale(nn.Module):
         self.radii_per_filter = radii_per_filter          
         self.complex_cell = complex_cell
         self.padding_mode = padding_mode
+        self.nonlin_fn = nonlin_fn
+        if self.nonlin_fn is not None:
+            print('adding nonlinearity function:')
+            print(self.nonlin_fn)
         self.RGB = RGB # NOTE THE CODE HASN'T BEEN TESTED WITH RGB=TRUE
         if device is None:
             device = 'cpu:0'
@@ -209,6 +213,9 @@ class gabor_extractor_multi_scale(nn.Module):
             #for given freq, create feature map for each gabor orientation 
             sing_freq_features = gfe(image_batch)   #size [num stim, num orientations, stim pix, stim pix]
             
+            if self.nonlin_fn is not None:
+                sing_freq_features = self.nonlin_fn(sing_freq_features)
+                
             #put each feature map tensor into a list of tensors 
             feature_map_list.append(sing_freq_features)
 
@@ -294,14 +301,19 @@ class gabor_extractor_single_scale(nn.Module):
 
 # Support functions below here
 
+# def add_nonlinearity(module, nonlinearity):
+#     new_module = module
+#     new_module.forward = nonlinearity(module.forward)
+#     return new_module
 
-class add_nonlinearity(nn.Module):
-    def __init__(self, _fmaps_fn, _nonlinearity):
-        super(add_nonlinearity, self).__init__()
-        self.fmaps_fn = _fmaps_fn
-        self.nl_fn = _nonlinearity
-    def forward(self, _x):
-        return [self.nl_fn(_fm) for _fm in self.fmaps_fn(_x)]
+
+# class add_nonlinearity(nn.Module):
+#     def __init__(self, _fmaps_fn, _nonlinearity):
+#         super(add_nonlinearity, self).__init__()
+#         self.fmaps_fn = _fmaps_fn
+#         self.nl_fn = _nonlinearity
+#     def forward(self, _x):
+#         return [self.nl_fn(_fm) for _fm in self.fmaps_fn(_x)]
 
 
 def make_2D_sinewave(freq, theta, phase, n_pix):

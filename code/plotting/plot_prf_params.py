@@ -121,8 +121,8 @@ def plot_spatial_rf_circles(subject, fitting_type, out, roi_def=None, skip_inds=
 
 
 
-def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, r2_cutoff=0.10, screen_eccen_deg = 8.4, \
-                       fig_save_folder=None ):
+def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, r2_cutoff=0.10, \
+                       screen_eccen_deg = 8.4, size_lims=None, eccen_lims=None, fig_save_folder=None ):
     """
     Create a scatter plot for each ROI, showing the size of each voxel's best pRF estimate versus its eccentricity.
     """
@@ -133,8 +133,10 @@ def plot_size_vs_eccen(subject, fitting_type,out, roi_def=None, skip_inds=None, 
     fits_ignore = np.round(best_size_deg,0)==84 
     # ignoring this pRF, because this size value is made up - this
     # pRF was actually just a flat function covering whole visual field.
-    size_lims = [-1, 1.25*np.max(best_size_deg[~fits_ignore])]
-    eccen_lims = [-1,  1.25*np.max(best_ecc_deg)]
+    if size_lims is None:
+        size_lims = [-1, 1.25*np.max(best_size_deg[~fits_ignore])]
+    if eccen_lims is None:
+        eccen_lims = [-1,  1.25*np.max(best_ecc_deg)]
     if roi_def is None:
         roi_def = roi_utils.get_combined_rois(subject,verbose=False)
     

@@ -169,7 +169,12 @@ def get_prf_models(aperture_rf_range=1.1, which_grid=1):
     elif which_grid==4:
         models = prf_utils.make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
                               eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16)
-        
+    elif which_grid==5:
+        models = prf_utils.make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
+                              eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16)
+    elif which_grid==6:
+        models = prf_utils.make_log_polar_grid_scale_size_eccen(eccen_range=[0, 7/8.4], \
+                              n_eccen_steps = 10, n_angle_steps = 16)
     else:
         raise ValueError('prf grid number not recognized')
 

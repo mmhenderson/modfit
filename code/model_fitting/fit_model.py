@@ -34,7 +34,7 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
         
     
 def fit_fwrf(fitting_type, fitting_type2=None, \
-             subject=1, volume_space = True, up_to_sess = 1, \
+             subject=1, volume_space = True, up_to_sess = 1, single_sess = None,\
              n_ori = 4, n_sf = 4, gabor_nonlin_fn=False, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
@@ -83,6 +83,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         'ridge': ridge,
         'debug': debug,
         'up_to_sess': up_to_sess,
+        'single_sess': single_sess,
         'shuff_rnd_seed': shuff_rnd_seed,
         'use_precomputed_prfs': use_precomputed_prfs,
         }
@@ -160,6 +161,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         date_str = None
     if alexnet_padding_mode=='':
         alexnet_padding_mode=None
+    if single_sess==0:
+        single_sess=None
         
     if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
@@ -241,7 +244,10 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, \
                                                             volume_space, include_all=True, include_body=True)
 
-    sessions = np.arange(0,up_to_sess)
+    if single_sess is not None:
+        sessions = np.array([single_sess])
+    else:
+        sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
     image_inds_only = True
     # get all data and corresponding images, in two splits. always fixed set that gets left out
@@ -535,7 +541,7 @@ if __name__ == '__main__':
  
     fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \
              subject=args.subject, volume_space = args.volume_space, \
-             up_to_sess = args.up_to_sess, \
+             up_to_sess = args.up_to_sess, single_sess = args.single_sess, \
              n_ori = args.n_ori, n_sf = args.n_sf, gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \

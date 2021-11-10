@@ -17,6 +17,7 @@ nsd_root, stim_root, beta_root = get_paths()
 
 trials_per_sess = 750
 sess_per_subj = 40
+max_sess_each_subj = [40,40,32,30,40,32,40,30]
 
 def get_session_inds_full():
     session_inds = np.repeat(np.arange(0,sess_per_subj), trials_per_sess)
@@ -95,6 +96,7 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
     Load preprocessed voxel data for an NSD subject (beta weights).
     Always loading the betas with suffix 'fithrf_GLMdenoise_RR.
     Concatenate the values across multiple sessions.
+    "sessions" is zero-indexed, add one to get the actual session numbers.
     """
     
     if volume_space:
@@ -104,6 +106,12 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
 
     print('Data is located in: %s...'%beta_subj_folder)
 
+    if np.any((np.array(sessions)+1)>max_sess_each_subj[subject-1]):
+        print('attempting to load sessions:')
+        print(sessions+1)
+        raise ValueError('trying to load sessions that do not exist for subject %d, only has up to session %d'\
+                         %(subject, max_sess_each_subj[subject-1]))
+        
     n_trials = len(sessions)*trials_per_sess
 
     for ss, se in enumerate(sessions):
@@ -186,7 +194,15 @@ def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=Non
     session_inds = get_session_inds_full()
     if np.isscalar(sessions):
         sessions = [sessions]
-    sessions = np.array(sessions)
+    sessions = np.array(sessions)    
+    if np.any((sessions+1)>max_sess_each_subj[subject-1]):
+        # adjust the session list that was entered, if the subject is missing some sessions.
+        # will alter the list for both images and voxel data.
+        print('subject %d only has up to session %d, will load these sessions:'%(subject, max_sess_each_subj[subject-1]))
+        sessions = sessions[(sessions+1)<=max_sess_each_subj[subject-1]]
+        print(sessions+1)
+        assert(len(sessions)>0)
+        
     inds2use = np.isin(session_inds, sessions)
     image_order = image_order[inds2use]
     
@@ -344,8 +360,15 @@ def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
     if np.isscalar(sessions):
         sessions = [sessions]
     sessions = np.array(sessions)
+    if np.any((sessions+1)>max_sess_each_subj[subject-1]):
+        # adjust the session list that was entered, if the subject is missing some sessions.
+        # will alter the list for both images and voxel data.
+        print('subject %d only has up to session %d, will load these sessions:'%(subject, max_sess_each_subj[subject-1]))
+        sessions = sessions[(sessions+1)<=max_sess_each_subj[subject-1]]
+        print(sessions+1)
+        assert(len(sessions)>0)
     if debug:
-        sessions = [0]
+        sessions = np.array([0])
         
     voxel_mask, _, _, _, _ = roi_utils.get_voxel_roi_info(subject, \
                                                 volume_space=True, include_all=True, \

@@ -270,8 +270,8 @@ class texture_feature_extractor(nn.Module):
                 t=time.time()
                 x,y,sigma = prf_params
                 n_pix=np.shape(images)[2]
-                g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=self.aperture, dtype=np.float32)
-                spatial_weights = g[2][0]
+                spatial_weights = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32)
                 wmean, wvar, wskew, wkurt = texture_utils.get_weighted_pixel_features(images, spatial_weights, device=self.device)
                 pix_feat = torch.cat((wmean, wvar, wskew, wkurt), axis=1)
                 elapsed =  time.time() - t
@@ -382,8 +382,9 @@ def get_avg_features_in_prf(_fmaps_fn, images, prf_params, sample_batch_size, ap
          features = torch_utils._to_torch(features, device=device)
 
     # Define the RF for this "model" version - at several resolutions.
-    _prfs = [torch_utils._to_torch(prf_utils.make_gaussian_mass(x, y, sigma, n_pix, size=aperture, \
-                              dtype=dtype)[2], device=device) for n_pix in fmaps_rez]
+    _prfs = [torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32), \
+                                   device=device) for n_pix in fmaps_rez]
 
     # To make full design matrix for all trials, first looping over trials in batches to get the features
     # Only reason to loop is memory constraints, because all trials is big matrices.
@@ -477,9 +478,9 @@ def get_higher_order_features(_fmaps_fn_complex, _fmaps_fn_simple, images, prf_p
 
                 # Scale specific things - get the prf at this resolution of interest
                 n_pix = fmaps_rez[ff]
-                g = prf_utils.make_gaussian_mass_stack([x], [y], [sigma], n_pix=n_pix, size=aperture, dtype=np.float32)
-                spatial_weights = g[2][0]
-
+                spatial_weights = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=aperture, dtype=np.float32)
+                
                 patch_bbox_rect = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=False)
                 # for autocorrelation, forcing the input region to be square
                 patch_bbox_square = texture_utils.get_bbox_from_prf(prf_params, spatial_weights.shape, n_prf_sd_out, force_square=True)

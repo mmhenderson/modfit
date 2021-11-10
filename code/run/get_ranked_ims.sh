@@ -11,8 +11,8 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/utils/
 
 debug=0
-
-for subject in {1..8}
+sublist=(3 4 6 8)
+for subject in ${sublist[@]}
 do
     python3 get_ranked_images.py --subject $subject --debug $debug
 done

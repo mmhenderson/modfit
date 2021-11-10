@@ -8,10 +8,10 @@
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=8-00:00:00
 
-subj=1
+subj=0
 debug=0
 use_node_storage=1
-which_prf_grid=4
+which_prf_grid=5
 
 source ~/myenv/bin/activate
 
@@ -57,7 +57,7 @@ then
    
     if [ $debug == 0 ]
     then
-        scp "${local_feature_path}""/S""${subj}""_features_each_prf.h5py" "${remote_feature_path}""/S""${subj}""_features_each_prf.h5py"
+        scp "${local_feature_path}""/S""${subj}""_features_each_prf_grid5.h5py" "${remote_feature_path}""/S""${subj}""_features_each_prf_grid5.h5py"
     fi
     
     echo Done copying file back!  

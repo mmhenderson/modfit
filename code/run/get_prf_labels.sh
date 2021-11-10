@@ -12,11 +12,11 @@ cd /user_data/mmhender/imStat/code/utils/
 
 subject=1
 debug=0
-which_prf_grid=3
+which_prf_grid=5
 
 python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
 
-which_prf_grid=4
+which_prf_grid=6
 
 python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
 

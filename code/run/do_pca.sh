@@ -13,12 +13,16 @@ debug=0
 type=texture_pyramid
 zscore=0
 max_pc_to_retain=100
+which_prf_grid=3
 
 source ~/myenv/bin/activate
 cd ../
 cd feature_extraction
 
-python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore --max_pc_to_retain $max_pc_to_retain
+python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore --max_pc_to_retain $max_pc_to_retain --which_prf_grid $which_prf_grid
+
+which_prf_grid=4
+python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore --max_pc_to_retain $max_pc_to_retain --which_prf_grid $which_prf_grid
 
 # type=sketch_tokens
 # python3 pca_feats.py --subject $subj --debug $debug --type $type --zscore $zscore

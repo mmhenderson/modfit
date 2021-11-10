@@ -17,7 +17,7 @@ ROOT=$(pwd)
 debug=1
 up_to_sess=1
 single_sess=29
-which_prf_grid=4
+which_prf_grid=3
 
 subj=3
 volume_space=1

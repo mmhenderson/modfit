@@ -14,11 +14,17 @@ Code to perform PCA on features within a given feature space (texture or contour
 PCA is done separately within each pRF position, and the results for all pRFs are saved in a single file.
 """
 
-def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, debug=False, zscore_first=False):
+def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
 
     path_to_load = default_paths.pyramid_texture_feat_path
 
-    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
+    if which_prf_grid==1:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, \
+                                                                                            n_ori, n_sf))
+    else:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject,\
+                                                                               n_ori, n_sf, which_prf_grid))
+        
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     path_to_save = os.path.join(path_to_load, 'PCA')
@@ -27,7 +33,8 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
 
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
+                                                         which_grid = which_prf_grid)    
 
     prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
     n_prfs = models.shape[0]
@@ -155,22 +162,33 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         
         sys.stdout.flush()
 
-    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject, n_ori, n_sf))
+    if which_prf_grid==1:
+        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject, n_ori, n_sf))
+    else:
+        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
+
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_ll_each_prf,'wts': wts_ll_each_prf, \
                       'ev': ev_ll_each_prf, 'pre_mean': pre_mean_ll_each_prf})
 
-    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject, n_ori, n_sf))
+    if which_prf_grid==1:
+        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject, n_ori, n_sf))
+    else:
+        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
+
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_hl_each_prf, 'wts': wts_hl_each_prf, \
                       'ev': ev_hl_each_prf,  'pre_mean': pre_mean_hl_each_prf})
 
     
-def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_first=False):
+def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
 
     path_to_load = default_paths.sketch_token_feat_path
 
-    features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
+    if which_prf_grid==1:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
+    else:
+        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     path_to_save = os.path.join(path_to_load, 'PCA')
@@ -236,7 +254,10 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         ev_each_prf.append(ev)
         pre_mean_each_prf.append(pre_mean)
 
-    fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
+    if which_prf_grid==1:
+        fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
+    else:
+        fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
@@ -298,6 +319,8 @@ if __name__ == '__main__':
                     help="want to zscore individual columns before pca? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
                     help="max pc to retain? enter 0 for None")
+    parser.add_argument("--which_prf_grid", type=int,default=1,
+                    help="which pRF grid to use?")
     
     args = parser.parse_args()
     
@@ -305,10 +328,10 @@ if __name__ == '__main__':
         args.max_pc_to_retain = None
     
     if args.type=='sketch_tokens':
-        run_pca_sketch_tokens(subject=args.subject, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1)
+        run_pca_sketch_tokens(subject=args.subject, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='texture_pyramid':
         n_ori=4
         n_sf=4
-        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1)
+        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     else:
         raise ValueError('--type %s is not recognized'%args.type)

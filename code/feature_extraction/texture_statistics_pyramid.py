@@ -58,8 +58,13 @@ class texture_feature_extractor(nn.Module):
             self.any_pca=True
             assert(self.group_all_hl_feats==True)
             assert(len(self.feature_types_exclude)==0)
-            self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
+            if self.which_prf_grid==1:
+                self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
                      'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject,self.n_ori, self.n_sf))   
+            else:
+                self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
+                     'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject,self.n_ori, \
+                                                                self.n_sf, self.which_prf_grid))   
             if not os.path.exists(self.features_file_hl):
                 raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_hl)   
             self.max_pc_to_retain_hl = np.min([self.n_hl_feats, max_pc_to_retain_hl])
@@ -68,8 +73,13 @@ class texture_feature_extractor(nn.Module):
             self.any_pca=True
             assert(self.group_all_hl_feats==True)
             assert(len(self.feature_types_exclude)==0)
-            self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
+            if self.which_prf_grid==1:
+                self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
                      'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject,self.n_ori, self.n_sf)) 
+            else:
+                self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
+                     'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject,self.n_ori, \
+                                                                   self.n_sf, self.which_prf_grid)) 
             if not os.path.exists(self.features_file_ll):
                 raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_ll)   
             self.max_pc_to_retain_ll = np.min([self.n_ll_feats, max_pc_to_retain_ll])

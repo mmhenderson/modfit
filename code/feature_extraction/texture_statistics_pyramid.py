@@ -62,7 +62,7 @@ class texture_feature_extractor(nn.Module):
                 self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
                      'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject,self.n_ori, self.n_sf))   
             else:
-                self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
+                self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
                      'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject,self.n_ori, \
                                                                 self.n_sf, self.which_prf_grid))   
             if not os.path.exists(self.features_file_hl):

@@ -267,7 +267,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         val_stim_data = image_order_val
    
     # More params for fitting
-    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge)
+    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge, gabor_nonlin_fn=gabor_nonlin_fn)
     # Params for the spatial aspect of the model (possible pRFs)
     aperture_rf_range = 1.1
     aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid) 

@@ -132,7 +132,7 @@ def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
     
     return model_name
 
-def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10):
+def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10, gabor_nonlin_fn=False):
 
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))
 
@@ -144,6 +144,8 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
     else:
         # putting in two zeros because the code might break with a singleton dimension for lambdas.
         lambdas = np.array([0.0,0.0])
+    if gabor_nonlin_fn:
+        lambdas = np.logspace(np.log(0.01),np.log(10),9, dtype=np.float32, base=np.e) - 0.01
         
     print('\nPossible lambda values are:')
     print(lambdas)

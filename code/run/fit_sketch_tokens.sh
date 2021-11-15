@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --exclude=mind-1-13
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -35,9 +34,9 @@ lda_discrim_type=None
 do_roi_recons=0
 do_voxel_recons=0
 
-which_prf_grid=3
-do_fitting=1
-date_str=0
+which_prf_grid=5
+do_fitting=0
+date_str=Nov-11-2021_1659_27
 do_val=1
 do_tuning=1
 do_sem_disc=1
@@ -46,4 +45,6 @@ cd $ROOT/code/model_fitting
 
 python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --debug $debug --fitting_type $fitting_type --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --lda_discrim_type $lda_discrim_type --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --do_fitting $do_fitting --do_val $do_val --date_str $date_str --do_tuning $do_tuning --do_sem_disc $do_sem_disc
 
-python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --debug $debug --fitting_type $fitting_type --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --lda_discrim_type $lda_discrim_type --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --do_fitting $do_fitting --do_val $do_val --date_str $date_str --do_tuning $do_tuning --do_sem_disc $do_sem_disc
+# which_prf_grid=6
+
+# python3 fit_model.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --debug $debug --fitting_type $fitting_type --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --lda_discrim_type $lda_discrim_type --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --do_fitting $do_fitting --do_val $do_val --date_str $date_str --do_tuning $do_tuning --do_sem_disc $do_sem_disc

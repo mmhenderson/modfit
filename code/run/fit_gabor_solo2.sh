@@ -15,7 +15,7 @@ ROOT=$(pwd)
 
 debug=0
 up_to_sess=20
-which_prf_grid=5
+which_prf_grid=3
 
 subj=1
 volume_space=1
@@ -26,10 +26,10 @@ zscore_features=1
 zscore_in_groups=0
 
 fitting_type=gabor_solo
-gabor_nonlin_fn=0
+gabor_nonlin_fn=1
 
 do_tuning=1
-do_sem_disc=0
+do_sem_disc=1
 
 n_ori=12
 n_sf=8
@@ -43,5 +43,5 @@ cd $ROOT/code/model_fitting
 
 python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --n_ori $n_ori --n_sf $n_sf --gabor_nonlin_fn $gabor_nonlin_fn --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --which_prf_grid $which_prf_grid --do_tuning $do_tuning --do_sem_disc $do_sem_disc --shuffle_images $shuffle_images
 
-which_prf_grid=6
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --n_ori $n_ori --n_sf $n_sf --gabor_nonlin_fn $gabor_nonlin_fn --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --which_prf_grid $which_prf_grid --do_tuning $do_tuning --do_sem_disc $do_sem_disc --shuffle_images $shuffle_images
+# which_prf_grid=6
+# python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --n_ori $n_ori --n_sf $n_sf --gabor_nonlin_fn $gabor_nonlin_fn --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --which_prf_grid $which_prf_grid --do_tuning $do_tuning --do_sem_disc $do_sem_disc --shuffle_images $shuffle_images

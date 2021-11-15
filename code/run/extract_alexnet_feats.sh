@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --exclude=mind-1-13
 #SBATCH --gres=gpu:1
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=4
@@ -11,7 +10,7 @@
 subj=1
 debug=0
 use_node_storage=0
-which_prf_grid=4
+which_prf_grid=5
 padding_mode='reflect'
 
 source ~/myenv/bin/activate

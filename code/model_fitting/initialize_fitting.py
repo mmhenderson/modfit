@@ -145,7 +145,9 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
         # putting in two zeros because the code might break with a singleton dimension for lambdas.
         lambdas = np.array([0.0,0.0])
     if gabor_nonlin_fn:
-        lambdas = np.logspace(np.log(0.01),np.log(10),9, dtype=np.float32, base=np.e) - 0.01
+        lambdas = np.logspace(np.log(0.01),np.log(100000),9, dtype=np.float32, base=np.e) - 0.01
+#         lambdas = np.logspace(np.log(0.01),np.log(100),9, dtype=np.float32, base=np.e) - 0.01
+#         lambdas = np.logspace(np.log(0.01),np.log(10),9, dtype=np.float32, base=np.e) - 0.01
         
     print('\nPossible lambda values are:')
     print(lambdas)

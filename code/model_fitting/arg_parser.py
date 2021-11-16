@@ -40,6 +40,8 @@ def get_args():
     
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    parser.add_argument("--save_pred_data", type=int,default=0,
+                    help="want to save trialwise predictions for validation set? 1 for yes, 0 for no")
     
     
     parser.add_argument("--do_fitting", type=int,default=1,

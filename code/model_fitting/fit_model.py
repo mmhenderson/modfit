@@ -49,7 +49,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
              min_pct_var = 99, max_pc_to_retain = 400, \
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
-             which_prf_grid=1):
+             which_prf_grid=1, save_pred_data=False):
     
     def save_all(fn2save, fitting_type):
         """
@@ -111,6 +111,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         if do_sem_disc:
             dict2save.update({
             'discrim_each_axis': discrim_each_axis
+            })
+        if save_pred_data:
+            dict2save.update({
+            'val_voxel_data': val_voxel_data,
+            'val_voxel_data_pred': val_voxel_data_pred,
+            'val_stim_data': val_stim_data,
             })
         if 'sketch_tokens' in fitting_type:
             dict2save.update({
@@ -390,6 +396,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         sys.stdout.flush()
         val_cc=None
         val_r2=None
+        if save_pred_data:
+            val_voxel_data_pred=None
         
         save_all(fn2save, fitting_type)   
         print('\nSaved training results\n')        
@@ -405,6 +413,9 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         val_cc = out['val_cc']
         val_r2 = out['val_r2']
         
+        if 'val_voxel_data_pred' in list(out.keys()):
+            assert(save_pred_data)
+            val_voxel_data_pred = out['val_voxel_data_pred']
         if 'corr_each_feature' in list(out.keys()):
             assert(do_tuning)
             corr_each_feature = out['corr_each_feature']
@@ -565,5 +576,6 @@ if __name__ == '__main__':
              max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
              alexnet_layer_name = args.alexnet_layer_name, \
              alexnet_padding_mode = args.alexnet_padding_mode, \
-             which_prf_grid = args.which_prf_grid)
+             which_prf_grid = args.which_prf_grid, \
+             save_pred_data = args.save_pred_data==1)
              

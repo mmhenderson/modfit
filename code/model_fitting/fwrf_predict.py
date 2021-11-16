@@ -229,9 +229,12 @@ def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=Fal
             inds2 = (labels==1) & inds2use
             if np.any(inds1) and np.any(inds2):
                 # (mu1-mu2) / std
+                if np.std(resp[inds2use])==0:
+                    print('std==0')
                 discrim_each_axis[vv,aa] = (np.mean(resp[inds1]) - np.mean(resp[inds2]))/ \
                                                     np.std(resp[inds2use]) 
             else:
+                print('voxel %d, model %d - at least one label category is missing for axis %d'%(vv,best_model_inds[vv,0], aa))
                 discrim_each_axis[vv,aa] = np.nan
                 
     return discrim_each_axis

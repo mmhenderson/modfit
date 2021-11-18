@@ -1,6 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
-#SBATCH --exclude=mind-1-13
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:0
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -10,7 +9,7 @@
 
 subj=1
 debug=0
-which_prf_grid=4
+which_prf_grid=5
 
 feature_type=sketch_tokens
 

@@ -18,6 +18,8 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
 
     path_to_load = default_paths.pyramid_texture_feat_path
 
+    print('\nusing prf grid %d\n'%(which_prf_grid))
+    
     if which_prf_grid==1:
         features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, \
                                                                                             n_ori, n_sf))
@@ -44,10 +46,9 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     # Set up the pyramid feature extractor (just to get dims of diff feature types, not using it for real here)
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
     _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn, subject=subject, \
-                                                                              sample_batch_size=None, \
-                                                                             feature_types_exclude=[], \
-                                                   n_prf_sd_out=2, aperture=aperture, do_varpart = False, \
-                                  compute_features=False, group_all_hl_feats = True, device='cpu:0')
+                                      sample_batch_size=None, feature_types_exclude=[], n_prf_sd_out=2, \
+                                      aperture=aperture, do_varpart = False, compute_features=False, \
+                                      group_all_hl_feats = True, device='cpu:0', which_prf_grid=which_prf_grid)
     # Get dims of each feature type
     dims = np.array(_feature_extractor.feature_type_dims_all)
     is_ll = _feature_extractor.feature_is_ll
@@ -323,6 +324,8 @@ if __name__ == '__main__':
                     help="which pRF grid to use?")
     
     args = parser.parse_args()
+    
+    print('\nusing prf grid %d\n'%(args.which_prf_grid))
     
     if args.max_pc_to_retain==0:
         args.max_pc_to_retain = None

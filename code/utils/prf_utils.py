@@ -157,6 +157,44 @@ def make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
 
     return prf_params
 
+def make_rect_grid(sigma_range=[0.02, 0.10], n_sigma_steps=10, min_grid_spacing=0.04):
+    
+    sigma_vals = np.logspace(np.log(sigma_range[0]), np.log(sigma_range[1]), \
+                             base=np.e, num=n_sigma_steps)
+
+    extend_xy = np.max(sigma_vals)/2
+    n_grid_pts = int(np.ceil(1/min_grid_spacing))
+    x_vals = np.linspace(-0.5-extend_xy, 0.5+extend_xy, n_grid_pts)
+    y_vals = np.linspace(-0.5-extend_xy, 0.5+extend_xy, n_grid_pts)
+    x_vals, y_vals = np.meshgrid(x_vals, y_vals);
+
+    x_vals = np.tile(np.reshape(x_vals, [n_grid_pts**2,1]), [n_sigma_steps,1])
+    y_vals = np.tile(np.reshape(y_vals, [n_grid_pts**2,1]), [n_sigma_steps,1])
+
+    sigma_vals = np.repeat(sigma_vals, n_grid_pts**2)[:,np.newaxis]
+
+    prf_params = np.concatenate([x_vals, y_vals, sigma_vals], axis=1)
+
+    # Now removing a few of these that we don't want to actually use - 
+    # some that go entirely outside the image region.
+    unrows, inds = np.unique(prf_params, axis=0, return_index=True)
+    prf_params = prf_params[np.sort(inds),:]
+
+    # what is the approx spatial extent of the pRF? Assume 1 standard deviation.
+    n_std = 1
+    left_extent = prf_params[:,0] - prf_params[:,2]*n_std
+    right_extent = prf_params[:,0] + prf_params[:,2]*n_std
+    top_extent = prf_params[:,1] + prf_params[:,2]*n_std
+    bottom_extent = prf_params[:,1] - prf_params[:,2]*n_std
+
+    out_of_bounds = (left_extent > 0.5) | (right_extent < -0.5) | (top_extent < -0.5) | (bottom_extent > 0.5)
+
+    prf_params = prf_params[~out_of_bounds,:]
+
+    
+    return prf_params
+
+
 class subdivision_1d(object):
     def __init__(self, n_div=1, dtype=np.float32):
         self.length = n_div

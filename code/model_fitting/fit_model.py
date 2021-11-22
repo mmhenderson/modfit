@@ -18,7 +18,7 @@ import skimage.transform
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, sketch_token_features, \
-                texture_statistics_pyramid, alexnet_features
+                texture_statistics_pyramid, alexnet_features, semantic_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
@@ -33,7 +33,7 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 #################################################################################################
         
     
-def fit_fwrf(fitting_type, fitting_type2=None, \
+def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
              subject=1, volume_space = True, up_to_sess = 1, single_sess = None,\
              n_ori = 4, n_sf = 4, gabor_nonlin_fn=False, \
              group_all_hl_feats = False, \
@@ -51,7 +51,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              which_prf_grid=1, save_pred_data=False):
     
-    def save_all(fn2save, fitting_type):
+    def save_all(fn2save):
+    
         """
         Define all the important parameters that have to be saved
         """
@@ -118,16 +119,19 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             'val_voxel_data_pred': val_voxel_data_pred,
             'val_stim_data': val_stim_data,
             })
-        if 'sketch_tokens' in fitting_type:
+        if 'semantic' in fitting_type or (fitting_type2 is not None and 'semantic' in fitting_type2):
+            dict2save.update({
+            'semantic_discrim_type': semantic_discrim_type,
+            })
+        if 'sketch_tokens' in fitting_type or (fitting_type2 is not None and 'sketch_tokens' in fitting_type2):
             dict2save.update({
             'min_pct_var': min_pct_var,
             'max_pc_to_retain': max_pc_to_retain,           
             'use_pca_st_feats': use_pca_st_feats, 
             'use_lda_st_feats': use_lda_st_feats,
             'lda_discrim_type': lda_discrim_type, 
-            })
-            
-        if 'pyramid' in fitting_type:
+            })          
+        if 'pyramid' in fitting_type or (fitting_type2 is not None and 'pyramid' in fitting_type2):
             dict2save.update({
             'min_pct_var': min_pct_var,
             'max_pc_to_retain_pyr_ll': max_pc_to_retain_pyr_ll,
@@ -136,9 +140,8 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             'use_pca_pyr_feats_hl': use_pca_pyr_feats_hl,
             'feature_info':feature_info,
             'group_all_hl_feats': group_all_hl_feats,
-            })
-            
-        if 'gabor' in fitting_type:
+            })            
+        if 'gabor' in fitting_type or (fitting_type2 is not None and 'gabor' in fitting_type2):
             dict2save.update({
             'feature_table_simple': _gabor_ext_simple.feature_table,
             'filter_pars_simple': _gabor_ext_simple.gabor_filter_pars,
@@ -152,12 +155,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             'group_all_hl_feats': group_all_hl_feats,
             'gabor_nonlin_fn': gabor_nonlin_fn,
             })
-        if 'alexnet' in fitting_type:
+        if 'alexnet' in fitting_type or (fitting_type2 is not None and 'alexnet' in fitting_type2):
             dict2save.update({
             'alexnet_layer_name': alexnet_layer_name,
             'alexnet_padding_mode': alexnet_padding_mode,
             })
-            
+
         print('\nSaving to %s\n'%fn2save)
         torch.save(dict2save, fn2save, pickle_protocol=4)
 
@@ -209,7 +212,9 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
     elif 'alexnet' in fitting_type:
         model_name = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)   
         name1 = 'alexnet'
-        
+    elif 'semantic' in fitting_type:
+        model_name = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
+        name1 = semantic_discrim_type
     else:
         raise ValueError('fitting type "%s" not recognized'%fitting_type2)
         
@@ -221,6 +226,9 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         elif 'alexnet' in fitting_type2:
             model_name2 = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)
             name2 = 'alexnet'
+        elif 'semantic' in fitting_type2:
+            model_name2 = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
+            name2 = semantic_discrim_type       
         else: 
             raise ValueError('fitting type 2 "%s" not recognized'%fitting_type2)
         model_name = model_name + '_plus_' + model_name2    
@@ -343,7 +351,10 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                      layer_name=alexnet_layer_name, device=device, \
                                     which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
-    
+    elif 'semantic' in fitting_type:
+        _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
+                                    discrim_type=semantic_discrim_type, device=device, \
+                                                                          which_prf_grid=which_prf_grid)
         
     if fitting_type2 is not None:
 
@@ -360,7 +371,11 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
             _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                  layer_name=alexnet_layer_name, device=device, \
                                  which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
-            
+        elif 'semantic' in fitting_type2:
+            _feature_extractor2 = semantic_features.semantic_feature_extractor(subject=subject, \
+                                    discrim_type=semantic_discrim_type, device=device, \
+                                                                          which_prf_grid=which_prf_grid)
+        
             
         _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, \
                                 _feature_extractor2], [name1,name2], do_varpart = do_varpart)
@@ -399,7 +414,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         if save_pred_data:
             val_voxel_data_pred=None
         
-        save_all(fn2save, fitting_type)   
+        save_all(fn2save)   
         print('\nSaved training results\n')        
         sys.stdout.flush()
     
@@ -461,7 +476,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
                      _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
                                          voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
                                      
-        save_all(fn2save, fitting_type)
+        save_all(fn2save)
         
     ### ESTIMATE VOXELS' FEATURE TUNING BASED ON CORRELATION WITH EACH FEATURE ######
     sys.stdout.flush()
@@ -473,7 +488,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         sys.stdout.flush()
         corr_each_feature = fwrf_predict.get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debug=debug)
         
-        save_all(fn2save, fitting_type)
+        save_all(fn2save)
         
     ### ESTIMATE SEMANTIC DISCRIMINABILITY OF EACH VOXEL'S PREDICTED RESPONSES ######
     sys.stdout.flush()
@@ -488,7 +503,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         discrim_each_axis = fwrf_predict.get_semantic_discrim(best_params, labels_all, \
                                                       val_voxel_data_pred, debug=debug)
         
-        save_all(fn2save, fitting_type)
+        save_all(fn2save)
         
     ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ###########
     sys.stdout.flush()
@@ -505,7 +520,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
                 fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, \
                                           trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
 
-            save_all(fn2save, fitting_type)
+            save_all(fn2save)
         else:
             print('Skipping stacking analysis because you only have one set of features.')
 
@@ -523,7 +538,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         pop_recs = \
             reconstruct.get_population_recons(best_params, models, val_voxel_data, roi_def, \
                   val_stim_data, _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-        save_all(fn2save, fitting_type)
+        save_all(fn2save)
         
     sys.stdout.flush()
     if do_voxel_recons: 
@@ -536,7 +551,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, \
         voxel_recs = \
             reconstruct.get_single_voxel_recons(best_params, models, val_voxel_data, val_stim_data, \
                                       _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-        save_all(fn2save, fitting_type)
+        save_all(fn2save)
         
            
             
@@ -551,6 +566,7 @@ if __name__ == '__main__':
     # now actually call the function to execute fitting...
  
     fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \
+             semantic_discrim_type = args.semantic_discrim_type, \
              subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, single_sess = args.single_sess, \
              n_ori = args.n_ori, n_sf = args.n_sf, gabor_nonlin_fn = args.gabor_nonlin_fn==1, \

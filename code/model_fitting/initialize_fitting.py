@@ -72,6 +72,12 @@ def get_save_path(subject, volume_space, model_name, shuffle_images, random_imag
     
     return output_dir, fn2save
  
+def get_semantic_model_name(semantic_discrim_type):
+    
+    model_name = 'semantic_%s'%semantic_discrim_type
+    
+    return model_name
+    
 def get_alexnet_model_name(alexnet_layer_name):
     
     if 'ReLU' in alexnet_layer_name:
@@ -179,6 +185,8 @@ def get_prf_models(aperture_rf_range=1.1, which_grid=1):
     elif which_grid==6:
         models = prf_utils.make_log_polar_grid_scale_size_eccen(eccen_range=[0, 7/8.4], \
                               n_eccen_steps = 10, n_angle_steps = 16)
+    elif which_grid==7:
+        models = prf_utils.make_rect_grid(sigma_range=[0.04, 0.04], n_sigma_steps=1, min_grid_spacing=0.04)
     else:
         raise ValueError('prf grid number not recognized')
 
@@ -191,11 +199,14 @@ def get_prf_models(aperture_rf_range=1.1, which_grid=1):
 
 def load_precomputed_prfs(fitting_type, subject):
     
-    if fitting_type=='sketch_tokens' and subject==1:
+    if subject==1:
 #         prf_params_fn = os.path.join(default_paths.save_fits_path, \
 #                                  'S01/sketch_tokens/Oct-11-2021_1756_51/all_fit_params')
-        prf_params_fn = os.path.join(default_paths.save_fits_path, \
-                                 'S01/sketch_tokens/Oct-18-2021_1719_32/all_fit_params')
+#         prf_params_fn = os.path.join(default_paths.save_fits_path, \
+#                                  'S01/sketch_tokens/Oct-18-2021_1719_32/all_fit_params')
+#         prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/sketch_tokens/Nov-11-2021_1659_27/all_fit_params')
+        prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv/Nov-15-2021_1152_30/all_fit_params')
+    
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 

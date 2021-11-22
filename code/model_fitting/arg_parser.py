@@ -22,7 +22,10 @@ def get_args():
                     help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo'")
     parser.add_argument("--fitting_type2", type=str,default='',
                     help="additional fitting type, for variance partition?")
-                        
+    parser.add_argument("--semantic_discrim_type", type=str,default='',
+                    help="if semantic model, what dimension?")
+    
+    
     parser.add_argument("--ridge", type=int,default=1,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=int,default=1,

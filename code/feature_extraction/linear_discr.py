@@ -48,9 +48,7 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
     print(features_each_prf.shape)
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
-                                                         which_grid=which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     n_prfs = models.shape[0]
     
     scores_each_prf = []

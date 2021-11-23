@@ -94,8 +94,7 @@ def get_discrim(subject=1, volume_space = True, up_to_sess = 1, single_sess=0, \
         val_stim_data = image_order_val
    
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid) 
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 
 
     prf_fit_filename = os.path.join(default_paths.save_fits_path,'S%02d'%subject, 'sketch_tokens/Nov-11-2021_1659_27/all_fit_params')
     print('Loading pre-computed pRF estimates for all voxels from %s'%prf_fit_filename)

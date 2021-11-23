@@ -59,10 +59,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
     n_images = image_data.shape[0]
     
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture = 1.0
-    aperture_rf_range = 1.1
-    aperture, prf_models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
-                                                             which_grid=which_prf_grid)    
+    prf_models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 
     # Fix these params
     n_prf_sd_out = 2
@@ -119,7 +116,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
 
                     # Define the RF for this "model" version
                     prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                               patch_size=n_pix, aperture=aperture, dtype=np.float32), device=device)
+                               patch_size=n_pix, aperture=1.0, dtype=np.float32), device=device)
                     minval = torch.min(prf)
                     maxval = torch.max(prf-minval)
                     prf_scaled = (prf - minval)/maxval

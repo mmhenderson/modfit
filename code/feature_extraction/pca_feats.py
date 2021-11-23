@@ -30,9 +30,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         os.mkdir(path_to_save)
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
-                                                         which_grid = which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
 
     prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
     n_prfs = models.shape[0]
@@ -43,7 +41,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
     _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn, subject=subject, \
                                       sample_batch_size=None, feature_types_exclude=[], n_prf_sd_out=2, \
-                                      aperture=aperture, do_varpart = False, compute_features=False, \
+                                      aperture=1.0, do_varpart = False, compute_features=False, \
                                       group_all_hl_feats = True, device='cpu:0', which_prf_grid=which_prf_grid)
     # Get dims of each feature type
     dims = np.array(_feature_extractor.feature_type_dims_all)
@@ -184,8 +182,7 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         os.mkdir(path_to_save)
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
     n_prfs = models.shape[0]
     
     print('Loading pre-computed features from %s'%features_file)
@@ -252,10 +249,8 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
 
 #     path_to_load = default_paths.alexnet_feat_path
 
-#     if which_prf_grid==1:
-#         features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf.h5py'%(subject, layer_name))
-#     else:
-#         features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%(subject, layer_name, which_prf_grid))
+#     features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%\
+#                                  (subject, layer_name, which_prf_grid))
 #     if not os.path.exists(features_file):
 #         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
 #     path_to_save = os.path.join(path_to_load, 'PCA')
@@ -263,8 +258,7 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
 #         os.mkdir(path_to_save)
 
 #     # Params for the spatial aspect of the model (possible pRFs)
-#     aperture_rf_range = 1.1
-#     aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+#     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 #     n_prfs = models.shape[0]
     
 #     print('Loading pre-computed features from %s'%features_file)

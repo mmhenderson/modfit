@@ -216,8 +216,7 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
     subject_df = nsd_utils.get_subj_df(subject);
  
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 
     # Get masks for every pRF (circular), in coords of NSD images
     n_prfs = len(models)

@@ -67,8 +67,6 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         'voxel_index': voxel_index,
         'voxel_roi': voxel_roi,
         'voxel_ncsnr': voxel_ncsnr, 
-        'aperture': aperture,
-        'aperture_rf_range': aperture_rf_range,
         'which_prf_grid': which_prf_grid,
         'models': models,        
         'best_losses': best_losses,           
@@ -283,8 +281,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
     # More params for fitting
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge, gabor_nonlin_fn=gabor_nonlin_fn)
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid=which_prf_grid) 
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 
 
     if use_precomputed_prfs:
         best_model_each_voxel = initialize_fitting.load_precomputed_prfs(fitting_type,subject)

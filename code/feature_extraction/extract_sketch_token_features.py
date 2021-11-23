@@ -25,10 +25,7 @@ def extract_features(subject, use_node_storage=False, debug=False, which_prf_gri
         sketch_token_feat_path = default_paths.sketch_token_feat_path
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture = 1.0
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
-                                                             which_grid=which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     
     # Fix these params
     map_resolution = 227  
@@ -43,7 +40,7 @@ def extract_features(subject, use_node_storage=False, debug=False, which_prf_gri
         
     features_each_prf = sketch_token_features.get_features_each_prf(features_file, models, \
                             mult_patch_by_prf=mult_patch_by_prf, \
-                            do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=aperture, \
+                            do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=1.0, \
                                             debug=debug, device=device)
 
     fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))

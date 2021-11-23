@@ -30,10 +30,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     image_data = nsd_utils.image_uncolorize_fn(image_data)
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture = 1.0
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, \
-                                                         which_grid=which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 
     # Set up the pyramid
     feature_types_exclude = []
@@ -45,7 +42,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
     _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=batch_size, \
                                                                              feature_types_exclude=feature_types_exclude, \
-                                                   n_prf_sd_out=n_prf_sd_out, aperture=aperture, do_varpart = do_varpart, \
+                                                   n_prf_sd_out=n_prf_sd_out, aperture=1.0, do_varpart = do_varpart, \
                                   compute_features=compute_features, group_all_hl_feats = group_all_hl_feats, device=device)
 
     n_features = _feature_extractor.n_features_total

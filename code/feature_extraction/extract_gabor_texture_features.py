@@ -29,9 +29,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     image_data = nsd_utils.image_uncolorize_fn(image_data)
 
     # Params for the spatial aspect of the model (possible pRFs)
-    aperture = 1.0
-    aperture_rf_range = 1.1
-    aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range, which_grid = which_prf_grid)    
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
 
     # Set up the feature extractor - fixing these parameters
     if gabor_solo:
@@ -56,7 +54,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     
     _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
                                             sample_batch_size=batch_size, autocorr_output_pix=autocorr_output_pix, \
-                                            n_prf_sd_out=n_prf_sd_out, aperture=aperture, \
+                                            n_prf_sd_out=n_prf_sd_out, aperture=1.0, \
                                             feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
                                             group_all_hl_feats=group_all_hl_feats, device=device)      
     n_pix = image_data.shape[2]

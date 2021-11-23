@@ -13,14 +13,10 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
 
     # load full-dimension features, already computed 
     path_to_load = default_paths.sketch_token_feat_path
-    if which_prf_grid!=1:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, \
-                                                                                        which_prf_grid))
-        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
-                                                                                          which_prf_grid))
-    else:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
-        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
+    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, \
+                                                                                    which_prf_grid))
+    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
+                                                                                      which_prf_grid))   
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     print('Loading pre-computed features from %s'%features_file)
@@ -186,11 +182,8 @@ def find_lda_axes(subject, discrim_type='animacy', which_prf_grid=1, debug=False
         
         sys.stdout.flush()
 
-    if which_prf_grid!=1:
-        fn2save = os.path.join(path_to_save, 'S%d_LDA_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
-    else:
-        fn2save = os.path.join(path_to_save, 'S%d_LDA_%s.npy'%(subject, discrim_type))
-
+    fn2save = os.path.join(path_to_save, 'S%d_LDA_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
+   
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
                       'pre_mean': pre_mean_each_prf, \

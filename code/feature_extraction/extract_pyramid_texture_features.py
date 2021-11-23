@@ -86,12 +86,8 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
             features_each_prf[batch_inds,:,mm] = torch_utils.get_value(features_batch)
 
             sys.stdout.flush()
-                
-    if which_prf_grid==1:
-        fn2save = os.path.join(pyramid_texture_feat_path, \
-                           'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, n_ori, n_sf))
-    else:
-        fn2save = os.path.join(pyramid_texture_feat_path, \
+
+    fn2save = os.path.join(pyramid_texture_feat_path, \
                        'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
 
     print('Writing prf features to %s\n'%fn2save)

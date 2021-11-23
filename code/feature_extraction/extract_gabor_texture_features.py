@@ -106,8 +106,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
         fn2save += '_gabor_solo'
     if nonlin_fn:
         fn2save += '_nonlin'
-    if which_prf_grid!=1:
-        fn2save += '_grid%d'%which_prf_grid                                             
+    fn2save += '_grid%d'%which_prf_grid                                             
     fn2save += '.h5py'
 
     print('Writing prf features to %s\n'%fn2save)

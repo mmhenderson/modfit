@@ -46,10 +46,7 @@ def extract_features(subject, use_node_storage=False, debug=False, which_prf_gri
                             do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=aperture, \
                                             debug=debug, device=device)
 
-    if which_prf_grid==1:
-        fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
-    else:
-        fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
+    fn2save = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
 
     print('Writing prf features to %s\n'%fn2save)
     

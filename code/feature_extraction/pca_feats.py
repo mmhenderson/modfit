@@ -19,12 +19,8 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     path_to_load = default_paths.pyramid_texture_feat_path
 
     print('\nusing prf grid %d\n'%(which_prf_grid))
-    
-    if which_prf_grid==1:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf.h5py'%(subject, \
-                                                                                            n_ori, n_sf))
-    else:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject,\
+
+    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject,\
                                                                                n_ori, n_sf, which_prf_grid))
         
     if not os.path.exists(features_file):
@@ -163,19 +159,13 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         
         sys.stdout.flush()
 
-    if which_prf_grid==1:
-        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only.npy'%(subject, n_ori, n_sf))
-    else:
-        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
+    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
 
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_ll_each_prf,'wts': wts_ll_each_prf, \
                       'ev': ev_ll_each_prf, 'pre_mean': pre_mean_ll_each_prf})
 
-    if which_prf_grid==1:
-        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only.npy'%(subject, n_ori, n_sf))
-    else:
-        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
+    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
 
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_hl_each_prf, 'wts': wts_hl_each_prf, \
@@ -186,10 +176,7 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
 
     path_to_load = default_paths.sketch_token_feat_path
 
-    if which_prf_grid==1:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf.h5py'%(subject))
-    else:
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
+    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     path_to_save = os.path.join(path_to_load, 'PCA')
@@ -255,14 +242,94 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         ev_each_prf.append(ev)
         pre_mean_each_prf.append(pre_mean)
 
-    if which_prf_grid==1:
-        fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
-    else:
-        fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
+    fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
     print('saving to %s'%fn2save)
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
+    
+# def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+
+#     path_to_load = default_paths.alexnet_feat_path
+
+#     if which_prf_grid==1:
+#         features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf.h5py'%(subject, layer_name))
+#     else:
+#         features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%(subject, layer_name, which_prf_grid))
+#     if not os.path.exists(features_file):
+#         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
+#     path_to_save = os.path.join(path_to_load, 'PCA')
+#     if not os.path.exists(path_to_save):
+#         os.mkdir(path_to_save)
+
+#     # Params for the spatial aspect of the model (possible pRFs)
+#     aperture_rf_range = 1.1
+#     aperture, models = initialize_fitting.get_prf_models(aperture_rf_range=aperture_rf_range)    
+#     n_prfs = models.shape[0]
+    
+#     print('Loading pre-computed features from %s'%features_file)
+#     t = time.time()
+#     with h5py.File(features_file, 'r') as data_set:
+#         values = np.copy(data_set['/features'])
+#         data_set.close() 
+#     elapsed = time.time() - t
+#     print('Took %.5f seconds to load file'%elapsed)
+#     features_each_prf = values
+
+#     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
+
+#     # training / validation data always split the same way - shared 1000 inds are validation.
+#     subject_df = nsd_utils.get_subj_df(subject)
+#     valinds = np.array(subject_df['shared1000'])
+#     trninds = np.array(subject_df['shared1000']==False)
+    
+    
+#     print('Size of features array for this image set is:')
+#     print(features_each_prf.shape)
+
+#     scores_each_prf = []
+#     wts_each_prf = []
+#     ev_each_prf = []
+#     pre_mean_each_prf = []
+   
+#     for prf_model_index in range(n_prfs):
+
+#         if debug and prf_model_index>1:
+#             continue
+
+#         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        
+#         features_in_prf = features_each_prf[:,:,prf_model_index]
+        
+#         features_in_prf_z = np.zeros_like(features_in_prf)
+#         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+#         features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+           
+#         print('Size of features array for this image set and prf is:')
+#         print(features_in_prf_z.shape)
+
+#         # finding pca solution for just training data
+#         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+#                                                       zscore_first=False)
+
+#         # now projecting all the data incl. val into same subspace
+#         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
+#         scores = feat_submean @ wts.T
+        
+#         scores_each_prf.append(scores)
+#         wts_each_prf.append(wts)
+#         ev_each_prf.append(ev)
+#         pre_mean_each_prf.append(pre_mean)
+
+#     if which_prf_grid==1:
+#         fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
+#     else:
+#         fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
+#     print('saving to %s'%fn2save)
+#     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
+#                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
+
+    
 def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     """
     Apply PCA to the data, return reduced dim data as well as weights, var explained.

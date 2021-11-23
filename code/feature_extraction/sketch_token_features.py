@@ -28,11 +28,7 @@ class sketch_token_feature_extractor(nn.Module):
         if self.use_pca_feats:
             self.n_features = 151
             self.use_lda_feats = False # only allow one of these to be true
-            if self.which_prf_grid==1:
-                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
-                                                  'S%d_PCA.npy'%(self.subject))     
-            else:
-                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
+            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
                                           'S%d_PCA_grid%d.npy'%(self.subject, self.which_prf_grid))     
             self.min_pct_var = min_pct_var
             self.max_pc_to_retain = np.min([self.n_features, max_pc_to_retain])
@@ -40,11 +36,7 @@ class sketch_token_feature_extractor(nn.Module):
             self.use_pca_feats = False
             self.min_pct_var = None
             self.max_pc_to_retain = None  
-            if self.which_prf_grid==1:
-                self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
-                                          'S%d_LDA_%s.npy'%(self.subject, self.lda_discrim_type))
-            else:
-                self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
+            self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
                   'S%d_LDA_%s_grid%d.npy'%(self.subject, self.lda_discrim_type, self.which_prf_grid))
             if self.lda_discrim_type=='all_supcat':
                 self.n_features = 11                      
@@ -57,10 +49,7 @@ class sketch_token_feature_extractor(nn.Module):
                 raise ValueError('--lda_discrim_type was not recognized')
         else:
             self.n_features = 150 # 151
-            if self.which_prf_grid==1:
-                self.features_file = os.path.join(sketch_token_feat_path, 'S%d_features_each_prf.h5py'%(subject))
-            else:
-                self.features_file = os.path.join(sketch_token_feat_path, \
+            self.features_file = os.path.join(sketch_token_feat_path, \
                                           'S%d_features_each_prf_grid%d.h5py'%(subject, self.which_prf_grid))
             self.min_pct_var = None
             self.max_pc_to_retain = None  

@@ -21,12 +21,8 @@ class semantic_feature_extractor(nn.Module):
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
         else:
-            if which_prf_grid!=1:
-                self.labels_folder = os.path.join(default_paths.stim_labels_root, \
+            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
                                          'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
-            else:
-                self.labels_folder = os.path.join(default_paths.stim_labels_root, \
-                                                  'S%d_within_prf'%self.subject)
             self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
             self.same_labels_all_prfs=False

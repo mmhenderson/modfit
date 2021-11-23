@@ -154,23 +154,14 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
 
         # Now save the results, one file for each alexnet layer 
         for ii, ll in enumerate(layer_inds):
-            if which_prf_grid==1:
-                if padding_mode is not None:
-                    fn2save = os.path.join(alexnet_feat_path, \
-                       'S%d_%s_%s_features_each_prf.h5py'%(subject, \
-                                                       alexnet_layer_names[ll], padding_mode))
-                else:
-                    fn2save = os.path.join(alexnet_feat_path, \
-                           'S%d_%s_features_each_prf.h5py'%(subject, alexnet_layer_names[ll]))
-            else:
-                if padding_mode is not None:
-                    fn2save = os.path.join(alexnet_feat_path, \
-                       'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, \
-                                           alexnet_layer_names[ll], padding_mode, which_prf_grid))
-                else:    
-                    fn2save = os.path.join(alexnet_feat_path, \
-                       'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
-                                               alexnet_layer_names[ll], which_prf_grid))
+            if padding_mode is not None:
+                fn2save = os.path.join(alexnet_feat_path, \
+                   'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, \
+                                       alexnet_layer_names[ll], padding_mode, which_prf_grid))
+            else:    
+                fn2save = os.path.join(alexnet_feat_path, \
+                   'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
+                                           alexnet_layer_names[ll], which_prf_grid))
             print('Writing prf features to %s\n'%fn2save)
 
             t = time.time()

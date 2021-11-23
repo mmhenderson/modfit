@@ -64,8 +64,7 @@ class texture_feature_extractor(nn.Module):
                 self.features_file += '_gabor_solo'
             if self.nonlin_fn:
                 self.features_file += '_nonlin'
-            if self.which_prf_grid!=1:
-                self.features_file += '_grid%d'%which_prf_grid                                             
+            self.features_file += '_grid%d'%which_prf_grid                                             
             self.features_file += '.h5py'
 
             if not os.path.exists(self.features_file):

@@ -22,22 +22,15 @@ class alexnet_feature_extractor(nn.Module):
         self.layer_name = layer_name
         self.which_prf_grid = which_prf_grid
         self.padding_mode = padding_mode
-        
-        if self.which_prf_grid!=1:
-            if self.padding_mode is not None:
-                self.features_file = os.path.join(alexnet_feat_path, \
-                  'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, \
-                                                             self.padding_mode, self.which_prf_grid))
-            else:
-                self.features_file = os.path.join(alexnet_feat_path, \
-                  'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
+ 
+        if self.padding_mode is not None:
+            self.features_file = os.path.join(alexnet_feat_path, \
+              'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, \
+                                                         self.padding_mode, self.which_prf_grid))
         else:
-            if self.padding_mode is not None:
-                self.features_file = os.path.join(alexnet_feat_path, \
-                      'S%d_%s_%s_features_each_prf.h5py'%(subject, self.layer_name, self.padding_mode))
-            else:
-                self.features_file = os.path.join(alexnet_feat_path, \
-                                      'S%d_%s_features_each_prf.h5py'%(subject, self.layer_name))
+            self.features_file = os.path.join(alexnet_feat_path, \
+              'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
+            
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 

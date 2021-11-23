@@ -28,23 +28,30 @@ class sketch_token_feature_extractor(nn.Module):
         if self.use_pca_feats:
             self.n_features = 151
             self.use_lda_feats = False # only allow one of these to be true
-            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', 'S%d_PCA.npy'%(subject))     
+            if self.which_prf_grid==1:
+                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
+                                                  'S%d_PCA.npy'%(self.subject))     
+            else:
+                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
+                                          'S%d_PCA_grid%d.npy'%(self.subject, self.which_prf_grid))     
             self.min_pct_var = min_pct_var
             self.max_pc_to_retain = np.min([self.n_features, max_pc_to_retain])
         elif self.use_lda_feats:
             self.use_pca_feats = False
             self.min_pct_var = None
             self.max_pc_to_retain = None  
-            if self.lda_discrim_type=='all_supcat':
-                self.n_features = 11     
+            if self.which_prf_grid==1:
                 self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
-                                                  'S%d_LDA_all_supcat.npy'%(subject))  
+                                          'S%d_LDA_%s.npy'%(self.subject, self.lda_discrim_type))
+            else:
+                self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
+                  'S%d_LDA_%s_grid%d.npy'%(self.subject, self.lda_discrim_type, self.which_prf_grid))
+            if self.lda_discrim_type=='all_supcat':
+                self.n_features = 11                      
             elif self.lda_discrim_type=='animacy' or self.lda_discrim_type=='indoor_outdoor' or \
                     self.lda_discrim_type=='animal' or self.lda_discrim_type=='vehicle' or \
                     self.lda_discrim_type=='food' or self.lda_discrim_type=='person':
-                self.n_features = 1 
-                self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
-                                                  'S%d_LDA_%s.npy'%(subject, self.lda_discrim_type))     
+                self.n_features = 1   
             else:
                 print(lda_discrim_type)
                 raise ValueError('--lda_discrim_type was not recognized')
@@ -68,9 +75,12 @@ class sketch_token_feature_extractor(nn.Module):
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
+        self.prf_batch_size=50
         self.device = device
-        self.do_varpart=False # only one set of features in this model for now, not doing variance partition
-        self.features_each_prf = None
+        self.do_varpart=False 
+        # only one set of features in this model for now, not doing variance partition
+        self.features_each_prf_batch = None
+        self.prf_inds_loaded = []
         
     def init_for_fitting(self, image_size, models, dtype):
 
@@ -85,6 +95,11 @@ class sketch_token_feature_extractor(nn.Module):
         else:
             self.max_features = self.n_features
        
+        n_prfs = models.shape[0]
+        n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
+        self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), \
+                                                         n_prfs])) for bb in range(n_prf_batches)]
+            
         self.clear_big_features()
         
     def get_partial_versions(self):
@@ -97,70 +112,91 @@ class sketch_token_feature_extractor(nn.Module):
 
         return masks, partial_version_names
 
-    def load_precomputed_features(self, image_inds):
+    def load_precomputed_features(self, image_inds, prf_model_index):
         
-        print('Loading pre-computed features from %s'%self.features_file)
-        t = time.time()
-           
+        if prf_model_index not in self.prf_inds_loaded:
+            
+            print('Loading pre-computed features from %s'%self.features_file)
+            t = time.time()
+            batch_to_use = np.where([prf_model_index in self.prf_batch_inds[bb] for \
+                                         bb in range(len(self.prf_batch_inds))])[0][0]
+            assert(prf_model_index in self.prf_batch_inds[batch_to_use])
+            self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
+            print('Loading pre-computed features for models [%d - %d] from %s'%\
+                   (self.prf_batch_inds[batch_to_use][0], self.prf_batch_inds[batch_to_use][-1], \
+                    self.features_file))
+            self.features_each_prf_batch = None
+            
+            if self.use_pca_feats:
+
+                # loading pre-computed pca features, and deciding here how many features to 
+                # include in model.
+                pc_result = np.load(self.features_file, allow_pickle=True).item()
+                scores_each_prf = [pc_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
+                ev_each_prf = [pc_result['ev'][mm] for mm in self.prf_batch_inds[batch_to_use]]
+                pc_result = None
+                n_pcs_avail = scores_each_prf[0].shape[1]
+                n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
+                                   if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
+                                   else n_pcs_avail for ev in ev_each_prf]
+                n_feat_each_prf = [np.min([nf, self.max_pc_to_retain]) for nf in n_feat_each_prf]
+                self.features_each_prf_batch = [scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]] \
+                                          for mm in range(len(scores_each_prf))]   
+                print('Length of features list this batch: %d'%len(self.features_each_prf_batch))
+                print('Size of features array for first prf model with this image set is:')
+                print(self.features_each_prf_batch[0].shape)
+
+            elif self.use_lda_feats:
+
+                # loading pre-computed linear discriminant analysis features
+                lda_result = np.load(self.features_file, allow_pickle=True).item()
+                scores_each_prf = [lda_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
+                lda_result = None
+                self.features_each_prf_batch = np.moveaxis(np.array([scores_each_prf[mm][image_inds,:] \
+                              for mm in range(len(scores_each_prf))]), [0,1,2], [2,0,1])
+                assert(self.features_each_prf_batch.shape[1]==self.max_features)
+                print('Size of features array for this image set is:')
+                print(self.features_each_prf_batch.shape)
+
+            else:
+
+                # Loading raw sketch tokens features.
+                with h5py.File(self.features_file, 'r') as data_set:
+                    values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                    data_set.close() 
+                elapsed = time.time() - t
+                print('Took %.5f seconds to load file'%elapsed)
+
+                self.features_each_prf_batch = values[image_inds,:,:]
+                # Taking out the very last column, which represents "no contour"
+                self.features_each_prf_batch = self.features_each_prf_batch[:,0:150,:]
+
+                print('Size of features array for this image set is:')
+                print(self.features_each_prf_batch.shape)
+
+         
+        index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
         if self.use_pca_feats:
-            
-            # loading pre-computed pca features, and deciding here how many features to include in model.
-            pc_result = np.load(self.features_file, allow_pickle=True).item()
-            scores_each_prf = pc_result['scores']
-            ev_each_prf = pc_result['ev']
-            n_pcs_avail = scores_each_prf[0].shape[1]
-            n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
-                               if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
-                               else n_pcs_avail for ev in ev_each_prf]
-            n_feat_each_prf = [np.min([nf, self.max_pc_to_retain]) for nf in n_feat_each_prf]
-            self.features_each_prf = [scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]] \
-                                      for mm in range(len(scores_each_prf))]           
-            print('Size of features array for first prf model with this image set is:')
-            print(self.features_each_prf[0].shape)
-
-        elif self.use_lda_feats:
-            
-            # loading pre-computed linear discriminant analysis features
-            lda_result = np.load(self.features_file, allow_pickle=True).item()
-            scores_each_prf = lda_result['scores']
-
-            self.features_each_prf = np.moveaxis(np.array([scores_each_prf[mm][image_inds,:] \
-                          for mm in range(len(scores_each_prf))]), [0,1,2], [2,0,1])
-            assert(self.features_each_prf.shape[1]==self.max_features)
-            print('Size of features array for this image set is:')
-            print(self.features_each_prf.shape)
-        
+            features_in_prf = self.features_each_prf_batch[index_into_batch]
         else:
-            
-            # Loading raw sketch tokens features.
-            with h5py.File(self.features_file, 'r') as data_set:
-                values = np.copy(data_set['/features'])
-                data_set.close() 
-            elapsed = time.time() - t
-            print('Took %.5f seconds to load file'%elapsed)
-
-            self.features_each_prf = values[image_inds,:,:]
-            # Taking out the very last column, which represents "no contour"
-            self.features_each_prf = self.features_each_prf[:,0:150,:]
-            
-            print('Size of features array for this image set is:')
-            print(self.features_each_prf.shape)
+            features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
+        assert(features_in_prf.shape[0]==len(image_inds))
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf.shape)
+        
+        return features_in_prf
         
     def clear_big_features(self):
         
         print('Clearing features from memory')
-        self.features_each_prf = None 
-    
+        self.features_each_prf_batch = None 
+        self.prf_inds_loaded = []
+        
     def forward(self, image_inds, prf_params, prf_model_index, fitting_mode = True):
         
-        if self.features_each_prf is None:
-            self.load_precomputed_features(image_inds)
-        
-        if self.use_pca_feats:
-            features = self.features_each_prf[prf_model_index]
-        else:
-            features = self.features_each_prf[:,:,prf_model_index]
-        
+        features = self.load_precomputed_features(image_inds, prf_model_index)
+       
         assert(features.shape[0]==len(image_inds))
         print('Final size of feature matrix is:')
         print(features.shape)

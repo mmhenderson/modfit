@@ -322,11 +322,8 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
             has_animate = np.any(animate_columns, axis=1)
             binary_df['has_animate'] = has_animate.astype('int')
 
-        if which_prf_grid!=1:
-            folder2save = os.path.join(default_paths.stim_labels_root, \
+        folder2save = os.path.join(default_paths.stim_labels_root, \
                                            'S%d_within_prf_grid%d'%(subject, which_prf_grid))
-        else:
-            folder2save = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
         if not os.path.exists(folder2save):
             os.makedirs(folder2save)
         if stuff:
@@ -487,14 +484,10 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
     """
     Load csv files containing binary labels for coco images.
     """
-    
-    if which_prf_grid!=1:
-        labels_folder = os.path.join(default_paths.stim_labels_root, \
+
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))
-    else:
-        labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf'%subject)
-
-
+    
     print('loading labels from folders at %s and %s (will be slow...)'%\
           (default_paths.stim_labels_root, labels_folder))
     discrim_type_list = ['indoor_outdoor','animacy','person','food','vehicle','animal']

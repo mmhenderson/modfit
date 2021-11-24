@@ -146,7 +146,8 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
 
     if ridge==True:
         if zscore_features==True:
-            lambdas = np.logspace(0.,5.,9, dtype=np.float32)           
+#             lambdas = np.logspace(0.,5.,9, dtype=np.float32) 
+            lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
         else:
             lambdas = np.logspace(-6., 1., 9).astype(np.float64)
     else:

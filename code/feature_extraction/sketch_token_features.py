@@ -157,6 +157,7 @@ class sketch_token_feature_extractor(nn.Module):
                 print('Took %.5f seconds to load file'%elapsed)
 
                 self.features_each_prf_batch = values[image_inds,:,:]
+                values = None
                 # Taking out the very last column, which represents "no contour"
                 self.features_each_prf_batch = self.features_each_prf_batch[:,0:150,:]
 

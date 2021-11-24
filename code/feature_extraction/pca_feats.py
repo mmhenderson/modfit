@@ -245,83 +245,99 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
     
-# def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
 
-#     path_to_load = default_paths.alexnet_feat_path
+    path_to_load = default_paths.alexnet_feat_path
 
-#     features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%\
-#                                  (subject, layer_name, which_prf_grid))
-#     if not os.path.exists(features_file):
-#         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
-#     path_to_save = os.path.join(path_to_load, 'PCA')
-#     if not os.path.exists(path_to_save):
-#         os.mkdir(path_to_save)
-
-#     # Params for the spatial aspect of the model (possible pRFs)
-#     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
-#     n_prfs = models.shape[0]
+    features_file = os.path.join(path_to_load, 'S%d_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%\
+                                 (subject, layer_name, which_prf_grid))
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
+    with h5py.File(features_file, 'r') as data_set:
+        dsize = data_set['/features'].shape
+    n_features = dsize[1]
     
-#     print('Loading pre-computed features from %s'%features_file)
-#     t = time.time()
-#     with h5py.File(features_file, 'r') as data_set:
-#         values = np.copy(data_set['/features'])
-#         data_set.close() 
-#     elapsed = time.time() - t
-#     print('Took %.5f seconds to load file'%elapsed)
-#     features_each_prf = values
+    path_to_save = os.path.join(path_to_load, 'PCA')
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
 
-#     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
-
-#     # training / validation data always split the same way - shared 1000 inds are validation.
-#     subject_df = nsd_utils.get_subj_df(subject)
-#     valinds = np.array(subject_df['shared1000'])
-#     trninds = np.array(subject_df['shared1000']==False)
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     
-    
-#     print('Size of features array for this image set is:')
-#     print(features_each_prf.shape)
+    n_prfs = models.shape[0]
+    assert(n_prfs==dsize[2])
+    prf_batch_size = 50 # batching prfs for loading
+    n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
+    prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
+  
+    zgroup_labels = np.ones(shape=(1,n_features))
 
-#     scores_each_prf = []
-#     wts_each_prf = []
-#     ev_each_prf = []
-#     pre_mean_each_prf = []
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+
+    scores_each_prf = []
+    wts_each_prf = []
+    ev_each_prf = []
+    pre_mean_each_prf = []    
+    prf_inds_loaded = []
    
-#     for prf_model_index in range(n_prfs):
+    for prf_model_index in range(n_prfs):
 
-#         if debug and prf_model_index>1:
-#             continue
+        if debug and prf_model_index>1:
+            continue
 
-#         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        if prf_model_index not in prf_inds_loaded:
+
+            batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
+                                     bb in range(len(prf_batch_inds))])[0][0]
+            assert(prf_model_index in prf_batch_inds[batch_to_use])
+            print('Loading pre-computed features for prf models [%d - %d] from %s'%\
+                  (prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1], features_file))
+            features_each_prf_batch = None
+            prf_inds_loaded = prf_batch_inds[batch_to_use]
+            
+            t = time.time()
+            with h5py.File(features_file, 'r') as data_set:
+                values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                data_set.close() 
+            elapsed = time.time() - t
+            print('Took %.5f seconds to load file'%elapsed)
+            features_each_prf_batch = values
+ 
+            print('Size of features array for this image set and prf batch is:')
+            print(features_each_prf_batch.shape)
+
+        index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
+        features_in_prf = features_each_prf_batch[:,:,index_into_batch]
         
-#         features_in_prf = features_each_prf[:,:,prf_model_index]
-        
-#         features_in_prf_z = np.zeros_like(features_in_prf)
-#         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-#         features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+        features_in_prf_z = np.zeros_like(features_in_prf)
+        features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
            
-#         print('Size of features array for this image set and prf is:')
-#         print(features_in_prf_z.shape)
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf_z.shape)
 
-#         # finding pca solution for just training data
-#         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-#                                                       zscore_first=False)
+        # finding pca solution for just training data
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                      zscore_first=False)
 
-#         # now projecting all the data incl. val into same subspace
-#         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
-#         scores = feat_submean @ wts.T
+        # now projecting all the data incl. val into same subspace
+        feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
+        scores = feat_submean @ wts.T
         
-#         scores_each_prf.append(scores)
-#         wts_each_prf.append(wts)
-#         ev_each_prf.append(ev)
-#         pre_mean_each_prf.append(pre_mean)
+        scores_each_prf.append(scores)
+        wts_each_prf.append(wts)
+        ev_each_prf.append(ev)
+        pre_mean_each_prf.append(pre_mean)
 
-#     if which_prf_grid==1:
-#         fn2save = os.path.join(path_to_save, 'S%d_PCA.npy'%(subject))
-#     else:
-#         fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
-#     print('saving to %s'%fn2save)
-#     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
-#                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
+    fn2save = os.path.join(path_to_save, 'S%d_%s_ReLU_reflect_PCA_grid%d.npy'%(subject, layer_name, which_prf_grid))
+    print('saving to %s'%fn2save)
+    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
+                      'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
     
 def do_pca(values, max_pc_to_retain=None, zscore_first=False):
@@ -397,5 +413,9 @@ if __name__ == '__main__':
         n_ori=4
         n_sf=4
         run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+    elif args.type=='alexnet':
+        layers = ['Conv%d'%(ll+1) for ll in range(5)]
+        for layer in layers:
+            run_pca_alexnet(subject=args.subject, layer_name=layer, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     else:
         raise ValueError('--type %s is not recognized'%args.type)

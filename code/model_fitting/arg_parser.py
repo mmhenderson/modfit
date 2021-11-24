@@ -116,6 +116,8 @@ def get_args():
                        help="What layer of alexnet to use?")
     parser.add_argument("--alexnet_padding_mode", type=str, default='', 
                        help="What padding mode for alexnet conv layers? default zeros.")
+    parser.add_argument("--use_pca_alexnet_feats", type=int, default=0, 
+                       help="use reduced-dim version of alexnet features?")
 
     args = parser.parse_args()
     

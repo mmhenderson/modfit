@@ -13,8 +13,8 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
-debug=0
-up_to_sess=40
+debug=1
+up_to_sess=1
 
 subj=1
 volume_space=1
@@ -25,9 +25,11 @@ zscore_features=1
 zscore_in_groups=0
 
 fitting_type=alexnet
-alexnet_layer_name=all_conv
+# alexnet_layer_name=all_conv
+alexnet_layer_name=Conv1_ReLU
 which_prf_grid=5
 alexnet_padding_mode=reflect
+use_pca_alexnet_feats=1
 
 do_stack=0
 do_roi_recons=0
@@ -37,4 +39,4 @@ do_sem_disc=1
 
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --which_prf_grid $which_prf_grid --alexnet_padding_mode $alexnet_padding_mode --do_tuning $do_tuning --do_sem_disc $do_sem_disc
+python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons  --alexnet_layer_name $alexnet_layer_name --which_prf_grid $which_prf_grid --alexnet_padding_mode $alexnet_padding_mode --do_tuning $do_tuning --do_sem_disc $do_sem_disc --use_pca_alexnet_feats $use_pca_alexnet_feats

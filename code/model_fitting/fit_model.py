@@ -49,6 +49,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
              min_pct_var = 99, max_pc_to_retain = 400, \
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
+             use_pca_alexnet_feats = False, \
              which_prf_grid=1, save_pred_data=False):
     
     def save_all(fn2save):
@@ -157,6 +158,9 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             dict2save.update({
             'alexnet_layer_name': alexnet_layer_name,
             'alexnet_padding_mode': alexnet_padding_mode,
+            'use_pca_alexnet_feats': use_pca_alexnet_feats,
+            'min_pct_var': min_pct_var,
+            'max_pc_to_retain': max_pc_to_retain,    
             })
 
         print('\nSaving to %s\n'%fn2save)
@@ -208,7 +212,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         name1 = 'sketch_tokens'
         
     elif 'alexnet' in fitting_type:
-        model_name = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)   
+        model_name = initialize_fitting.get_alexnet_model_name(alexnet_layer_name, use_pca_alexnet_feats)   
         name1 = 'alexnet'
     elif 'semantic' in fitting_type:
         model_name = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
@@ -218,11 +222,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         
     if fitting_type2 is not None:
         if 'sketch_tokens' in fitting_type2:
-            model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
-                                                                          lda_discrim_type, max_pc_to_retain)   
+            model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
+                                                  use_lda_st_feats,lda_discrim_type, max_pc_to_retain)   
             name2 = 'sketch_tokens'
         elif 'alexnet' in fitting_type2:
-            model_name2 = initialize_fitting.get_alexnet_model_name(alexnet_layer_name)
+            model_name2 = initialize_fitting.get_alexnet_model_name(alexnet_layer_name, \
+                                                                    use_pca_alexnet_feats)
             name2 = 'alexnet'
         elif 'semantic' in fitting_type2:
             model_name2 = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
@@ -341,13 +346,16 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             for ll in range(n_layers):
                 fe.append(alexnet_features.alexnet_feature_extractor(subject=subject, \
                              layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
-                                                                 padding_mode = alexnet_padding_mode))
+                             padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
+                             min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain))
             _feature_extractor = merge_features.combined_feature_extractor(fe, names, do_varpart=do_varpart)
                
         else:
             _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                      layer_name=alexnet_layer_name, device=device, \
-                                    which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
+                                     which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
+                                     use_pca_feats=use_pca_alexnet_feats, \
+                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
     elif 'semantic' in fitting_type:
         _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
                                     discrim_type=semantic_discrim_type, device=device, \
@@ -367,7 +375,9 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             assert(alexnet_layer_name is not 'all_conv')
             _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                  layer_name=alexnet_layer_name, device=device, \
-                                 which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode)
+                                 which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
+                                 use_pca_feats=use_pca_alexnet_feats, \
+                                 min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
         elif 'semantic' in fitting_type2:
             _feature_extractor2 = semantic_features.semantic_feature_extractor(subject=subject, \
                                     discrim_type=semantic_discrim_type, device=device, \
@@ -589,6 +599,7 @@ if __name__ == '__main__':
              max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
              alexnet_layer_name = args.alexnet_layer_name, \
              alexnet_padding_mode = args.alexnet_padding_mode, \
+             use_pca_alexnet_feats = args.use_pca_alexnet_feats==1, \
              which_prf_grid = args.which_prf_grid, \
              save_pred_data = args.save_pred_data==1)
              

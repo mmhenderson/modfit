@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu
+#SBATCH --partition=tarrq
 #SBATCH --gres=gpu:0
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -9,7 +9,7 @@
 
 subj=1
 debug=0
-type=texture_pyramid
+type=alexnet
 zscore=0
 max_pc_to_retain=100
 which_prf_grid=5

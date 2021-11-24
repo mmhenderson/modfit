@@ -14,32 +14,43 @@ n_features_each_layer = extract_alexnet_features.n_features_each_layer
 
 class alexnet_feature_extractor(nn.Module):
     
-    def __init__(self, subject, layer_name, device, which_prf_grid=1, padding_mode=None):
+    def __init__(self, subject, layer_name, device, which_prf_grid=1, padding_mode=None, \
+                use_pca_feats = False, min_pct_var = 95, max_pc_to_retain=100):
         
         super(alexnet_feature_extractor, self).__init__()
         
         self.subject = subject       
         self.layer_name = layer_name
         self.which_prf_grid = which_prf_grid
-        self.padding_mode = padding_mode
- 
-        if self.padding_mode is not None:
-            self.features_file = os.path.join(alexnet_feat_path, \
-              'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, \
-                                                         self.padding_mode, self.which_prf_grid))
+        self.padding_mode = padding_mode 
+        if padding_mode is None:
+            padding_str = ''
+        else:
+            padding_str = padding_mode+'_'
+        self.use_pca_feats = use_pca_feats
+        
+        layer_ind = [ll for ll in range(len(alexnet_layer_names)) \
+                         if alexnet_layer_names[ll]==self.layer_name]
+        assert(len(layer_ind)==1)
+        layer_ind = layer_ind[0]        
+        self.n_features = n_features_each_layer[layer_ind]
+           
+        if self.use_pca_feats:
+            self.features_file = os.path.join(alexnet_feat_path, 'PCA', \
+              'S%d_%s_%sPCA_grid%d.npy'%(subject, self.layer_name, \
+                                                         padding_str, self.which_prf_grid))         
+            self.min_pct_var = min_pct_var
+            self.max_pc_to_retain = np.min([self.n_features, max_pc_to_retain])
         else:
             self.features_file = os.path.join(alexnet_feat_path, \
-              'S%d_%s_features_each_prf_grid%d.h5py'%(subject, self.layer_name, self.which_prf_grid))
+              'S%d_%s_%sfeatures_each_prf_grid%d.h5py'%(subject, self.layer_name, \
+                                                         padding_str, self.which_prf_grid))
+            self.min_pct_var = None
+            self.max_pc_to_retain = None  
             
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
-        layer_ind = [ll for ll in range(len(alexnet_layer_names)) \
-                         if alexnet_layer_names[ll]==self.layer_name]
-        assert(len(layer_ind)==1)
-        layer_ind = layer_ind[0]
-        
-        self.n_features = n_features_each_layer[layer_ind]
         
         self.device = device
         self.do_varpart=False # only one set of features in this model for now, not doing variance partition
@@ -54,7 +65,10 @@ class alexnet_feature_extractor(nn.Module):
         Additional initialization operations.
         """        
         print('Initializing for fitting')
-        self.max_features = self.n_features
+        if self.use_pca_feats:
+            self.max_features = self.max_pc_to_retain        
+        else:
+            self.max_features = self.n_features
         
         # Prepare for loading the pre-computed features: as a 
         # compromise between speed and ram usage, will load them in
@@ -91,29 +105,49 @@ class alexnet_feature_extractor(nn.Module):
             gc.collect()
             torch.cuda.empty_cache()
 
-            t = time.time()
+            if self.use_pca_feats:
 
-            # Loading raw features.
-            with h5py.File(self.features_file, 'r') as data_set:
-                values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
-                data_set.close() 
-            elapsed = time.time() - t
-            print('Took %.5f seconds to load file'%elapsed)
+                # loading pre-computed pca features, and deciding here how many features to 
+                # include in model.
+                pc_result = np.load(self.features_file, allow_pickle=True).item()
+                scores_each_prf = [pc_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
+                ev_each_prf = [pc_result['ev'][mm] for mm in self.prf_batch_inds[batch_to_use]]
+                pc_result = None
+                n_pcs_avail = scores_each_prf[0].shape[1]
+                n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
+                                   if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
+                                   else n_pcs_avail for ev in ev_each_prf]
+                n_feat_each_prf = [np.min([nf, self.max_pc_to_retain]) for nf in n_feat_each_prf]
+                self.features_each_prf_batch = [scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]] \
+                                          for mm in range(len(scores_each_prf))]   
+                print('Length of features list this batch: %d'%len(self.features_each_prf_batch))
+                print('Size of features array for first prf model with this image set is:')
+                print(self.features_each_prf_batch[0].shape)
+                
+            else:
+            
+                t = time.time()
+                # Loading raw features.
+                with h5py.File(self.features_file, 'r') as data_set:
+                    values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                    data_set.close() 
+                elapsed = time.time() - t
+                print('Took %.5f seconds to load file'%elapsed)
 
-            self.features_each_prf_batch = values[image_inds,:,:]
-            values=None
-            assert(self.n_features==self.features_each_prf_batch.shape[1])
-        
-            print('Size of features array for this batch, is:')
-            print(self.features_each_prf_batch.shape)
-            
-        else:
-            assert(len(image_inds)==self.features_each_prf_batch.shape[0])
-            
+                self.features_each_prf_batch = values[image_inds,:,:]
+                values=None
+                assert(self.n_features==self.features_each_prf_batch.shape[1])
+
+                print('Size of features array for this batch, is:')
+                print(self.features_each_prf_batch.shape)
+  
         index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
-        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
-        features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
-        
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))       
+        if self.use_pca_feats:
+            features_in_prf = self.features_each_prf_batch[index_into_batch]
+        else:
+            features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
+        assert(features_in_prf.shape[0]==len(image_inds))
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
         

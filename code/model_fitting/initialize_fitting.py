@@ -78,13 +78,15 @@ def get_semantic_model_name(semantic_discrim_type):
     
     return model_name
     
-def get_alexnet_model_name(alexnet_layer_name):
+def get_alexnet_model_name(alexnet_layer_name, use_pca_alexnet_feats):
     
     if 'ReLU' in alexnet_layer_name:
         name = alexnet_layer_name.split('_')[0]
     else:
         name = alexnet_layer_name
     model_name = 'alexnet_%s'%name
+    if use_pca_alexnet_feats:
+        model_name += '_pca'
     
     return model_name
     
@@ -144,7 +146,7 @@ def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_p
 
     if ridge==True:
         if zscore_features==True:
-            lambdas = np.logspace(0.,5.,9, dtype=np.float32)
+            lambdas = np.logspace(0.,5.,9, dtype=np.float32)           
         else:
             lambdas = np.logspace(-6., 1., 9).astype(np.float64)
     else:

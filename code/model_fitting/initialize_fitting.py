@@ -207,7 +207,8 @@ def load_precomputed_prfs(fitting_type, subject):
 #         prf_params_fn = os.path.join(default_paths.save_fits_path, \
 #                                  'S01/sketch_tokens/Oct-18-2021_1719_32/all_fit_params')
 #         prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/sketch_tokens/Nov-11-2021_1659_27/all_fit_params')
-        prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv/Nov-15-2021_1152_30/all_fit_params')
+#         prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv/Nov-15-2021_1152_30/all_fit_params')
+        prf_params_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')
     
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')

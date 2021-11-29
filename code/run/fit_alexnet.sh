@@ -13,8 +13,8 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
-debug=1
-up_to_sess=1
+debug=0
+up_to_sess=40
 
 subj=1
 volume_space=1
@@ -25,8 +25,8 @@ zscore_features=1
 zscore_in_groups=0
 
 fitting_type=alexnet
-# alexnet_layer_name=all_conv
-alexnet_layer_name=Conv1_ReLU
+alexnet_layer_name=all_conv
+# alexnet_layer_name=Conv1_ReLU
 which_prf_grid=5
 alexnet_padding_mode=reflect
 use_pca_alexnet_feats=1

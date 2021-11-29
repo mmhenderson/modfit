@@ -86,6 +86,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         'single_sess': single_sess,
         'shuff_rnd_seed': shuff_rnd_seed,
         'use_precomputed_prfs': use_precomputed_prfs,
+        'saved_prfs_fn': saved_prfs_fn,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if do_stack:
@@ -289,12 +290,13 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 
 
     if use_precomputed_prfs:
-        best_model_each_voxel = initialize_fitting.load_precomputed_prfs(fitting_type,subject)
+        best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(fitting_type,subject)
         print(trn_voxel_data.shape)
         print(len(best_model_each_voxel))
         assert(len(best_model_each_voxel)==trn_voxel_data.shape[1])
     else:
         best_model_each_voxel = None
+        saved_prfs_fn = None
         
     if 'pyramid' in fitting_type:
         

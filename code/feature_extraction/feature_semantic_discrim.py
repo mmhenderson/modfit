@@ -147,7 +147,7 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
                                                             labels[inds2use])[0,1]
                 # (mu1-mu2) / std
                 all_dprime[ff,prf_model_index] = (np.mean(features_in_prf[inds1,ff]) -\
-                                      np.mean(features_in_prf[inds2,ff]))/np.std(features_in_prf[inds2use])          
+                                      np.mean(features_in_prf[inds2,ff]))/np.std(features_in_prf[inds2use,ff])          
         else:
             print('model %d - at least one label category is missing'%(prf_model_index))
             all_corrs[ff,prf_model_index] = np.nan

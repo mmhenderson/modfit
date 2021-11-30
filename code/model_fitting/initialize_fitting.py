@@ -202,22 +202,16 @@ def get_prf_models(which_grid=5):
 def load_precomputed_prfs(fitting_type, subject):
     
     if subject==1:
-#         prf_params_fn = os.path.join(default_paths.save_fits_path, \
-#                                  'S01/sketch_tokens/Oct-11-2021_1756_51/all_fit_params')
-#         prf_params_fn = os.path.join(default_paths.save_fits_path, \
-#                                  'S01/sketch_tokens/Oct-18-2021_1719_32/all_fit_params')
-#         prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/sketch_tokens/Nov-11-2021_1659_27/all_fit_params')
-#         prf_params_fn = os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv/Nov-15-2021_1152_30/all_fit_params')
-        prf_params_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')
     
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 
-    print('Loading pre-computed pRF estimates for all voxels from %s'%prf_params_fn)
-    out = torch.load(prf_params_fn)
+    print('Loading pre-computed pRF estimates for all voxels from %s'%saved_prfs_fn)
+    out = torch.load(saved_prfs_fn)
     best_model_each_voxel = out['best_params'][5][:,0]
     
-    return best_model_each_voxel
+    return best_model_each_voxel, saved_prfs_fn
 
 def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonlin_fn=False):
     

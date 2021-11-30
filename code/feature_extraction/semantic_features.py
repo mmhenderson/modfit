@@ -20,15 +20,22 @@ class semantic_feature_extractor(nn.Module):
             self.features_file = os.path.join(default_paths.stim_labels_root, \
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
+            self.n_features = 2
+        elif discrim_type=='all_supcat':
+            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
+            self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_binary_prf0.csv'%(self.subject))
+            self.same_labels_all_prfs=False
+            self.n_features = 12
         else:
             self.labels_folder = os.path.join(default_paths.stim_labels_root, \
                                          'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
             self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
             self.same_labels_all_prfs=False
-            
-        self.n_features = 1
-           
+            self.n_features = 1
+
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
@@ -61,7 +68,10 @@ class semantic_feature_extractor(nn.Module):
             print('Loading pre-computed features from %s'%self.features_file)        
             coco_df = pd.read_csv(self.features_file, index_col=0)
             if self.discrim_type=='indoor_outdoor':
-                labels = np.array(coco_df['has_indoor'])
+                # some of these images are ambiguous, so leaving both columns here to allow
+                # for images to have both/neither label
+                labels = np.concatenate([np.array(coco_df['has_indoor'])[:,np.newaxis], \
+                                         np.array(coco_df['has_outdoor'])[:,np.newaxis]], axis=1)
             else:
                 raise ValueError('discrim type not implemented yet')
             
@@ -71,12 +81,15 @@ class semantic_feature_extractor(nn.Module):
             print('Loading pre-computed features from %s'%self.features_file)
             coco_df = pd.read_csv(self.features_file, index_col=0)
             if self.discrim_type=='animacy':
-                labels = np.array(coco_df['has_animate'])
+                labels = np.array(coco_df['has_animate'])[:,np.newaxis]
+            elif self.discrim_type=='all_supcat':
+                # images can have more than one label or no labels here
+                labels = np.array(coco_df)[:,0:12]
             else:
-                labels = np.array(coco_df[self.discrim_type])
-                
-        labels = labels[image_inds].astype(np.float32)           
-        self.features_in_prf = labels[:,np.newaxis];
+                labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+            
+        labels = labels[image_inds,:].astype(np.float32)           
+        self.features_in_prf = labels;
             
         print('num 0/1 values:')
         print([np.sum(self.features_in_prf==0), np.sum(self.features_in_prf==1)])

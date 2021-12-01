@@ -57,41 +57,46 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
     model_architecture='RN50'
 
     n_blocks = len(resnet_block_names)
-    features_each_prf = [np.zeros((n_images, n_features_each_resnet_block[ll], n_prfs),dtype=dtype) \
-                             for ll in range(n_blocks)]
-
+    
     n_batches = int(np.ceil(n_images/batch_size))
 
     with torch.no_grad():
 
-        for bb in range(n_batches):
-
-            if debug and bb>1:
-                continue
-            print('Processing images for batch %d of %d'%(bb, n_batches))
-
-            batch_inds = np.arange(batch_size * bb, np.min([batch_size * (bb+1), n_images]))
-
-            # using grayscale images for better comparison w my other models.
-            # need to tile to 3 so alexnet weights will be right size
-            image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
-
-            gc.collect()
-            torch.cuda.empty_cache()
+        for ll in range(n_blocks):
             
-            activ_batch = get_clip_activations_batch(image_batch,\
-                                                 model_architecture, device=device)
+            # doing the whole procedure of feature extraction one layer at a time
+            # otherwise will run out of memory bc huge arrays.
+            features_each_prf = np.zeros((n_images, n_features_each_resnet_block[ll], n_prfs),dtype=dtype)
 
-            for ll in range(n_blocks):
+            block_inds = [ll]
+            
+            for bb in range(n_batches):
 
+                if debug and bb>1:
+                    continue
+                print('Processing images for batch %d of %d'%(bb, n_batches))
+
+                batch_inds = np.arange(batch_size * bb, np.min([batch_size * (bb+1), n_images]))
+
+                # using grayscale images for better comparison w my other models.
+                # need to tile to 3 so alexnet weights will be right size
+                image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
+
+                gc.collect()
+                torch.cuda.empty_cache()
+
+                activ_batch = get_clip_activations_batch(image_batch, block_inds, \
+                                                     model_architecture, device=device)
+
+               
                 print('Getting prf-specific activations for %s'%resnet_block_names[ll])
 
-                maps_full_field = torch.moveaxis(activ_batch[ll], [0,1,2,3], [0,3,1,2])
+                maps_full_field = torch.moveaxis(activ_batch[0], [0,1,2,3], [0,3,1,2])
 
                 if bb==0:
                     print('size of maps stack for first batch is:')
                     print(maps_full_field.shape)
-                    
+
                 for mm in range(n_prfs):
 
                     if debug and mm>1:
@@ -130,10 +135,9 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
                     print('model %d, min/max of features in batch: [%s, %s]'%(mm, \
                                                   torch.min(features_batch), torch.max(features_batch))) 
 
-                    features_each_prf[ll][batch_inds,:,mm] = torch_utils.get_value(features_batch)
+                    features_each_prf[batch_inds,:,mm] = torch_utils.get_value(features_batch)
 
-        # Now save the results, one file for each clip model layer 
-        for ll in range(n_blocks):
+            # Now save the results
             fn2save = os.path.join(clip_feat_path, \
                    'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, model_architecture,\
                                            resnet_block_names[ll], which_prf_grid))
@@ -141,15 +145,15 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
 
             t = time.time()
             with h5py.File(fn2save, 'w') as data_set:
-                dset = data_set.create_dataset("features", np.shape(features_each_prf[ll]), dtype=np.float64)
-                data_set['/features'][:,:,:] = features_each_prf[ll]
+                dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float64)
+                data_set['/features'][:,:,:] = features_each_prf
                 data_set.close() 
             elapsed = time.time() - t
 
             print('Took %.5f sec to write file'%elapsed)
 
 
-def get_clip_activations_batch(image_batch, model_architecture, device=None):
+def get_clip_activations_batch(image_batch, block_inds, model_architecture, device=None):
 
     """
     Get activations for images in NSD, passed through pretrained CLIP model.
@@ -165,8 +169,7 @@ def get_clip_activations_batch(image_batch, model_architecture, device=None):
     # The 16 residual blocks are segmented into 4 groups here, which have different numbers of features.
     blocks_each= [len(model.visual.layer1), len(model.visual.layer2), len(model.visual.layer3),len(model.visual.layer4)]
     which_group = np.repeat(np.arange(4), blocks_each)
-    
-    block_inds = np.arange(np.sum(blocks_each))
+
     activ = [[] for ll in block_inds]
     hooks = [[] for ll in block_inds]
     
@@ -209,7 +212,7 @@ def get_clip_activations_batch(image_batch, model_architecture, device=None):
 
     # Sanity check that we grabbed the right activations - check their sizes against expected
     # output size of each block
-    exp_size = n_features_each_resnet_block
+    exp_size = np.array(n_features_each_resnet_block)[block_inds]
     actual_size = [activ[bb].shape[1] for bb in range(len(activ))]
     assert(np.all(np.array(actual_size)==np.array(exp_size)))
 

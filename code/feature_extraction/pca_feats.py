@@ -339,6 +339,118 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
     np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
+
+def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+
+    path_to_load = default_paths.clip_feat_path
+
+    model_architecture = 'RN50'
+    features_file = os.path.join(path_to_load, 'S%d_%s_%s_features_each_prf_grid%d.h5py'%\
+                                 (subject, model_architecture,layer_name, which_prf_grid))
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
+    with h5py.File(features_file, 'r') as data_set:
+        dsize = data_set['/features'].shape
+    n_features = dsize[1]
+    n_trials = dsize[0]
+
+    path_to_save = os.path.join(path_to_load, 'PCA')
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    
+    n_prfs = models.shape[0]
+    assert(n_prfs==dsize[2])
+    prf_batch_size = 50 # batching prfs for loading
+    n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
+    prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
+    prf_inds_loaded = []
+        
+    zgroup_labels = np.ones(shape=(1,n_features))
+
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+
+    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=np.float32)
+    
+    for prf_model_index in range(n_prfs):
+
+        if debug and prf_model_index>1:
+            continue
+
+        print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        if prf_model_index not in prf_inds_loaded:
+
+            batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
+                                     bb in range(len(prf_batch_inds))])[0][0]
+            assert(prf_model_index in prf_batch_inds[batch_to_use])
+            print('Loading pre-computed features for prf models [%d - %d] from %s'%\
+                  (prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1], features_file))
+            features_each_prf_batch = None
+            prf_inds_loaded = prf_batch_inds[batch_to_use]
+            
+            t = time.time()
+            with h5py.File(features_file, 'r') as data_set:
+                values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                data_set.close() 
+            elapsed = time.time() - t
+            print('Took %.5f seconds to load file'%elapsed)
+            features_each_prf_batch = values
+ 
+            print('Size of features array for this image set and prf batch is:')
+            print(features_each_prf_batch.shape)
+
+        index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
+        features_in_prf = features_each_prf_batch[:,:,index_into_batch]
+        
+        features_in_prf_z = np.zeros_like(features_in_prf)
+        features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+        # if any feature channels had no variance, fix them now
+        zero_var = (np.var(features_in_prf[trninds,:], axis=0)==0) | \
+                    (np.var(features_in_prf[~trninds,:], axis=0)==0)
+        features_in_prf_z[:,zero_var] = features_in_prf_z[0,zero_var]
+        
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf_z.shape)
+
+        print('any nans in array')
+        print(np.any(np.isnan(features_in_prf_z)))
+        # finding pca solution for just training data
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                      zscore_first=False)
+
+        # now projecting all the data incl. val into same subspace
+        feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
+        scores = feat_submean @ wts.T
+        
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]
+        else:
+            n_comp_needed = scores.shape[1]
+        print('Retaining %d components to explain %d pct var'%n_comp_needed)
+        
+        scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
+        scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
+        
+    fn2save = os.path.join(path_to_save, 'S%d_%s_%s_PCA_grid%d.h5py'%(subject, model_architecture, \
+                                                                              layer_name, which_prf_grid))
+    print('saving to %s'%fn2save)
+    
+    t = time.time()
+    with h5py.File(fn2save, 'w') as data_set:
+        dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=np.float64)
+        data_set['/features'][:,:,:] = scores_each_prf
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
     
 def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     """
@@ -397,6 +509,8 @@ if __name__ == '__main__':
                     help="want to zscore individual columns before pca? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
                     help="max pc to retain? enter 0 for None")
+    parser.add_argument("--min_pct_var", type=int,default=95,
+                    help="min pct var to explain? default 95")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which pRF grid to use?")
     
@@ -417,5 +531,9 @@ if __name__ == '__main__':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         for layer in layers:
             run_pca_alexnet(subject=args.subject, layer_name=layer, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+    elif args.type=='clip':
+        layers = ['block%d'%(ll) for ll in range(16)]
+        for layer in layers:
+            run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)    
     else:
         raise ValueError('--type %s is not recognized'%args.type)

@@ -38,6 +38,10 @@ sketch_token_feat_path_localnode = '/scratch/mmhender/features/sketch_tokens/'
 alexnet_feat_path = os.path.join(root, 'features/alexnet/')
 alexnet_feat_path_localnode = '/scratch/mmhender/features/alexnet/'
 
+# Path where CLIP features will be saved
+clip_feat_path = os.path.join(root, 'features/CLIP/')
+clip_feat_path_localnode = '/scratch/mmhender/features/CLIP/'
+
 # Path to the COCO API toolbox
 # https://github.com/cocodataset/cocoapi
 coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'

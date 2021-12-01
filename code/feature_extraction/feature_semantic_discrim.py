@@ -46,6 +46,8 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
         os.mkdir(path_to_save)
     fn2save_corrs = os.path.join(path_to_save, 'S%d_corrs_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
     fn2save_dprime = os.path.join(path_to_save, 'S%d_dprime_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
+    fn2save_mean = os.path.join(path_to_load, 'S%d_mean_grid%d.npy'%(subject, which_prf_grid))
+    fn2save_var = os.path.join(path_to_load, 'S%d_var_grid%d.npy'%(subject, which_prf_grid))
                                  
     prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
     n_prfs = models.shape[0]
@@ -74,6 +76,8 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
     n_trials, n_features, n_prfs = dims
     all_corrs = np.zeros((n_features, n_prfs))
     all_dprime =  np.zeros((n_features, n_prfs))
+    all_mean = np.zeros((n_features, n_prfs))
+    all_var =  np.zeros((n_features, n_prfs))
     
     for prf_model_index in range(n_prfs):
 
@@ -108,6 +112,9 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
         values=None
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
+        
+        all_mean[:,prf_model_index] = np.mean(features_in_prf, axis=0);
+        all_var[:,prf_model_index] = np.var(features_in_prf, axis=0);
                                  
         sys.stdout.flush()
                                  
@@ -156,7 +163,11 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
     print('saving to %s\n'%fn2save_corrs)
     np.save(fn2save_corrs, all_corrs)                     
     print('saving to %s\n'%fn2save_dprime)
-    np.save(fn2save_dprime, all_dprime)                     
+    np.save(fn2save_dprime, all_dprime)     
+    print('saving to %s\n'%fn2save_mean)
+    np.save(fn2save_mean, all_mean)                     
+    print('saving to %s\n'%fn2save_var)
+    np.save(fn2save_var, all_var)     
 
     
 if __name__ == '__main__':

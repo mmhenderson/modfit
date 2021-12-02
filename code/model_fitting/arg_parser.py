@@ -126,6 +126,15 @@ def get_args():
     parser.add_argument("--use_pca_alexnet_feats", type=int, default=0, 
                        help="use reduced-dim version of alexnet features?")
 
+    # specific to CLIP
+    parser.add_argument("--clip_layer_name", type=str, default='', 
+                       help="What layer of clip to use?")
+    parser.add_argument("--clip_model_architecture", type=str, default='RN50', 
+                       help="What model architecture used for this version of clip?")
+    parser.add_argument("--use_pca_clip_feats", type=int, default=1, 
+                       help="use reduced-dim version of clip features?")
+
+    
     args = parser.parse_args()
     
     # print values of a few key things to the command line...

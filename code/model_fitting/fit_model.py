@@ -51,6 +51,8 @@ def fit_fwrf(fitting_types, model_name, \
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              use_pca_alexnet_feats = False, \
+             clip_layer_name='Block15', clip_model_architecture='RN50', \
+             use_pca_clip_feats = True, \
              semantic_discrim_type=None, \
              which_prf_grid=1, save_pred_data=False):
     
@@ -326,6 +328,24 @@ def fit_fwrf(fitting_types, model_name, \
                                  min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
+        elif 'clip' in ft:
+            if clip_layer_name=='all_resblocks':
+                n_layers = 16
+                names = ['Block%d'%(ll) for ll in range(n_layers)]
+                for ll in range(n_layers):
+                    _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
+                                 layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
+                                 model_architecture=clip_model_architecture,\
+                                 use_pca_feats=use_pca_clip_feats);
+                    fe.append(_feature_extractor)   
+                    fe_names.append('clip_%s'%names[ll])
+            else:
+                _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
+                                 layer_name=clip_layer_name, device=device, which_prf_grid=which_prf_grid, \
+                                 model_architecture=clip_model_architecture,\
+                                 use_pca_feats=use_pca_clip_feats);
+                fe.append(_feature_extractor)
+                fe_names.append(ft)   
         elif 'semantic' in ft:
             _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
                                     discrim_type=semantic_discrim_type, device=device, \
@@ -554,6 +574,9 @@ if __name__ == '__main__':
              alexnet_layer_name = args.alexnet_layer_name, \
              alexnet_padding_mode = args.alexnet_padding_mode, \
              use_pca_alexnet_feats = args.use_pca_alexnet_feats==1, \
+             clip_layer_name = args.clip_layer_name, \
+             clip_model_architecture = args.clip_model_architecture, \
+             use_pca_clip_feats = args.use_pca_clip_feats==1,\
              which_prf_grid = args.which_prf_grid, \
              save_pred_data = args.save_pred_data==1)
              

@@ -434,7 +434,7 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
             n_comp_needed = n_comp_needed[0][0]
         else:
             n_comp_needed = scores.shape[1]
-        print('Retaining %d components to explain %d pct var'%n_comp_needed)
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
         
         scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
         scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan

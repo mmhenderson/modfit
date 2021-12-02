@@ -13,6 +13,7 @@ code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils
 from model_fitting import initialize_fitting
+from feature_extraction import pca_feats
 
 # clip implemented in this package, from:
 # https://github.com/openai/CLIP
@@ -24,7 +25,7 @@ dtype=np.float32
 n_features_each_resnet_block = [256,256,256, 512,512,512,512, 1024,1024,1024,1024,1024,1024, 2048,2048,2048]
 resnet_block_names = ['block%d'%nn for nn in range(len(n_features_each_resnet_block))]
 
-def get_features_each_prf(subject, use_node_storage=False, debug=False, \
+def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=False, \
                           which_prf_grid=1):
     """
     Extract the portion of CNN feature maps corresponding to each pRF in the grid.
@@ -62,7 +63,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
 
     with torch.no_grad():
 
-        for ll in range(n_blocks):
+        for ll in block_inds_do:
             
             # doing the whole procedure of feature extraction one layer at a time
             # otherwise will run out of memory bc huge arrays.
@@ -79,7 +80,7 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
                 batch_inds = np.arange(batch_size * bb, np.min([batch_size * (bb+1), n_images]))
 
                 # using grayscale images for better comparison w my other models.
-                # need to tile to 3 so alexnet weights will be right size
+                # need to tile to 3 so model weights will be right size
                 image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
 
                 gc.collect()
@@ -232,7 +233,34 @@ if __name__ == '__main__':
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")
+    parser.add_argument("--max_pc_to_retain", type=int,default=0,
+                    help="max pc to retain? enter 0 for None")
+    parser.add_argument("--min_pct_var", type=int,default=95,
+                    help="min pct var to explain? default 95")
     
     args = parser.parse_args()
     
-    get_features_each_prf(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)
+    n_blocks = len(resnet_block_names)
+    for ll in range(n_blocks):
+        # The clip activations are big, so going to make each layer and then delete
+        # it as soon as pca is done.
+        get_features_each_prf(subject = args.subject, block_inds_do = [ll], use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)
+
+        sys.stdout.flush()
+            
+        layer = 'block%d'%(ll)
+        pca_feats.run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=False, which_prf_grid=args.which_prf_grid)  
+        
+        model_architecture = 'RN50'
+        if args.use_node_storage:
+            clip_feat_path = default_paths.clip_feat_path_localnode
+        else:
+            clip_feat_path = default_paths.clip_feat_path
+        big_fn = os.path.join(clip_feat_path, \
+                   'S%d_%s_%s_features_each_prf_grid%d.h5py'%(args.subject, model_architecture,\
+                                           resnet_block_names[ll], args.which_prf_grid))
+        print('removing big activations file: %s'%big_fn)
+        sys.stdout.flush()
+        os.remove(big_fn)
+        
+        print('big file removed.')

@@ -15,7 +15,6 @@ ROOT=$(pwd)
 
 debug=0
 up_to_sess=40
-which_prf_grid=5
 
 subj=1
 volume_space=1
@@ -23,34 +22,28 @@ ridge=1
 sample_batch_size=100
 voxel_batch_size=100
 zscore_features=1
-zscore_in_groups=0
 
-fitting_type=pyramid_texture
-group_all_hl_feats=1
-use_pca_pyr_feats_ll=0
-use_pca_pyr_feats_hl=1
-
-min_pct_var=95
-max_pc_to_retain_pyr_ll=100
-max_pc_to_retain_pyr_hl=100
+which_prf_grid=5
+use_precomputed_prfs=1
 
 do_stack=0
 do_roi_recons=0
 do_voxel_recons=0
-
-do_fitting=1
-date_str=0
-do_val=1
 do_tuning=1
 do_sem_disc=1
 
+fitting_type=pyramid_texture
+
+n_ori_pyr=4
+n_sf_pyr=4
+group_all_hl_feats=1
+use_pca_pyr_feats_ll=1
+use_pca_pyr_feats_hl=1
+min_pct_var=95
+max_pc_to_retain_pyr_ll=100
+max_pc_to_retain_pyr_hl=100
+
+
 cd $ROOT/code/model_fitting
 
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_pyr_feats_ll $use_pca_pyr_feats_ll --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --min_pct_var $min_pct_var --max_pc_to_retain_pyr_ll $max_pc_to_retain_pyr_ll --max_pc_to_retain_pyr_hl $max_pc_to_retain_pyr_hl --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --which_prf_grid $which_prf_grid --do_fitting $do_fitting --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --group_all_hl_feats $group_all_hl_feats
-
-up_to_sess=20
-group_all_hl_feats=0
-use_pca_pyr_feats_hl=0
-use_pca_pyr_feats_ll=0
-
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --zscore_in_groups $zscore_in_groups --ridge $ridge --use_pca_pyr_feats_ll $use_pca_pyr_feats_ll --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --min_pct_var $min_pct_var --max_pc_to_retain_pyr_ll $max_pc_to_retain_pyr_ll --max_pc_to_retain_pyr_hl $max_pc_to_retain_pyr_hl --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --which_prf_grid $which_prf_grid --do_fitting $do_fitting --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --group_all_hl_feats $group_all_hl_feats
+python3 fit_model.py --subject $subj --debug $debug --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --which_prf_grid $which_prf_grid --use_precomputed_prfs $use_precomputed_prfs --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_ll $use_pca_pyr_feats_ll --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --min_pct_var $min_pct_var --max_pc_to_retain_pyr_ll $max_pc_to_retain_pyr_ll --max_pc_to_retain_pyr_hl $max_pc_to_retain_pyr_hl

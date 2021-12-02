@@ -30,7 +30,7 @@ def get_args():
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=int,default=1,
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
-    parser.add_argument("--zscore_in_groups", type=int,default=1,
+    parser.add_argument("--zscore_in_groups", type=int,default=0,
                     help="want to z-score groups of columns together, rather than each individually?")
    
     
@@ -77,32 +77,39 @@ def get_args():
     parser.add_argument("--shuff_rnd_seed", type=int,default=0,
                     help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
    
-    # Stuff that is specific to 'gabor' or 'texture' models
-    parser.add_argument("--n_ori", type=int,default=4,
-                    help="number of orientation channels to use")
-    parser.add_argument("--n_sf", type=int,default=4,
-                    help="number of spatial frequency channels to use")
-    parser.add_argument("--gabor_nonlin_fn", type=int,default=0,
-                    help="want to add nonlinearity to gabor features? 1 for yes, 0 for no")
-    
-    parser.add_argument("--group_all_hl_feats", type=int,default=0,
-                    help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
-    
-    # Stuff that is specific to PCA
-    parser.add_argument("--use_pca_pyr_feats_ll", type=int, default=1,
-                    help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
-    parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
-                    help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
-    
+    # general PCA arguments
     parser.add_argument("--min_pct_var", type=int,default=95,
                     help="minimum percent var to use when choosing num pcs to retain, default 95")
     parser.add_argument("--max_pc_to_retain", type=int,default=100,
                     help="maximum number of pcs to retain, default 100")
+    
+
+    # Stuff that is specific to 'gabor' or 'texture' models
+    parser.add_argument("--n_ori_gabor", type=int,default=4,
+                    help="number of orientation channels to use")
+    parser.add_argument("--n_sf_gabor", type=int,default=4,
+                    help="number of spatial frequency channels to use")
+    parser.add_argument("--gabor_nonlin_fn", type=int,default=0,
+                    help="want to add nonlinearity to gabor features? 1 for yes, 0 for no")
+    
+    
+    # Stuff that is specific to pyramid model
+    parser.add_argument("--n_ori_pyr", type=int,default=4,
+                    help="number of orientation channels to use")
+    parser.add_argument("--n_sf_pyr", type=int,default=4,
+                    help="number of spatial frequency channels to use")
+    parser.add_argument("--use_pca_pyr_feats_ll", type=int, default=1,
+                    help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
+    parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
+                    help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain_pyr_ll", type=int,default=100,
                     help="maximum number of pcs to retain, default 100")
     parser.add_argument("--max_pc_to_retain_pyr_hl", type=int,default=100,
                     help="maximum number of pcs to retain, default 100")
-  
+    parser.add_argument("--group_all_hl_feats", type=int,default=0,
+                    help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
+    
+   
     # Specific to sketch tokens
     parser.add_argument("--use_pca_st_feats", type=int, default=0,
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")

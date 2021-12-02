@@ -31,6 +31,85 @@ def init_cuda():
 
     return device
 
+def get_full_save_name(args):
+
+    print(args.fitting_type)
+    if args.fitting_type=='full_midlevel':
+        fitting_types = ['gabor_solo', 'pyramid_texture','sketch_tokens']        
+    else:
+        fitting_types = [args.fitting_type]
+    
+    if not (args.fitting_type2==''):
+        fitting_types += [args.fitting_type2]
+       
+    print(fitting_types)
+    model_names = []
+    for ft in fitting_types:
+
+        if 'pyramid' in ft:
+            model_name = 'texture_pyramid'
+            if args.ridge==True:   
+                model_name += '_ridge'
+            else:
+                model_name += '_OLS'
+            model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
+            if args.use_pca_pyr_feats_ll:
+                model_name += '_pca_LL'   
+            if args.use_pca_pyr_feats_hl:
+                model_name += '_pca_HL'   
+        elif 'gabor_texture' in ft:      
+            model_name = 'texture_gabor'
+            if args.ridge==True:   
+                model_name += '_ridge'
+            else:
+                model_name += '_OLS'
+            model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
+        elif 'gabor_solo' in ft:        
+            model_name = 'gabor_solo'
+            if args.ridge==True:   
+                model_name += '_ridge'
+            else:
+                model_name += '_OLS'
+            model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
+        elif 'sketch_tokens' in ft:      
+            if args.use_pca_st_feats==True:       
+                model_name = 'sketch_tokens_pca_max%ddim'%args.max_pc_to_retain
+            elif args.use_lda_st_feats==True:
+                model_name = 'sketch_tokens_lda_%s'%args.lda_discrim_type
+            else:        
+                model_name = 'sketch_tokens'
+        elif 'alexnet' in ft:
+            if 'ReLU' in args.alexnet_layer_name:
+                name = args.alexnet_layer_name.split('_')[0]
+            else:
+                name = args.alexnet_layer_name
+            model_name = 'alexnet_%s'%name
+            if args.use_pca_alexnet_feats:
+                model_name += '_pca'
+        elif 'clip' in ft:
+            model_name = 'clip_%s_%s'%(args.clip_model_architecture, args.clip_layer_name)
+            if args.use_pca_clip_feats:
+                model_name += '_pca'
+        elif 'semantic' in ft:
+            model_name = 'semantic_%s'%args.semantic_discrim_type            
+        else:
+            raise ValueError('fitting type "%s" not recognized'%ft)
+        
+        model_names.append(model_name)
+        
+    if args.fitting_type=='full_midlevel':
+        # shorten this one because gets too long
+        model_name = 'full_midlevel'
+        for mn in model_names[3:]:
+            model_name += '_plus_%s'%mn
+    else:
+        model_name = model_names[0]
+        for mn in model_names[1:]:
+            model_name += '_plus_%s'%mn 
+
+    return model_name, fitting_types
+
+
 def get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str=None):
     
     # choose where to save results of fitting - always making a new file w current timestamp.
@@ -72,74 +151,6 @@ def get_save_path(subject, volume_space, model_name, shuffle_images, random_imag
     
     return output_dir, fn2save
  
-def get_semantic_model_name(semantic_discrim_type):
-    
-    model_name = 'semantic_%s'%semantic_discrim_type
-    
-    return model_name
-    
-def get_alexnet_model_name(alexnet_layer_name, use_pca_alexnet_feats):
-    
-    if 'ReLU' in alexnet_layer_name:
-        name = alexnet_layer_name.split('_')[0]
-    else:
-        name = alexnet_layer_name
-    model_name = 'alexnet_%s'%name
-    if use_pca_alexnet_feats:
-        model_name += '_pca'
-    
-    return model_name
-    
-def get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll=False, use_pca_pyr_feats_hl=False):
-
-    if ridge==True:       
-        # ridge regression, testing several positive lambda values (default)
-        model_name = 'texture_pyramid_ridge_%dori_%dsf'%(n_ori, n_sf)        
-    else:    
-        # fixing lambda at zero, so it turns into ordinary least squares
-        model_name = 'texture_pyramid_OLS_%dori_%dsf'%(n_ori, n_sf)
-        
-    if use_pca_pyr_feats_ll:
-        model_name += '_pca_LL'   
-    if use_pca_pyr_feats_hl:
-        model_name += '_pca_HL'   
-   
-    return model_name
-
-def get_gabor_texture_model_name(ridge, n_ori, n_sf):
-    
-    if ridge==True:       
-        # ridge regression, testing several positive lambda values (default)
-        model_name = 'texture_gabor_ridge_%dori_%dsf'%(n_ori, n_sf)
-    else:        
-        # fixing lambda at zero, so it turns into ordinary least squares
-        model_name = 'texture_gabor_OLS_%dori_%dsf'%(n_ori, n_sf)
-
-    return model_name
-
-def get_gabor_solo_model_name(ridge, n_ori, n_sf):
-    
-    if ridge==True:       
-        # ridge regression, testing several positive lambda values (default)
-        model_name = 'gabor_solo_ridge_%dori_%dsf'%(n_ori, n_sf)
-    else:        
-        # fixing lambda at zero, so it turns into ordinary least squares
-        model_name = 'gabor_solo_OLS_%dori_%dsf'%(n_ori, n_sf)
-
-    return model_name
-
-def get_sketch_tokens_model_name(use_pca_st_feats, use_lda_st_feats, \
-                                 lda_discrim_type, max_pc_to_retain):
-
-    if use_pca_st_feats==True:       
-        model_name = 'sketch_tokens_pca_max%ddim'%max_pc_to_retain
-    elif use_lda_st_feats==True:
-        model_name = 'sketch_tokens_lda_%s'%lda_discrim_type
-    else:        
-        model_name = 'sketch_tokens'
-    
-    return model_name
-
 def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10, gabor_nonlin_fn=False):
 
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))
@@ -199,11 +210,10 @@ def get_prf_models(which_grid=5):
     
     return models
 
-def load_precomputed_prfs(fitting_type, subject):
+def load_precomputed_prfs(subject):
     
     if subject==1:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')
-    
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')    
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 
@@ -237,14 +247,7 @@ def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonli
                              pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, \
                              complex_cell=False, padding_mode = padding_mode, nonlin_fn=nonlin, \
                              RGB=False, device = device)
-    
-#     if nonlin_fn:
-#         # adding a nonlinearity to the filter activations
-#         print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
-#         _fmaps_fn_complex = gabor_feature_extractor.add_nonlinearity(_gabor_ext_complex, lambda x: torch.log(1+torch.sqrt(x)))
-#         _fmaps_fn_complex.n_ori = _gabor_ext_complex.n_ori
-#         _fmaps_fn_simple = gabor_feature_extractor.add_nonlinearity(_gabor_ext_simple, lambda x: torch.log(1+torch.sqrt(x)))       
-#     else:
+
     _fmaps_fn_complex = _gabor_ext_complex
     _fmaps_fn_simple = _gabor_ext_simple
 

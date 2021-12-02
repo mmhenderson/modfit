@@ -33,9 +33,10 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 #################################################################################################
         
     
-def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
+def fit_fwrf(fitting_types, model_name, \
              subject=1, volume_space = True, up_to_sess = 1, single_sess = None,\
-             n_ori = 4, n_sf = 4, gabor_nonlin_fn=False, \
+             n_ori_pyr = 4, n_sf_pyr = 4, \
+             n_ori_gabor = 4, n_sf_gabor = 4, gabor_nonlin_fn=False, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
              zscore_features = True, zscore_in_groups = False, ridge = True, \
@@ -50,6 +51,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
              max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              use_pca_alexnet_feats = False, \
+             semantic_discrim_type=None, \
              which_prf_grid=1, save_pred_data=False):
     
     def save_all(fn2save):
@@ -60,8 +62,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         dict2save = {
         'subject': subject,
         'volume_space': volume_space,
-        'fitting_type': fitting_type,
-        'fitting_type2': fitting_type2,
+        'fitting_types': fitting_types, 
         'voxel_mask': voxel_mask,
         'brain_nii_shape': brain_nii_shape,
         'image_order': image_order,
@@ -119,11 +120,11 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             'val_voxel_data_pred': val_voxel_data_pred,
             'val_stim_data': val_stim_data,
             })
-        if 'semantic' in fitting_type or (fitting_type2 is not None and 'semantic' in fitting_type2):
+        if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
             'semantic_discrim_type': semantic_discrim_type,
             })
-        if 'sketch_tokens' in fitting_type or (fitting_type2 is not None and 'sketch_tokens' in fitting_type2):
+        if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({
             'min_pct_var': min_pct_var,
             'max_pc_to_retain': max_pc_to_retain,           
@@ -131,17 +132,17 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             'use_lda_st_feats': use_lda_st_feats,
             'lda_discrim_type': lda_discrim_type, 
             })          
-        if 'pyramid' in fitting_type or (fitting_type2 is not None and 'pyramid' in fitting_type2):
+        if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
             'min_pct_var': min_pct_var,
             'max_pc_to_retain_pyr_ll': max_pc_to_retain_pyr_ll,
             'max_pc_to_retain_pyr_hl': max_pc_to_retain_pyr_hl,
             'use_pca_pyr_feats_ll': use_pca_pyr_feats_ll,
             'use_pca_pyr_feats_hl': use_pca_pyr_feats_hl,
-            'feature_info':feature_info,
+            'pyramid_feature_info':pyramid_feature_info,
             'group_all_hl_feats': group_all_hl_feats,
             })            
-        if 'gabor' in fitting_type or (fitting_type2 is not None and 'gabor' in fitting_type2):
+        if np.any(['gabor' in ft for ft in fitting_types]):
             dict2save.update({
             'feature_table_simple': _gabor_ext_simple.feature_table,
             'filter_pars_simple': _gabor_ext_simple.gabor_filter_pars,
@@ -150,12 +151,12 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             'filter_pars_complex': _gabor_ext_complex.gabor_filter_pars,
             'orient_filters_complex': _gabor_ext_complex.filter_stack, 
             'feature_types_exclude': feature_types_exclude,
-            'feature_info':feature_info,
+            'gabor_feature_info':gabor_feature_info,
             'autocorr_output_pix': autocorr_output_pix,
             'group_all_hl_feats': group_all_hl_feats,
             'gabor_nonlin_fn': gabor_nonlin_fn,
             })
-        if 'alexnet' in fitting_type or (fitting_type2 is not None and 'alexnet' in fitting_type2):
+        if np.any(['alexnet' in ft for ft in fitting_types]):
             dict2save.update({
             'alexnet_layer_name': alexnet_layer_name,
             'alexnet_padding_mode': alexnet_padding_mode,
@@ -163,89 +164,41 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
             'min_pct_var': min_pct_var,
             'max_pc_to_retain': max_pc_to_retain,    
             })
+        if np.any(['clip' in ft for ft in fitting_types]):
+            dict2save.update({
+            'clip_layer_name': alexnet_layer_name,
+            'clip_model_architecture': clip_model_architecture,
+            'use_pca_clip_feats': use_pca_clip_feats,   
+            })
 
         print('\nSaving to %s\n'%fn2save)
         torch.save(dict2save, fn2save, pickle_protocol=4)
 
-    if fitting_type2=='':
-        fitting_type2 = None
     if date_str==0 or date_str=='0' or date_str=='':
         date_str = None
     if alexnet_padding_mode=='':
         alexnet_padding_mode=None
     if single_sess==0:
-        single_sess=None
-        
+        single_sess=None        
+    if use_pca_st_feats:
+        # not allowing both of these to be true
+        use_lda_st_feats = False
+        lda_discrim_type=None    
     if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
-
     if do_fitting==True and date_str is not None:
-        raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')
-        
+        raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')       
     if not do_fitting and do_stack:
-        raise ValueError('to do stacking analysis, need to start from scratch (--do_fitting=True)')
-    
+        raise ValueError('to do stacking analysis, need to start from scratch (--do_fitting=True)')  
     if (do_sem_disc or do_tuning) and not do_val:
-        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')
-
-    if 'pyramid' in fitting_type:
-        model_name = initialize_fitting.get_pyramid_model_name(ridge, n_ori, n_sf, use_pca_pyr_feats_ll = use_pca_pyr_feats_ll, use_pca_pyr_feats_hl = use_pca_pyr_feats_hl)
-        feature_types_exclude = []
-        name1 = 'pyramid_texture'
-        
-    elif 'gabor_texture' in fitting_type:        
-        model_name = initialize_fitting.get_gabor_texture_model_name(ridge, n_ori, n_sf)
-        feature_types_exclude = []
-        name1 = 'gabor_texture'
-        
-    elif 'gabor_solo' in fitting_type:        
-        model_name = initialize_fitting.get_gabor_solo_model_name(ridge, n_ori, n_sf)
-        feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
-        name1 = 'gabor_solo'
-    
-    elif 'sketch_tokens' in fitting_type:
-        if use_pca_st_feats:
-            # not allowing both of these to be true
-            use_lda_st_feats = False
-            lda_discrim_type=None
-        model_name = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
-                                         use_lda_st_feats, lda_discrim_type, max_pc_to_retain)   
-        name1 = 'sketch_tokens'
-        
-    elif 'alexnet' in fitting_type:
-        model_name = initialize_fitting.get_alexnet_model_name(alexnet_layer_name, use_pca_alexnet_feats)   
-        name1 = 'alexnet'
-    elif 'semantic' in fitting_type:
-        model_name = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
-        name1 = semantic_discrim_type
-    else:
-        raise ValueError('fitting type "%s" not recognized'%fitting_type2)
-        
-    if fitting_type2 is not None:
-        if 'sketch_tokens' in fitting_type2:
-            model_name2 = initialize_fitting.get_sketch_tokens_model_name(use_pca_st_feats, \
-                                                  use_lda_st_feats,lda_discrim_type, max_pc_to_retain)   
-            name2 = 'sketch_tokens'
-        elif 'alexnet' in fitting_type2:
-            model_name2 = initialize_fitting.get_alexnet_model_name(alexnet_layer_name, \
-                                                                    use_pca_alexnet_feats)
-            name2 = 'alexnet'
-        elif 'semantic' in fitting_type2:
-            model_name2 = initialize_fitting.get_semantic_model_name(semantic_discrim_type)
-            name2 = semantic_discrim_type       
-        else: 
-            raise ValueError('fitting type 2 "%s" not recognized'%fitting_type2)
-        model_name = model_name + '_plus_' + model_name2    
-
-    
+        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')    
     if do_stack:
         stack_result = None
         stack_result_lo = None
         partial_models_used_for_stack = None
         train_r2 = None
         train_cc = None
-        model_name += '_stacked'
-        
+        model_name += '_stacked'       
     if do_voxel_recons:
         voxel_recs = None
     if do_roi_recons:
@@ -290,7 +243,7 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 
 
     if use_precomputed_prfs:
-        best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(fitting_type,subject)
+        best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(subject)
         print(trn_voxel_data.shape)
         print(len(best_model_each_voxel))
         assert(len(best_model_each_voxel)==trn_voxel_data.shape[1])
@@ -298,97 +251,93 @@ def fit_fwrf(fitting_type, fitting_type2=None, semantic_discrim_type=None,\
         best_model_each_voxel = None
         saved_prfs_fn = None
         
-    if 'pyramid' in fitting_type:
+    # Create the feature extractor modules 
+    # (mostly what it does it load sets of pre-computed features in organized way)
+    fe = []
+    fe_names = []
+    for ft in fitting_types:   
         
-        # Set up the pyramid
-        compute_features = False
-        _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
-        # Initialize the "texture" model which builds on first level feature maps
-        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                  subject=subject, feature_types_exclude=feature_types_exclude, \
-                  which_prf_grid=which_prf_grid, \
-                  do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
-                  group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
-                  use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
-                  min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
-                  max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
-        feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+        if 'pyramid' in ft:
+            # Set up the pyramid
+            compute_features = False
+            feature_types_exclude = []
+            _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf_pyr, n_ori = n_ori_pyr)
+            # Initialize the "texture" model which builds on first level feature maps
+            _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
+                      subject=subject, feature_types_exclude=feature_types_exclude, \
+                      which_prf_grid=which_prf_grid, \
+                      do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
+                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
+                      use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
+                      min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
+                      max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
+            fe.append(_feature_extractor)
+            fe_names.append(ft)
+            pyramid_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
         
-    elif 'gabor' in fitting_type:
-        
-        # Set up the Gabor filtering modules
-        _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device,\
-                                                            nonlin_fn=gabor_nonlin_fn);    
-        # Initialize the "texture" model which builds on first level feature maps
-        autocorr_output_pix=5
-        compute_features = False
-        _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
-                                subject=subject, which_prf_grid=which_prf_grid, \
-                                autocorr_output_pix=autocorr_output_pix, \
-                                feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
-                                group_all_hl_feats=group_all_hl_feats, nonlin_fn=gabor_nonlin_fn, compute_features = compute_features, \
-                                device=device)      
-        feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
-        
-    elif 'sketch_tokens' in fitting_type:
+        elif 'gabor' in ft:
+            if 'solo' in ft:
+                feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
+                group_all_hl_feats_gabor = False
+            elif 'texture' in ft:
+                feature_types_exclude = []
+                group_all_hl_feats_gabor = group_all_hl_feats
+            # Set up the Gabor filtering modules
+            _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
+                        initialize_fitting.get_gabor_feature_map_fn(n_ori_gabor, n_sf_gabor,device=device,\
+                        nonlin_fn=gabor_nonlin_fn);    
+            # Initialize the "texture" model which builds on first level feature maps
+            autocorr_output_pix=5
+            compute_features = False
+            _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
+                        subject=subject, which_prf_grid=which_prf_grid, \
+                        autocorr_output_pix=autocorr_output_pix, \
+                        feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
+                        group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=gabor_nonlin_fn, \
+                        compute_features = compute_features, device=device)      
+            fe.append(_feature_extractor)
+            fe_names.append(ft)
+            gabor_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
 
-        _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
-                 which_prf_grid=which_prf_grid, \
-                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                 use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, zscore_in_groups = zscore_in_groups)
-    
-    elif 'alexnet' in fitting_type:
-        
-        if alexnet_layer_name=='all_conv':
-            assert(fitting_type2 is None)
-            fe = []
-            n_layers = 5
-            names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
-            for ll in range(n_layers):
-                fe.append(alexnet_features.alexnet_feature_extractor(subject=subject, \
-                             layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
-                             padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
-                             min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain))
-            _feature_extractor = merge_features.combined_feature_extractor(fe, names, do_varpart=do_varpart)
-               
-        else:
-            _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                     layer_name=alexnet_layer_name, device=device, \
-                                     which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
-                                     use_pca_feats=use_pca_alexnet_feats, \
-                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
-    elif 'semantic' in fitting_type:
-        _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
-                                    discrim_type=semantic_discrim_type, device=device, \
-                                                                          which_prf_grid=which_prf_grid)
-        
-    if fitting_type2 is not None:
-
-        if 'sketch_tokens' in fitting_type2:
-
-            _feature_extractor2 = sketch_token_features.sketch_token_feature_extractor(subject=subject, \
-                device=device,which_prf_grid=which_prf_grid, \
-                 use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-             use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type,\
-                                       zscore_in_groups = zscore_in_groups)
-            
-        elif 'alexnet' in fitting_type2:
-            assert(alexnet_layer_name is not 'all_conv')
-            _feature_extractor2 = alexnet_features.alexnet_feature_extractor(subject=subject, \
+        elif 'sketch_tokens' in ft:
+            _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                     which_prf_grid=which_prf_grid, \
+                     use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                     use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, \
+                     zscore_in_groups = zscore_in_groups)
+            fe.append(_feature_extractor)
+            fe_names.append(ft)
+        elif 'alexnet' in ft:
+            if alexnet_layer_name=='all_conv':
+                n_layers = 5
+                names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
+                for ll in range(n_layers):
+                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                 layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
+                                 padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
+                                 min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                    fe.append(_feature_extractor)   
+                    fe_names.append('alexnet_%s'%names[ll])
+            else:
+                _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                  layer_name=alexnet_layer_name, device=device, \
                                  which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
                                  use_pca_feats=use_pca_alexnet_feats, \
                                  min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
-        elif 'semantic' in fitting_type2:
-            _feature_extractor2 = semantic_features.semantic_feature_extractor(subject=subject, \
+                fe.append(_feature_extractor)
+                fe_names.append(ft)
+        elif 'semantic' in ft:
+            _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
                                     discrim_type=semantic_discrim_type, device=device, \
-                                                                          which_prf_grid=which_prf_grid)
+                                    which_prf_grid=which_prf_grid)
+            fe.append(_feature_extractor)
+            fe_names.append(ft)
+    # Combine subsets of features here (can just be one)
+    if len(fe)>1:
+        _feature_extractor = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = do_varpart)
+    else:
+        _feature_extractor = fe[0]
         
-            
-        _feature_extractor = merge_features.combined_feature_extractor([_feature_extractor, \
-                                _feature_extractor2], [name1,name2], do_varpart = do_varpart)
-
     #### DO THE ACTUAL MODEL FITTING HERE ####
     
     if do_fitting:
@@ -573,12 +522,15 @@ if __name__ == '__main__':
     args = arg_parser.get_args()
    
     # now actually call the function to execute fitting...
- 
-    fit_fwrf(fitting_type = args.fitting_type, fitting_type2 = args.fitting_type2, \
+    model_name, fitting_types = initialize_fitting.get_full_save_name(args)
+
+    fit_fwrf(fitting_types = fitting_types, model_name = model_name, \
              semantic_discrim_type = args.semantic_discrim_type, \
              subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, single_sess = args.single_sess, \
-             n_ori = args.n_ori, n_sf = args.n_sf, gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
+             n_ori_pyr = args.n_ori_pyr, n_sf_pyr = args.n_sf_pyr, \
+             n_ori_gabor = args.n_ori_gabor, n_sf_gabor = args.n_sf_gabor, \
+             gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
              zscore_features = args.zscore_features==1, zscore_in_groups = args.zscore_in_groups==1, \

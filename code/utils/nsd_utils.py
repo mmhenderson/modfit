@@ -7,6 +7,7 @@ import PIL.Image
 import nibabel as nib
 import pandas as pd
 import pickle
+import time
 
 from utils import default_paths, roi_utils
 
@@ -169,7 +170,34 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
         
     return betas_full
        
+def get_concat_betas(subject, debug=False):
+    
+    print('\nProcessing subject %d\n'%subject)
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, \
+                                                    volume_space=True, include_all=True, include_body=True)    
+    if debug:
+        sessions = [0]
+    else:
+        sessions = np.arange(max_sess_each_subj[subject-1])
+    zscore_betas_within_sess = True
+    volume_space=True
+    voxel_data = load_betas(subject, sessions, voxel_mask=voxel_mask, \
+                                      zscore_betas_within_sess=zscore_betas_within_sess, \
+                                      volume_space=volume_space)
+    print('\nSize of full data set [nTrials x nVoxels] is:')
+    print(voxel_data.shape)
 
+    save_fn = os.path.join(default_paths.nsd_data_concat_root, 'S%d_allsess_concat_visual.h5py'%subject)
+
+    t = time.time()
+    print('saving file to %s'%save_fn)
+    with h5py.File(save_fn, 'w') as data_set:
+        dset = data_set.create_dataset("betas", np.shape(voxel_data), dtype=np.float64)
+        data_set['/betas'][:,:] = voxel_data
+        data_set.close()  
+    elapsed = time.time() - t
+    print('took %.5f sec'%elapsed)
+    
 def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=None, zscore_betas_within_sess=True, volume_space=True, \
                     shuffle_images=False, random_images=False, random_voxel_data=False):
 

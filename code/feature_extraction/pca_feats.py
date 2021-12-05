@@ -345,8 +345,8 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
     path_to_load = default_paths.clip_feat_path
 
     model_architecture = 'RN50'
-    features_file = os.path.join(path_to_load, 'S%d_%s_%s_features_each_prf_grid%d.h5py'%\
-                                 (subject, model_architecture,layer_name, which_prf_grid))
+    features_file = os.path.join(path_to_load, 'S%d_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%\
+                                 (subject, model_architecture,layer_name, which_prf_grid, 0))
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
     with h5py.File(features_file, 'r') as data_set:
@@ -361,9 +361,9 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     
-    n_prfs = models.shape[0]
-    assert(n_prfs==dsize[2])
-    prf_batch_size = 50 # batching prfs for loading
+    n_prfs = models.shape[0] 
+    prf_batch_size = 100 # batching prfs for loading
+    assert(prf_batch_size==dsize[2])
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
     prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
     prf_inds_loaded = []
@@ -388,14 +388,18 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
             batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
                                      bb in range(len(prf_batch_inds))])[0][0]
             assert(prf_model_index in prf_batch_inds[batch_to_use])
+            # each batch of prfs is in a separate file here
+            features_file = os.path.join(path_to_load, 'S%d_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%\
+                                 (subject, model_architecture,layer_name, which_prf_grid, batch_to_use))
             print('Loading pre-computed features for prf models [%d - %d] from %s'%\
                   (prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1], features_file))
             features_each_prf_batch = None
             prf_inds_loaded = prf_batch_inds[batch_to_use]
             
             t = time.time()
+            
             with h5py.File(features_file, 'r') as data_set:
-                values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                values = np.copy(data_set['/features'][:,:,:])
                 data_set.close() 
             elapsed = time.time() - t
             print('Took %.5f seconds to load file'%elapsed)

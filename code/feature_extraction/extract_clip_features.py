@@ -50,9 +50,12 @@ def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=
     prf_models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     n_prfs = len(prf_models)
     
+    prf_batch_size = 100;
+    n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))
+    
     # Keep these params fixed
     n_prf_sd_out = 2
-    batch_size = 50
+    batch_size = 100
     mult_patch_by_prf = True
     do_avg_pool = True
     model_architecture='RN50'
@@ -65,93 +68,101 @@ def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=
 
         for ll in block_inds_do:
             
-            # doing the whole procedure of feature extraction one layer at a time
-            # otherwise will run out of memory bc huge arrays.
-            features_each_prf = np.zeros((n_images, n_features_each_resnet_block[ll], n_prfs),dtype=dtype)
-
             block_inds = [ll]
-            
-            for bb in range(n_batches):
 
-                if debug and bb>1:
-                    continue
-                print('Processing images for batch %d of %d'%(bb, n_batches))
+            # separate the prfs into batches to save memory.  
+            for pb in range(n_prf_batches):
 
-                batch_inds = np.arange(batch_size * bb, np.min([batch_size * (bb+1), n_images]))
+                prfs_this_batch = np.arange(pb*prf_batch_size, np.min([(pb+1)*prf_batch_size, n_prfs]))
+                print('pRF batch %d, includes:'%pb)
+                print(prfs_this_batch)
+                
+                # doing the whole procedure of feature extraction one layer at a time
+                # otherwise will run out of memory bc huge arrays.
+                features_each_prf = np.zeros((n_images, n_features_each_resnet_block[ll], \
+                                              len(prfs_this_batch)),dtype=dtype)
+                
+                for bb in range(n_batches):
 
-                # using grayscale images for better comparison w my other models.
-                # need to tile to 3 so model weights will be right size
-                image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
-
-                gc.collect()
-                torch.cuda.empty_cache()
-
-                activ_batch = get_clip_activations_batch(image_batch, block_inds, \
-                                                     model_architecture, device=device)
-
-               
-                print('Getting prf-specific activations for %s'%resnet_block_names[ll])
-
-                maps_full_field = torch.moveaxis(activ_batch[0], [0,1,2,3], [0,3,1,2])
-
-                if bb==0:
-                    print('size of maps stack for first batch is:')
-                    print(maps_full_field.shape)
-
-                for mm in range(n_prfs):
-
-                    if debug and mm>1:
+                    if debug and bb>1:
                         continue
+                    print('Processing images for batch %d of %d'%(bb, n_batches))
 
-                    prf_params = prf_models[mm,:]
-                    x,y,sigma = prf_params
-                    print('Getting features for pRF [x,y,sigma]:')
-                    print([x,y,sigma])
-                    n_pix = maps_full_field.shape[1]
+                    batch_inds = np.arange(batch_size * bb, np.min([batch_size * (bb+1), n_images]))
 
-                    # Define the RF for this "model" version
-                    prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                               patch_size=n_pix, aperture=1.0, dtype=np.float32), device=device)
-                    minval = torch.min(prf)
-                    maxval = torch.max(prf-minval)
-                    prf_scaled = (prf - minval)/maxval
+                    # using grayscale images for better comparison w my other models.
+                    # need to tile to 3 so model weights will be right size
+                    image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
 
-                    if mult_patch_by_prf:
-                        # This effectively restricts the spatial location, so no need to crop
-                        maps = maps_full_field * prf_scaled.view([1,n_pix, n_pix,1])
-                    else:
-                        # This is a coarser way of choosing which spatial region to look at
-                        # Crop the patch +/- n SD away from center
-                        bbox = texture_utils.get_bbox_from_prf(prf_params, prf.shape, n_prf_sd_out, \
-                                                       min_pix=None, verbose=False, force_square=False)
-                        print('bbox to crop is:')
-                        print(bbox)
-                        maps = maps_full_field[:,bbox[0]:bbox[1], bbox[2]:bbox[3],:]
+                    gc.collect()
+                    torch.cuda.empty_cache()
 
-                    if do_avg_pool:
-                        features_batch = torch.mean(maps, dim=(1,2))
-                    else:
-                        features_batch = torch.max(maps, dim=(1,2))
+                    activ_batch = get_clip_activations_batch(image_batch, block_inds, \
+                                                         model_architecture, device=device)
 
-                    print('model %d, min/max of features in batch: [%s, %s]'%(mm, \
-                                                  torch.min(features_batch), torch.max(features_batch))) 
 
-                    features_each_prf[batch_inds,:,mm] = torch_utils.get_value(features_batch)
+                    print('Getting prf-specific activations for %s'%resnet_block_names[ll])
 
-            # Now save the results
-            fn2save = os.path.join(clip_feat_path, \
-                   'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, model_architecture,\
-                                           resnet_block_names[ll], which_prf_grid))
-            print('Writing prf features to %s\n'%fn2save)
+                    maps_full_field = torch.moveaxis(activ_batch[0], [0,1,2,3], [0,3,1,2])
 
-            t = time.time()
-            with h5py.File(fn2save, 'w') as data_set:
-                dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float64)
-                data_set['/features'][:,:,:] = features_each_prf
-                data_set.close() 
-            elapsed = time.time() - t
+                    if bb==0:
+                        print('size of maps stack for first batch is:')
+                        print(maps_full_field.shape)
 
-            print('Took %.5f sec to write file'%elapsed)
+                    for mi, mm in enumerate(prfs_this_batch):
+
+                        if debug and mi>1:
+                            continue
+
+                        prf_params = prf_models[mm,:]
+                        x,y,sigma = prf_params
+                        print('Getting features for pRF [x,y,sigma]:')
+                        print([x,y,sigma])
+                        n_pix = maps_full_field.shape[1]
+
+                        # Define the RF for this "model" version
+                        prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=1.0, dtype=np.float32), device=device)
+                        minval = torch.min(prf)
+                        maxval = torch.max(prf-minval)
+                        prf_scaled = (prf - minval)/maxval
+
+                        if mult_patch_by_prf:
+                            # This effectively restricts the spatial location, so no need to crop
+                            maps = maps_full_field * prf_scaled.view([1,n_pix, n_pix,1])
+                        else:
+                            # This is a coarser way of choosing which spatial region to look at
+                            # Crop the patch +/- n SD away from center
+                            bbox = texture_utils.get_bbox_from_prf(prf_params, prf.shape, n_prf_sd_out, \
+                                                           min_pix=None, verbose=False, force_square=False)
+                            print('bbox to crop is:')
+                            print(bbox)
+                            maps = maps_full_field[:,bbox[0]:bbox[1], bbox[2]:bbox[3],:]
+
+                        if do_avg_pool:
+                            features_batch = torch.mean(maps, dim=(1,2))
+                        else:
+                            features_batch = torch.max(maps, dim=(1,2))
+
+                        print('model %d, min/max of features in batch: [%s, %s]'%(mm, \
+                                                      torch.min(features_batch), torch.max(features_batch))) 
+
+                        features_each_prf[batch_inds,:,mi] = torch_utils.get_value(features_batch)
+
+                # Now save the results
+                fn2save = os.path.join(clip_feat_path, \
+                       'S%d_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%(subject, model_architecture,\
+                                               resnet_block_names[ll], which_prf_grid, pb))
+                print('Writing prf features to %s\n'%fn2save)
+
+                t = time.time()
+                with h5py.File(fn2save, 'w') as data_set:
+                    dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float64)
+                    data_set['/features'][:,:,:] = features_each_prf
+                    data_set.close() 
+                elapsed = time.time() - t
+
+                print('Took %.5f sec to write file'%elapsed)
 
 
 def get_clip_activations_batch(image_batch, block_inds, model_architecture, device=None):
@@ -241,7 +252,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     n_blocks = len(resnet_block_names)
-    for ll in range(n_blocks):
+    blocks_to_do = np.arange(13,n_blocks)
+    for ll in blocks_to_do:     
+#     for ll in range(n_blocks):
+
         # The clip activations are big, so going to make each layer and then delete
         # it as soon as pca is done.
         get_features_each_prf(subject = args.subject, block_inds_do = [ll], use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)
@@ -256,11 +270,14 @@ if __name__ == '__main__':
             clip_feat_path = default_paths.clip_feat_path_localnode
         else:
             clip_feat_path = default_paths.clip_feat_path
-        big_fn = os.path.join(clip_feat_path, \
-                   'S%d_%s_%s_features_each_prf_grid%d.h5py'%(args.subject, model_architecture,\
-                                           resnet_block_names[ll], args.which_prf_grid))
-        print('removing big activations file: %s'%big_fn)
-        sys.stdout.flush()
-        os.remove(big_fn)
-        
-        print('big file removed.')
+            
+        n_prf_batches = 15;
+        for pb in range(n_prf_batches):
+            big_fn = os.path.join(clip_feat_path, \
+                       'S%d_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%(args.subject, model_architecture,\
+                                               resnet_block_names[ll], args.which_prf_grid, pb))
+            print('removing big activations file: %s'%big_fn)
+            sys.stdout.flush()
+            os.remove(big_fn)
+
+            print('big file removed.')

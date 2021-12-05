@@ -18,7 +18,7 @@ import skimage.transform
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
 from feature_extraction import texture_statistics_gabor, sketch_token_features, \
-                texture_statistics_pyramid, alexnet_features, semantic_features
+                texture_statistics_pyramid, alexnet_features, semantic_features, clip_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
@@ -331,7 +331,7 @@ def fit_fwrf(fitting_types, model_name, \
         elif 'clip' in ft:
             if clip_layer_name=='all_resblocks':
                 n_layers = 16
-                names = ['Block%d'%(ll) for ll in range(n_layers)]
+                names = ['block%d'%(ll) for ll in range(n_layers)]
                 for ll in range(n_layers):
                     _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
                                  layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \

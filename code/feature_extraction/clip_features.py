@@ -10,7 +10,7 @@ from utils import default_paths, torch_utils
 clip_feat_path = default_paths.clip_feat_path
 from feature_extraction import extract_clip_features
 clip_layer_names  = extract_clip_features.resnet_block_names
-n_features_each_layer = extract_clip_features.nn_features_each_resnet_block
+n_features_each_layer = extract_clip_features.n_features_each_resnet_block
 
 class clip_feature_extractor(nn.Module):
     
@@ -33,7 +33,7 @@ class clip_feature_extractor(nn.Module):
            
         if self.use_pca_feats:
             self.features_file = os.path.join(clip_feat_path, 'PCA', \
-              'S%d_%s_%s_PCA_grid%d.npy'%(self.subject, self.model_architecture, \
+              'S%d_%s_%s_PCA_grid%d.h5py'%(self.subject, self.model_architecture, \
                                          self.layer_name, self.which_prf_grid))  
             self.max_pc_to_retain = max_pc_to_retain
         else:

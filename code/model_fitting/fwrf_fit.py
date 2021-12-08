@@ -21,48 +21,6 @@ https://github.com/styvesg/nsd
 It was modified by MH to work for this project.
 """
 
-
-def _cofactor_fn_cpu(_x, lambdas):
-    '''
-    Generating a matrix needed to solve ridge regression model for each lambda value.
-    Ridge regression (Tikhonov) solution is :
-    w = (X^T*X + I*lambda)^-1 * X^T * Y
-    This func will return (X^T*X + I*lambda)^-1 * X^T. 
-    So once we have that, can just multiply by training data (Y) to get weights.
-    returned size is [nLambdas x nFeatures x nTrials]
-    This version makes sure that the torch inverse operation is done on the cpu, and in floating point-64 precision.
-    Otherwise get bad results for small lambda values. This seems to be a torch-specific bug, noted around May 2021.
-    
-    '''
-    device_orig = _x.device
-    type_orig = _x.dtype
-    # switch to this specific format which works with inverse
-    _x = _x.to('cpu').to(torch.float64)
-    _f = torch.stack([(torch.mm(torch.t(_x), _x) + torch.eye(_x.size()[1], device='cpu', dtype=torch.float64) * l).inverse() for l in lambdas], axis=0) 
-    
-    # [#lambdas, #feature, #feature] 
-    cof = torch.tensordot(_f, _x, dims=[[2],[1]]) # [#lambdas, #feature, #sample]
-    
-    # put back to whatever way it was before, so that we can continue with other operations as usual
-    return cof.to(device_orig).to(type_orig)
-
-
-
-def _loss_fn(_cofactor, _vtrn, _xout, _vout):
-    '''
-    Calculate loss given "cofactor" from cofactor_fn, training data, held-out design matrix, held out data.
-    returns weights (betas) based on equation
-    w = (X^T*X + I*lambda)^-1 * X^T * Y
-    also returns loss for these weights w the held out data. SSE is loss func here.
-    '''
-
-    _beta = torch.tensordot(_cofactor, _vtrn, dims=[[2], [0]]) # [#lambdas, #feature, #voxel]
-    _pred = torch.tensordot(_xout, _beta, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
-    _loss = torch.sum(torch.pow(_vout[:,None,:] - _pred, 2), dim=0) # [#lambdas, #voxels]
-    return _beta, _loss, _pred
-
-
-
 def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, best_model_each_voxel=None,\
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
                        shuffle=True, shuff_rnd_seed=0, device=None, dtype=np.float32, debug=False):
@@ -384,3 +342,48 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     sys.stdout.flush()
 
     return best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order
+
+
+
+
+def _cofactor_fn_cpu(_x, lambdas):
+    '''
+    Generating a matrix needed to solve ridge regression model for each lambda value.
+    Ridge regression (Tikhonov) solution is :
+    w = (X^T*X + I*lambda)^-1 * X^T * Y
+    This func will return (X^T*X + I*lambda)^-1 * X^T. 
+    So once we have that, can just multiply by training data (Y) to get weights.
+    returned size is [nLambdas x nFeatures x nTrials]
+    This version makes sure that the torch inverse operation is done on the cpu, and in 
+    floating point-64 precision. 
+    Otherwise it gives a numerically different result than numpy operations.
+    
+    '''
+    device_orig = _x.device
+    type_orig = _x.dtype
+    # switch to this specific format which works with inverse
+    _x = _x.to('cpu').to(torch.float64)
+    _f = torch.stack([(torch.mm(torch.t(_x), _x) + torch.eye(_x.size()[1], device='cpu', dtype=torch.float64) * l).inverse() for l in lambdas], axis=0) 
+    
+    # [#lambdas, #feature, #feature] 
+    cof = torch.tensordot(_f, _x, dims=[[2],[1]]) # [#lambdas, #feature, #sample]
+    
+    # put back to whatever way it was before, so that we can continue with other operations as usual
+    return cof.to(device_orig).to(type_orig)
+
+
+
+def _loss_fn(_cofactor, _vtrn, _xout, _vout):
+    '''
+    Calculate loss given "cofactor" from cofactor_fn, training data, held-out design matrix, held out data.
+    returns weights (betas) based on equation
+    w = (X^T*X + I*lambda)^-1 * X^T * Y
+    also returns loss for these weights w the held out data. SSE is loss func here.
+    '''
+
+    _beta = torch.tensordot(_cofactor, _vtrn, dims=[[2], [0]]) # [#lambdas, #feature, #voxel]
+    _pred = torch.tensordot(_xout, _beta, dims=[[1],[1]]) # [#samples, #lambdas, #voxels]
+    _loss = torch.sum(torch.pow(_vout[:,None,:] - _pred, 2), dim=0) # [#lambdas, #voxels]
+    return _beta, _loss, _pred
+
+

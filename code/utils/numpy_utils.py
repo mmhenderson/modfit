@@ -31,6 +31,16 @@ def unshuffle(shuffled_data, shuffle_order):
     unshuffled_data = shuffled_data[unshuffle_order] # Unshuffle the shuffled data
     return unshuffled_data
 
+def invertible_sort(sequence):
+    """
+    Sort a sequence and store the order needed to reverse sort.
+    Based on np.argsort.
+    """
+    order2sort = np.argsort(sequence)
+    order2reverse = np.argsort(order2sort)
+    
+    return order2sort, order2reverse
+
 def iterate_range(start, length, batchsize):
     batch_count = int(length // batchsize )
     residual = int(length % batchsize)

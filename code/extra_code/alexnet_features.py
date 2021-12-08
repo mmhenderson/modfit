@@ -6,6 +6,8 @@ import torchvision.models as models
 from utils import torch_utils, nsd_utils
 from model_fitting import initialize_fitting
 
+# some OLD code that i am not using, snippets may be useful in future
+
 # Define sets of alexnet layers
 alexnet_conv_layer_names = ['Conv1','Conv1_ReLU','Conv1_MaxPool', \
                        'Conv2','Conv2_ReLU','Conv2_MaxPool', \

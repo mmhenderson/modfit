@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from utils import default_paths, torch_utils
 
 """
-Some code to create pytorch dataloaders from NSD images.
+Some OLD code to create pytorch dataloaders from NSD images.
 Note I am not actually using any of this for imStat right now, but could be useful in the future.
 """
 

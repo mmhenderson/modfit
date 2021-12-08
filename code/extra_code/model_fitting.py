@@ -1,4 +1,5 @@
 """ 
+OLD code - may be useful in future
 General code related to fitting encoding models.
 """
 

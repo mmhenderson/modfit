@@ -11,13 +11,13 @@ import time
 
 from utils import default_paths, roi_utils
 
-def get_paths():      
-    return default_paths.nsd_root, default_paths.stim_root, default_paths.beta_root
-
-nsd_root, stim_root, beta_root = get_paths()
+nsd_root = default_paths.nsd_root;
+stim_root = default_paths.stim_root
+beta_root = default_paths.beta_root
 
 trials_per_sess = 750
 sess_per_subj = 40
+# hard coded values based on sessions that are missing for some subs
 max_sess_each_subj = [40,40,32,30,40,32,40,30]
 
 def get_session_inds_full():
@@ -41,6 +41,10 @@ def load_from_hdf5(hdf5_file, keyname=None):
 def image_uncolorize_fn(image):
     data = image.astype(np.float32) / 255
     return (0.2126*data[:,0:1]+ 0.7152*data[:,1:2]+ 0.0722*data[:,2:3])
+
+def image_preproc_fn(image):
+    data = image.astype(np.float32) / 255
+    return data
 
 def ncsnr_to_nc(ncsnr, n=1):    
     """

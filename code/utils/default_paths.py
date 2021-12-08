@@ -1,18 +1,10 @@
 
-import os, platform
-if platform.system()=='Darwin':
-    testing_on_mac = True
-else:
-    testing_on_mac = False
-    
+import os
+
 # Path to the full NSD data repository (includes data and stimuli)
 # http://naturalscenesdataset.org/
-if testing_on_mac:
-    root = '/Users/margarethenderson/Box Sync/'
-    nsd_path = os.path.join(root, 'nsd_betas_for_testing/')     
-else:
-    root = '/user_data/mmhender/'
-    nsd_path = '/lab_data/tarrlab/common/datasets/NSD'   
+root = '/user_data/mmhender/'
+nsd_path = '/lab_data/tarrlab/common/datasets/NSD'   
     
 nsd_root = nsd_path
 beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')

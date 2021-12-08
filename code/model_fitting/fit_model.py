@@ -541,9 +541,10 @@ if __name__ == '__main__':
     # get all the arguments (in separate file because there are many)
     args = arg_parser.get_args()
    
-    # now actually call the function to execute fitting...
+    
     model_name, fitting_types = initialize_fitting.get_full_save_name(args)
 
+    # now actually call the function to execute fitting...
     fit_fwrf(fitting_types = fitting_types, model_name = model_name, \
              semantic_discrim_type = args.semantic_discrim_type, \
              subject=args.subject, volume_space = args.volume_space, \

@@ -22,6 +22,9 @@ def get_args():
                     help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo'")
     parser.add_argument("--fitting_type2", type=str,default='',
                     help="additional fitting type, for variance partition?")
+    parser.add_argument("--fitting_type3", type=str,default='',
+                    help="additional fitting type, for variance partition?")
+    
     parser.add_argument("--semantic_discrim_type", type=str,default='',
                     help="if semantic model, what dimension?")
     

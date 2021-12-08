@@ -35,12 +35,14 @@ def get_full_save_name(args):
 
     print(args.fitting_type)
     if args.fitting_type=='full_midlevel':
-        fitting_types = ['gabor_solo', 'pyramid_texture','sketch_tokens']        
+        fitting_types = ['gabor_solo', 'pyramid_texture','sketch_tokens']
     else:
         fitting_types = [args.fitting_type]
     
     if not (args.fitting_type2==''):
         fitting_types += [args.fitting_type2]
+    if not (args.fitting_type3==''):
+        fitting_types += [args.fitting_type3]
        
     print(fitting_types)
     model_names = []

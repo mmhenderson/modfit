@@ -324,11 +324,11 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     # Print information about how fitting went...
     total_time = time.time() - start_time
     inv_time = total_time - vox_loop_time
-    return_params = [best_w_params[:,0:max_features,:],]
+    best_weights = best_w_params[:,0:max_features,:]  
     if add_bias:
-        return_params += [best_w_params[:,-1,:],]
+        best_biases = best_w_params[:,-1,:]       
     else: 
-        return_params += [None,]
+        best_biases = None
     print ('\n---------------------------------------')
     print ('total time = %fs' % total_time)
     print ('total throughput = %fs/voxel' % (total_time / n_voxels))
@@ -337,11 +337,10 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     
     # This step clears the big feature maps for training data from feature extractor (no longer needed)
     _feature_extractor.clear_big_features()
-    
-    best_params = [prf_models[best_prf_models],]+return_params+[features_mean, features_std]+[best_prf_models]
+
     sys.stdout.flush()
 
-    return best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order
+    return best_losses, best_lambdas, best_weights, best_biases, best_prf_models, features_mean, features_std, best_train_holdout_preds, holdout_trial_order
 
 
 

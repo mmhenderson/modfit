@@ -16,7 +16,12 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
 
     labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
                                                                                         which_prf_grid))
-     
+    
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+    
     if feature_type=='sketch_tokens':
 
         path_to_load = default_paths.sketch_token_feat_path
@@ -48,7 +53,7 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
     fn2save_dprime = os.path.join(path_to_save, 'S%d_dprime_%s_grid%d.npy'%(subject, discrim_type, which_prf_grid))
     fn2save_mean = os.path.join(path_to_load, 'S%d_mean_grid%d.npy'%(subject, which_prf_grid))
     fn2save_var = os.path.join(path_to_load, 'S%d_var_grid%d.npy'%(subject, which_prf_grid))
-                                 
+    fn2save_covar = os.path.join(path_to_load, 'S%d_covar_grid%d.npy'%(subject, which_prf_grid))                            
     prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
     n_prfs = models.shape[0]
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
@@ -74,10 +79,11 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
     with h5py.File(features_file, 'r') as data_set:
         dims = data_set['/features'].shape
     n_trials, n_features, n_prfs = dims
-    all_corrs = np.zeros((n_features, n_prfs))
-    all_dprime =  np.zeros((n_features, n_prfs))
-    all_mean = np.zeros((n_features, n_prfs))
-    all_var =  np.zeros((n_features, n_prfs))
+    all_corrs = np.zeros((n_features, n_prfs), dtype=np.float32)
+    all_dprime =  np.zeros((n_features, n_prfs), dtype=np.float32)
+    all_mean = np.zeros((n_features, n_prfs), dtype=np.float32)
+    all_var =  np.zeros((n_features, n_prfs), dtype=np.float32)
+    all_covar =  np.zeros((n_features, n_features, n_prfs), dtype=np.float32)
     
     for prf_model_index in range(n_prfs):
 
@@ -110,12 +116,15 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
         print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
         features_in_prf = features_each_prf_batch[:,:,index_into_batch]
         values=None
+        features_in_prf_trn = features_in_prf[trninds,:]
         print('Size of features array for this image set and prf is:')
-        print(features_in_prf.shape)
+        print(features_in_prf_trn.shape)
         
-        all_mean[:,prf_model_index] = np.mean(features_in_prf, axis=0);
-        all_var[:,prf_model_index] = np.var(features_in_prf, axis=0);
-                                 
+        # computing some basic stats for the features in this pRF
+        all_mean[:,prf_model_index] = np.mean(features_in_prf_trn, axis=0);
+        all_var[:,prf_model_index] = np.var(features_in_prf_trn, axis=0);
+        all_covar[:,:,prf_model_index] = np.cov(features_in_prf_trn.T)
+        
         sys.stdout.flush()
                                  
         if discrim_type=='indoor_outdoor':
@@ -141,20 +150,22 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
         else:
             raise ValueError('discrimination type %s not recognized.'%discrim_type)
             
-        inds2use = ~np.isnan(labels) 
-        inds1 = (labels==0) & inds2use
-        inds2 = (labels==1) & inds2use
+        labels_trn = labels[trninds]
+        inds2use = ~np.isnan(labels_trn) 
+        inds1 = (labels_trn==0) & inds2use
+        inds2 = (labels_trn==1) & inds2use
 
+        # now computing relationship between each feature and the semantic labels
         if np.any(inds1) and np.any(inds2):
             
             for ff in range(n_features):
-                if np.std(features_in_prf[inds2use,ff])==0:
+                if np.std(features_in_prf_trn[inds2use,ff])==0:
                     print('std==0')
-                all_corrs[ff,prf_model_index] = np.corrcoef(features_in_prf[inds2use,ff], \
-                                                            labels[inds2use])[0,1]
+                all_corrs[ff,prf_model_index] = np.corrcoef(features_in_prf_trn[inds2use,ff], \
+                                                            labels_trn[inds2use])[0,1]
                 # (mu1-mu2) / std
-                all_dprime[ff,prf_model_index] = (np.mean(features_in_prf[inds1,ff]) -\
-                                      np.mean(features_in_prf[inds2,ff]))/np.std(features_in_prf[inds2use,ff])          
+                all_dprime[ff,prf_model_index] = (np.mean(features_in_prf_trn[inds1,ff]) -\
+                                      np.mean(features_in_prf_trn[inds2,ff]))/np.std(features_in_prf_trn[inds2use,ff])          
         else:
             print('model %d - at least one label category is missing'%(prf_model_index))
             all_corrs[ff,prf_model_index] = np.nan
@@ -167,7 +178,9 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
     print('saving to %s\n'%fn2save_mean)
     np.save(fn2save_mean, all_mean)                     
     print('saving to %s\n'%fn2save_var)
-    np.save(fn2save_var, all_var)     
+    np.save(fn2save_var, all_var)    
+    print('saving to %s\n'%fn2save_covar)
+    np.save(fn2save_covar, all_covar)    
 
     
 if __name__ == '__main__':

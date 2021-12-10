@@ -53,18 +53,11 @@ use_pca_st_feats=1
 use_lda_st_feats=0
 
 fitting_type3=alexnet
-# alexnet_layer_name=all_conv
+alexnet_layer_name=best_layer
 alexnet_padding_mode=reflect
 use_pca_alexnet_feats=1
 
 cd $ROOT/code/model_fitting
 
-layers=(1 2 3 4 5)
-for ll in ${layers[@]}
-do
 
-    alexnet_layer_name=Conv${ll}_ReLU
-    
-    python3 fit_model.py --subject $subj --debug $debug --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --which_prf_grid $which_prf_grid --use_precomputed_prfs $use_precomputed_prfs --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_ll $use_pca_pyr_feats_ll --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --min_pct_var $min_pct_var --max_pc_to_retain_pyr_ll $max_pc_to_retain_pyr_ll --max_pc_to_retain_pyr_hl $max_pc_to_retain_pyr_hl --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --fitting_type2 $fitting_type2 --semantic_discrim_type $semantic_discrim_type --fitting_type3 $fitting_type3 --alexnet_layer_name $alexnet_layer_name  --alexnet_padding_mode $alexnet_padding_mode  --use_pca_alexnet_feats $use_pca_alexnet_feats 
-
-done
+python3 fit_model.py --subject $subj --debug $debug --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --which_prf_grid $which_prf_grid --use_precomputed_prfs $use_precomputed_prfs --do_stack $do_stack --do_roi_recons $do_roi_recons --do_voxel_recons $do_voxel_recons --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_ll $use_pca_pyr_feats_ll --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --min_pct_var $min_pct_var --max_pc_to_retain_pyr_ll $max_pc_to_retain_pyr_ll --max_pc_to_retain_pyr_hl $max_pc_to_retain_pyr_hl --use_pca_st_feats $use_pca_st_feats --use_lda_st_feats $use_lda_st_feats --fitting_type2 $fitting_type2 --semantic_discrim_type $semantic_discrim_type --fitting_type3 $fitting_type3 --alexnet_layer_name $alexnet_layer_name  --alexnet_padding_mode $alexnet_padding_mode  --use_pca_alexnet_feats $use_pca_alexnet_feats 

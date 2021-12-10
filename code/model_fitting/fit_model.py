@@ -253,11 +253,11 @@ def fit_fwrf(fitting_types, model_name, \
         assert(do_stack==False and do_roi_recons==False and do_voxel_recons==False)       
         best_layer_each_voxel, saved_best_layer_fn = \
                   initialize_fitting.load_best_model_layers(subject, dnn_model)
-        voxel_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
+        voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
     else:
         # going to fit all voxels w same model
-        voxel_masks = [np.ones((n_voxels,), dtype=bool)]
+        voxel_subset_masks = [np.ones((n_voxels,), dtype=bool)]
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;
     
@@ -289,14 +289,14 @@ def fit_fwrf(fitting_types, model_name, \
         
    
     # looping over subsets of the voxels - used for clip/alexnet when layer_name is "best_layer"    
-    # otherwise this loop only goes once and voxel_mask is all ones.
-    for vi, voxel_mask in enumerate(voxel_masks):
+    # otherwise this loop only goes once and voxel_subset_mask is all ones.
+    for vi, voxel_subset_mask in enumerate(voxel_subset_masks):
 
-        trn_voxel_data_use = trn_voxel_data[:,voxel_mask]
-        val_voxel_data_use = val_voxel_data[:,voxel_mask]
+        trn_voxel_data_use = trn_voxel_data[:,voxel_subset_mask]
+        val_voxel_data_use = val_voxel_data[:,voxel_subset_mask]
         if best_model_each_voxel is not None:
-            best_model_each_voxel_use = best_model_each_voxel[voxel_mask]
-        print('voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_masks), trn_voxel_data_use.shape[1]))
+            best_model_each_voxel_use = best_model_each_voxel[voxel_subset_mask]
+        print('voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_subset_masks), trn_voxel_data_use.shape[1]))
         if trn_voxel_data_use.shape[1]==0:
             print('no voxels, continuing loop')
             continue
@@ -466,10 +466,10 @@ def fit_fwrf(fitting_types, model_name, \
                 best_biases = np.zeros((n_voxels, best_biases_tmp.shape[1]), dtype=best_biases_tmp.dtype)
                 best_prf_models = np.zeros((n_voxels, best_prf_models_tmp.shape[1]), \
                                            dtype=best_prf_models_tmp.dtype)
-                partial_masks = []        
+                partial_masks = [[] for ii in range(len(voxel_subset_masks))]        
             
-            best_losses[voxel_mask,:] = best_losses_tmp
-            best_lambdas[voxel_mask,:] = best_lambdas_tmp
+            best_losses[voxel_subset_mask,:] = best_losses_tmp
+            best_lambdas[voxel_subset_mask,:] = best_lambdas_tmp
             max_features = _feature_extractor.max_features
             if best_weights.shape[1]<max_features:
                 n2pad = max_features - best_weights.shape[1]
@@ -477,11 +477,11 @@ def fit_fwrf(fitting_types, model_name, \
                 print(np.shape(best_weights))
                 best_weights = np.pad(best_weights, [[0,0], [0, n2pad], [0,0]])
                 print(np.shape(best_weights))
-            best_weights[voxel_mask,0:max_features,:] = best_weights_tmp
-            best_biases[voxel_mask,:] = best_biases_tmp
-            best_prf_models[voxel_mask,:] = best_prf_models_tmp
-            partial_masks.append(partial_masks_tmp)
-            
+            best_weights[voxel_subset_mask,0:max_features,:] = best_weights_tmp
+            best_biases[voxel_subset_mask,:] = best_biases_tmp
+            best_prf_models[voxel_subset_mask,:] = best_prf_models_tmp
+            partial_masks[vi] = partial_masks_tmp
+            print(partial_masks[vi].shape)
             # "best_params_tmp" will be passed to validation functions (just these voxels)
             # "best_params" will be saved (all voxels)
             best_params_tmp = [models[best_prf_models_tmp,:], best_weights_tmp, best_biases_tmp, \
@@ -561,8 +561,8 @@ def fit_fwrf(fitting_types, model_name, \
             if vi==0:
                 val_cc = np.zeros((n_voxels, val_cc_tmp.shape[1]), dtype=val_cc_tmp.dtype)
                 val_r2 = np.zeros((n_voxels, val_r2_tmp.shape[1]), dtype=val_r2_tmp.dtype)               
-            val_cc[voxel_mask,:] = val_cc_tmp
-            val_r2[voxel_mask,:] = val_r2_tmp
+            val_cc[voxel_subset_mask,:] = val_cc_tmp
+            val_r2[voxel_subset_mask,:] = val_r2_tmp
                 
             save_all(fn2save)
 
@@ -585,7 +585,7 @@ def fit_fwrf(fitting_types, model_name, \
                 print(np.shape(corr_each_feature))
                 corr_each_feature = np.pad(corr_each_feature, [[0,0], [0, n2pad]])
                 print(np.shape(corr_each_feature))
-            corr_each_feature[voxel_mask,0:max_features] = corr_each_feature_tmp
+            corr_each_feature[voxel_subset_mask,0:max_features] = corr_each_feature_tmp
             
             save_all(fn2save)
 
@@ -603,7 +603,7 @@ def fit_fwrf(fitting_types, model_name, \
                                                           val_voxel_data_pred, debug=debug)
             if vi==0:
                 discrim_each_axis = np.zeros((n_voxels, discrim_each_axis_tmp.shape[1]), dtype=discrim_each_axis_tmp.dtype)            
-            discrim_each_axis[voxel_mask,:] = discrim_each_axis_tmp
+            discrim_each_axis[voxel_subset_mask,:] = discrim_each_axis_tmp
             
             save_all(fn2save)
 

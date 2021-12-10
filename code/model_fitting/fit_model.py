@@ -90,6 +90,8 @@ def fit_fwrf(fitting_types, model_name, \
         'shuff_rnd_seed': shuff_rnd_seed,
         'use_precomputed_prfs': use_precomputed_prfs,
         'saved_prfs_fn': saved_prfs_fn,
+        'best_layer_each_voxel': best_layer_each_voxel,
+        'saved_best_layer_fn': saved_best_layer_fn,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if do_stack:
@@ -209,10 +211,21 @@ def fit_fwrf(fitting_types, model_name, \
         corr_each_feature = None
     if do_sem_disc:
         discrim_each_axis = None
-        
+    if np.any(['alexnet' in ft for ft in fitting_types]):
+        dnn_model='alexnet'
+        n_dnn_layers = 5;
+        assert(not np.any(['clip' in ft for ft in fitting_types]))
+    elif np.any(['clip' in ft for ft in fitting_types]):
+        dnn_model='clip'
+        n_dnn_layers = 16;
+        assert(not np.any(['alexnet' in ft for ft in fitting_types]))
+    else:
+        dnn_model = None
+          
     output_dir, fn2save = initialize_fitting.get_save_path(subject, volume_space, model_name, shuffle_images, \
                                                            random_images, random_voxel_data, debug, date_str)
     
+    ########## LOADING THE DATA #############################################################################
     # decide what voxels to use  
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, \
                                                             volume_space, include_all=True, include_body=True)
@@ -223,7 +236,7 @@ def fit_fwrf(fitting_types, model_name, \
         sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
     image_inds_only = True
-    # get all data and corresponding images, in two splits. always fixed set that gets left out
+    # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
             image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, \
                                       sessions=sessions, image_inds_only = image_inds_only, \
@@ -232,19 +245,40 @@ def fit_fwrf(fitting_types, model_name, \
                                   shuffle_images=shuffle_images, random_images=random_images, \
                                     random_voxel_data=random_voxel_data)
 
+    n_voxels = trn_voxel_data.shape[1]
+    if dnn_model is not None and (alexnet_layer_name=='best_layer' or clip_layer_name=='best_layer'):
+        # special case, going to fit groups of voxels separately according to which dnn layer was best
+        # creating a list of voxel masks here that will define the subsets to loop over.
+        assert(do_fitting==True)
+        assert(do_stack==False and do_roi_recons==False and do_voxel_recons==False)       
+        best_layer_each_voxel, saved_best_layer_fn = \
+                  initialize_fitting.load_best_model_layers(subject, dnn_model)
+        voxel_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
+        assert(len(best_layer_each_voxel)==n_voxels)
+    else:
+        # going to fit all voxels w same model
+        voxel_masks = [np.ones((n_voxels,), dtype=bool)]
+        best_layer_each_voxel = None;
+        saved_best_layer_fn = None;
+    
     if image_inds_only==True:
-        # For this model, the features are pre-computed, so we will just load them rather than passing in images.
+        # The features are pre-computed, so we will just load them rather than passing in images.
         # Going to pass the image indices (into 10,000 dim array) instead of images to fitting and val functions, 
-        # which will tell which features to load.
+        # which will tell which rows of feature matrices to use. 
         trn_stim_data = image_order_trn
         val_stim_data = image_order_val
    
-    # More params for fitting
+    ########## DEFINE PARAMETERS #############################################################################
     holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge, gabor_nonlin_fn=gabor_nonlin_fn)
+    
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 
+    if shuff_rnd_seed==0:
+        shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))       
 
     if use_precomputed_prfs:
+        # If we already computed pRFs for this subject on some model, can load those now and use them during 
+        # fitting. Faster than fitting pRFs each time.
         best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(subject)
         print(trn_voxel_data.shape)
         print(len(best_model_each_voxel))
@@ -253,284 +287,374 @@ def fit_fwrf(fitting_types, model_name, \
         best_model_each_voxel = None
         saved_prfs_fn = None
         
-    # Create the feature extractor modules 
-    # (mostly what it does it load sets of pre-computed features in organized way)
-    fe = []
-    fe_names = []
-    for ft in fitting_types:   
-        
-        if 'pyramid' in ft:
-            # Set up the pyramid
-            compute_features = False
-            feature_types_exclude = []
-            _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf_pyr, n_ori = n_ori_pyr)
-            # Initialize the "texture" model which builds on first level feature maps
-            _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                      subject=subject, feature_types_exclude=feature_types_exclude, \
-                      which_prf_grid=which_prf_grid, \
-                      do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
-                      group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
-                      use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
-                      min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
-                      max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
-            fe.append(_feature_extractor)
-            fe_names.append(ft)
-            pyramid_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
-        
-        elif 'gabor' in ft:
-            if 'solo' in ft:
-                feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
-                group_all_hl_feats_gabor = False
-            elif 'texture' in ft:
-                feature_types_exclude = []
-                group_all_hl_feats_gabor = group_all_hl_feats
-            # Set up the Gabor filtering modules
-            _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                        initialize_fitting.get_gabor_feature_map_fn(n_ori_gabor, n_sf_gabor,device=device,\
-                        nonlin_fn=gabor_nonlin_fn);    
-            # Initialize the "texture" model which builds on first level feature maps
-            autocorr_output_pix=5
-            compute_features = False
-            _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
-                        subject=subject, which_prf_grid=which_prf_grid, \
-                        autocorr_output_pix=autocorr_output_pix, \
-                        feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
-                        group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=gabor_nonlin_fn, \
-                        compute_features = compute_features, device=device)      
-            fe.append(_feature_extractor)
-            fe_names.append(ft)
-            gabor_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+   
+    # looping over subsets of the voxels - used for clip/alexnet when layer_name is "best_layer"    
+    # otherwise this loop only goes once and voxel_mask is all ones.
+    for vi, voxel_mask in enumerate(voxel_masks):
 
-        elif 'sketch_tokens' in ft:
-            _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
-                     which_prf_grid=which_prf_grid, \
-                     use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
-                     use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, \
-                     zscore_in_groups = zscore_in_groups)
-            fe.append(_feature_extractor)
-            fe_names.append(ft)
-        elif 'alexnet' in ft:
-            if alexnet_layer_name=='all_conv':
-                n_layers = 5
-                names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_layers)]
-                for ll in range(n_layers):
-                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                 layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
-                                 padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
-                                 min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
-                    fe.append(_feature_extractor)   
-                    fe_names.append('alexnet_%s'%names[ll])
-            else:
-                _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
-                                 layer_name=alexnet_layer_name, device=device, \
-                                 which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
-                                 use_pca_feats=use_pca_alexnet_feats, \
-                                 min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+        trn_voxel_data_use = trn_voxel_data[:,voxel_mask]
+        val_voxel_data_use = val_voxel_data[:,voxel_mask]
+        if best_model_each_voxel is not None:
+            best_model_each_voxel_use = best_model_each_voxel[voxel_mask]
+        print('voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_masks), trn_voxel_data_use.shape[1]))
+        if trn_voxel_data_use.shape[1]==0:
+            print('no voxels, continuing loop')
+            continue
+            
+        ########## CREATE FEATURE EXTRACTOR MODULES ###################################################################
+        # all these modules do is load sets of pre-computed features in organized way.
+        # first making a list of all the modules of interest (different feature spaces)
+        fe = []
+        fe_names = []
+        for ft in fitting_types:   
+
+            if 'pyramid' in ft:
+                # Set up the pyramid
+                compute_features = False
+                feature_types_exclude = []
+                _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf_pyr, n_ori = n_ori_pyr)
+                # Initialize the "texture" model which builds on first level feature maps
+                _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
+                          subject=subject, feature_types_exclude=feature_types_exclude, \
+                          which_prf_grid=which_prf_grid, \
+                          do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
+                          group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
+                          use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
+                          min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
+                          max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
-        elif 'clip' in ft:
-            if clip_layer_name=='all_resblocks':
-                n_layers = 16
-                names = ['block%d'%(ll) for ll in range(n_layers)]
-                for ll in range(n_layers):
-                    _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
-                                 layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
-                                 model_architecture=clip_model_architecture,\
-                                 use_pca_feats=use_pca_clip_feats);
-                    fe.append(_feature_extractor)   
-                    fe_names.append('clip_%s'%names[ll])
-            else:
-                _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
-                                 layer_name=clip_layer_name, device=device, which_prf_grid=which_prf_grid, \
-                                 model_architecture=clip_model_architecture,\
-                                 use_pca_feats=use_pca_clip_feats);
+                pyramid_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+
+            elif 'gabor' in ft:
+                if 'solo' in ft:
+                    feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
+                    group_all_hl_feats_gabor = False
+                elif 'texture' in ft:
+                    feature_types_exclude = []
+                    group_all_hl_feats_gabor = group_all_hl_feats
+                # Set up the Gabor filtering modules
+                _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
+                            initialize_fitting.get_gabor_feature_map_fn(n_ori_gabor, n_sf_gabor,device=device,\
+                            nonlin_fn=gabor_nonlin_fn);    
+                # Initialize the "texture" model which builds on first level feature maps
+                autocorr_output_pix=5
+                compute_features = False
+                _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
+                            subject=subject, which_prf_grid=which_prf_grid, \
+                            autocorr_output_pix=autocorr_output_pix, \
+                            feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
+                            group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=gabor_nonlin_fn, \
+                            compute_features = compute_features, device=device)      
                 fe.append(_feature_extractor)
-                fe_names.append(ft)   
-        elif 'semantic' in ft:
-            _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
-                                    discrim_type=semantic_discrim_type, device=device, \
-                                    which_prf_grid=which_prf_grid)
-            fe.append(_feature_extractor)
-            fe_names.append(ft)
-    # Combine subsets of features here (can just be one)
-    if len(fe)>1:
-        _feature_extractor = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = do_varpart)
-    else:
-        _feature_extractor = fe[0]
-        
-    #### DO THE ACTUAL MODEL FITTING HERE ####
-    
-    if do_fitting:
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('\nStarting training...\n')
-        if shuff_rnd_seed==0:
-            shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))       
-        
-        # add an intercept
-        add_bias=True
-        # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
-        # always using true.
-        shuffle=True 
-        print(len(trn_stim_data))
-    
-        best_losses, best_lambdas, best_params, best_train_holdout_preds, holdout_trial_order = \
-                            fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data, \
-                                   _feature_extractor, models, \
-                                   lambdas, best_model_each_voxel = best_model_each_voxel, \
-                                   zscore=zscore_features, add_bias=add_bias, \
-                                   voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
-                                   shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
-                                   dtype=fpX, debug=debug)
-        trn_holdout_voxel_data_pred = best_train_holdout_preds
-        
-        partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
-            
-        sys.stdout.flush()
-        val_cc=None
-        val_r2=None
-        if save_pred_data:
-            val_voxel_data_pred=None
-        
-        save_all(fn2save)   
-        print('\nSaved training results\n')        
-        sys.stdout.flush()
-    
-    else:
-        
-        print('\nLoading the results of training from %s\n'%fn2save)
-        out = torch.load(fn2save)
-        best_losses = out['best_losses']
-        best_lambdas = out['best_lambdas']
-        best_params = out['best_params']
-        val_cc = out['val_cc']
-        val_r2 = out['val_r2']
-        
-        if 'val_voxel_data_pred' in list(out.keys()):
-            assert(save_pred_data)
-            val_voxel_data_pred = out['val_voxel_data_pred']
-        if 'corr_each_feature' in list(out.keys()):
-            assert(do_tuning)
-            corr_each_feature = out['corr_each_feature']
-        if 'discrim_each_axis' in list(out.keys()):
-            assert(do_sem_disc)
-            discrim_each_axis = out['discrim_each_axis']
-        if 'voxel_recs' in list(out.keys()):
-            assert(do_voxel_recons)
-            voxel_recs = out['voxel_recs']
-        if 'pop_recs' in list(out.keys()):
-            assert(do_roi_recons)
-            pop_recs = out['pop_recs']
-        if 'stack_result' in list(out.keys()):
-            assert(do_stack)
-            stack_result = out['stack_result']
-            stack_result_lo = out['stack_result_lo']
-            partial_models_used_for_stack = out['partial_models_used_for_stack']
-            train_r2 = out['train_r2']
-            train_cc = out['train_cc']
-        
-        shuff_rnd_seed=out['shuff_rnd_seed']
-        
-        assert(out['up_to_sess']==up_to_sess)
-        assert(out['which_prf_grid']==which_prf_grid)
-        
-        image_size = None
-        _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
-        partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
-        
-    
-    ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
-    sys.stdout.flush()
-    if do_val: 
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start validation')
-        sys.stdout.flush()
-        # Here is where any model-specific additional initialization steps are done
-        # Includes initializing pca params arrays, if doing pca
-        
-        val_cc, val_r2, val_voxel_data_pred, features_each_prf = \
-            fwrf_predict.validate_fwrf_model(best_params, models, val_voxel_data, val_stim_data, \
-                     _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
-                                         voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
-                                     
-        save_all(fn2save)
-        
-    ### ESTIMATE VOXELS' FEATURE TUNING BASED ON CORRELATION WITH EACH FEATURE ######
-    sys.stdout.flush()
-    if do_tuning:
-  
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start feature tuning analysis')
-        sys.stdout.flush()
-        corr_each_feature = fwrf_predict.get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debug=debug)
-        
-        save_all(fn2save)
-        
-    ### ESTIMATE SEMANTIC DISCRIMINABILITY OF EACH VOXEL'S PREDICTED RESPONSES ######
-    sys.stdout.flush()
-    if do_sem_disc:
-  
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start semantic discriminability analysis')
-        sys.stdout.flush()
-        labels_all = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
-                                                 image_inds=val_stim_data, models=models,verbose=False)
-        discrim_each_axis = fwrf_predict.get_semantic_discrim(best_params, labels_all, \
-                                                      val_voxel_data_pred, debug=debug)
-        
-        save_all(fn2save)
-        
-    ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ###########
-    sys.stdout.flush()
-    if do_stack: 
-        
-        if len(partial_version_names)>1:
+                fe_names.append(ft)
+                gabor_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+
+            elif 'sketch_tokens' in ft:
+                _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                         which_prf_grid=which_prf_grid, \
+                         use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                         use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, \
+                         zscore_in_groups = zscore_in_groups)
+                fe.append(_feature_extractor)
+                fe_names.append(ft)
+          
+            elif 'alexnet' in ft:
+                if alexnet_layer_name=='all_conv':
+                    names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
+                    for ll in range(n_dnn_layers):
+                        _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                     layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
+                                     padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
+                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                        fe.append(_feature_extractor)   
+                        fe_names.append('alexnet_%s'%names[ll])
+                elif alexnet_layer_name=='best_layer':
+                    this_layer_name = 'Conv%d_ReLU'%(vi+1)
+                    print(this_layer_name)
+                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                     layer_name=this_layer_name, device=device, \
+                                     which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
+                                     use_pca_feats=use_pca_alexnet_feats, \
+                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                    fe.append(_feature_extractor)
+                    fe_names.append(ft)
+                else:
+                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
+                                     layer_name=alexnet_layer_name, device=device, \
+                                     which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
+                                     use_pca_feats=use_pca_alexnet_feats, \
+                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                    fe.append(_feature_extractor)
+                    fe_names.append(ft)
+          
+            elif 'clip' in ft:
+                if clip_layer_name=='all_resblocks':
+                    names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
+                    for ll in range(n_dnn_layers):
+                        _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
+                                     layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
+                                     model_architecture=clip_model_architecture,\
+                                     use_pca_feats=use_pca_clip_feats);
+                        fe.append(_feature_extractor)   
+                        fe_names.append('clip_%s'%names[ll])
+                elif clip_layer_name=='best_layer':
+                    this_layer_name = 'block%d'%(vi)
+                    print(this_layer_name)
+                    _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
+                                     layer_name=this_layer_name, device=device, which_prf_grid=which_prf_grid, \
+                                     model_architecture=clip_model_architecture,\
+                                     use_pca_feats=use_pca_clip_feats);
+                    fe.append(_feature_extractor)
+                    fe_names.append(ft) 
+                else:
+                    _feature_extractor = clip_features.clip_feature_extractor(subject=subject, \
+                                     layer_name=clip_layer_name, device=device, which_prf_grid=which_prf_grid, \
+                                     model_architecture=clip_model_architecture,\
+                                     use_pca_feats=use_pca_clip_feats);
+                    fe.append(_feature_extractor)
+                    fe_names.append(ft)   
+          
+            elif 'semantic' in ft:
+                _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
+                                        discrim_type=semantic_discrim_type, device=device, \
+                                        which_prf_grid=which_prf_grid)
+                fe.append(_feature_extractor)
+                fe_names.append(ft)
+          
+        # Now combine subsets of features into a single module
+        if len(fe)>1:
+            _feature_extractor = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = do_varpart)
+        else:
+            _feature_extractor = fe[0]
+
+        #### FIT ENCODING MODEL ###################################################################################
+
+        if do_fitting:
             gc.collect()
             torch.cuda.empty_cache()
-            print('about to start stacking analysis')
+            print('\nStarting training...\n')
+            
+            # add an intercept
+            add_bias=True
+            # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
+            # always using true.
+            shuffle=True 
+            print(len(trn_stim_data))
+
+            best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
+                best_prf_models_tmp, features_mean, features_std, \
+                best_train_holdout_preds, holdout_trial_order = \
+                                fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data_use, \
+                                       _feature_extractor, models, \
+                                       lambdas, best_model_each_voxel = best_model_each_voxel_use, \
+                                       zscore=zscore_features, add_bias=add_bias, \
+                                       voxel_batch_size=voxel_batch_size, holdout_size=holdout_size, \
+                                       shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
+                                       dtype=fpX, debug=debug)
+            trn_holdout_voxel_data_pred = best_train_holdout_preds
+          
+            # getting info about how variance partition was set up
+            partial_masks_tmp, partial_version_names = _feature_extractor.get_partial_versions()
+
+            # taking the fit params for this set of voxels and putting them into the full array over all voxels
+            if vi==0:               
+                best_losses = np.zeros((n_voxels, best_losses_tmp.shape[1]), dtype=best_losses_tmp.dtype)
+                best_lambdas = np.zeros((n_voxels, best_lambdas_tmp.shape[1]), dtype=best_lambdas_tmp.dtype)
+                best_weights = np.zeros((n_voxels, best_weights_tmp.shape[1], \
+                                         best_weights_tmp.shape[2]), dtype=best_weights_tmp.dtype)
+                best_biases = np.zeros((n_voxels, best_biases_tmp.shape[1]), dtype=best_biases_tmp.dtype)
+                best_prf_models = np.zeros((n_voxels, best_prf_models_tmp.shape[1]), \
+                                           dtype=best_prf_models_tmp.dtype)
+                partial_masks = []        
+            
+            best_losses[voxel_mask,:] = best_losses_tmp
+            best_lambdas[voxel_mask,:] = best_lambdas_tmp
+            max_features = _feature_extractor.max_features
+            if best_weights.shape[1]<max_features:
+                n2pad = max_features - best_weights.shape[1]
+                print('padding by %d elements'%n2pad)
+                print(np.shape(best_weights))
+                best_weights = np.pad(best_weights, [[0,0], [0, n2pad], [0,0]])
+                print(np.shape(best_weights))
+            best_weights[voxel_mask,0:max_features,:] = best_weights_tmp
+            best_biases[voxel_mask,:] = best_biases_tmp
+            best_prf_models[voxel_mask,:] = best_prf_models_tmp
+            partial_masks.append(partial_masks_tmp)
+            
+            # "best_params_tmp" will be passed to validation functions (just these voxels)
+            # "best_params" will be saved (all voxels)
+            best_params_tmp = [models[best_prf_models_tmp,:], best_weights_tmp, best_biases_tmp, \
+                               features_mean, features_std, best_prf_models_tmp]
+            best_params = [models[best_prf_models,:], best_weights, best_biases, \
+                               features_mean, features_std, best_prf_models]
+            
+            sys.stdout.flush()
+            if vi==0:
+                val_cc=None
+                val_r2=None
+                if save_pred_data:
+                    val_voxel_data_pred=None
+
+            save_all(fn2save)   
+            print('\nSaved training results\n')        
             sys.stdout.flush()
 
-            trn_holdout_voxel_data = trn_voxel_data[holdout_trial_order,:]
-            stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
-                fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data, \
-                                          trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
-
-            save_all(fn2save)
         else:
-            print('Skipping stacking analysis because you only have one set of features.')
 
-    ######### INVERTED ENCODING MODEL #############################
-    sys.stdout.flush()
-    if do_roi_recons: 
+            # stuff that needs to happen if we are resuming this code after the "fit" step but before validation
+            print('\nLoading the results of training from %s\n'%fn2save)
+            out = torch.load(fn2save)
+            best_losses = out['best_losses']
+            best_lambdas = out['best_lambdas']
+            best_params = out['best_params']
+            best_params_tmp = best_params
+            
+            val_cc = out['val_cc']
+            val_r2 = out['val_r2']
 
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start ROI reconstruction analysis')
+            if 'val_voxel_data_pred' in list(out.keys()):
+                assert(save_pred_data)
+                val_voxel_data_pred = out['val_voxel_data_pred']
+            if 'corr_each_feature' in list(out.keys()):
+                assert(do_tuning)
+                corr_each_feature = out['corr_each_feature']
+            if 'discrim_each_axis' in list(out.keys()):
+                assert(do_sem_disc)
+                discrim_each_axis = out['discrim_each_axis']
+            if 'voxel_recs' in list(out.keys()):
+                assert(do_voxel_recons)
+                voxel_recs = out['voxel_recs']
+            if 'pop_recs' in list(out.keys()):
+                assert(do_roi_recons)
+                pop_recs = out['pop_recs']
+            if 'stack_result' in list(out.keys()):
+                assert(do_stack)
+                stack_result = out['stack_result']
+                stack_result_lo = out['stack_result_lo']
+                partial_models_used_for_stack = out['partial_models_used_for_stack']
+                train_r2 = out['train_r2']
+                train_cc = out['train_cc']
+
+            shuff_rnd_seed=out['shuff_rnd_seed']
+
+            assert(out['up_to_sess']==up_to_sess)
+            assert(out['which_prf_grid']==which_prf_grid)
+
+            image_size = None
+            _feature_extractor.init_for_fitting(image_size=image_size, models=models, dtype=fpX)
+            partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
+
+
+        ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
         sys.stdout.flush()
+        if do_val: 
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start validation')
+            sys.stdout.flush()
+    
+            val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
+                fwrf_predict.validate_fwrf_model(best_params_tmp, models, val_voxel_data_use, val_stim_data, \
+                         _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
+                                             voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
+            if vi==0:
+                val_cc = np.zeros((n_voxels, val_cc_tmp.shape[1]), dtype=val_cc_tmp.dtype)
+                val_r2 = np.zeros((n_voxels, val_r2_tmp.shape[1]), dtype=val_r2_tmp.dtype)               
+            val_cc[voxel_mask,:] = val_cc_tmp
+            val_r2[voxel_mask,:] = val_r2_tmp
+                
+            save_all(fn2save)
 
-        roi_def = roi_utils.get_combined_rois(subject, volume_space=volume_space, \
-                                      include_all=True, include_body=True, verbose=False)
-        pop_recs = \
-            reconstruct.get_population_recons(best_params, models, val_voxel_data, roi_def, \
-                  val_stim_data, _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-        save_all(fn2save)
-        
-    sys.stdout.flush()
-    if do_voxel_recons: 
-
-        gc.collect()
-        torch.cuda.empty_cache()
-        print('about to start voxelwise reconstruction analysis')
+        ### ESTIMATE VOXELS' FEATURE TUNING BASED ON CORRELATION WITH EACH FEATURE ######
         sys.stdout.flush()
+        if do_tuning:
 
-        voxel_recs = \
-            reconstruct.get_single_voxel_recons(best_params, models, val_voxel_data, val_stim_data, \
-                                      _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-        save_all(fn2save)
-        
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start feature tuning analysis')
+            sys.stdout.flush()
+            corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
+                                                                    val_voxel_data_pred, debug=debug)
+            if vi==0:
+                corr_each_feature = np.zeros((n_voxels, corr_each_feature_tmp.shape[1]), dtype=corr_each_feature_tmp.dtype)  
+            max_features = _feature_extractor.max_features
+            if corr_each_feature.shape[1]<max_features:
+                n2pad = max_features - corr_each_feature.shape[1]
+                print('padding by %d elements'%n2pad)
+                print(np.shape(corr_each_feature))
+                corr_each_feature = np.pad(corr_each_feature, [[0,0], [0, n2pad]])
+                print(np.shape(corr_each_feature))
+            corr_each_feature[voxel_mask,0:max_features] = corr_each_feature_tmp
+            
+            save_all(fn2save)
+
+        ### ESTIMATE SEMANTIC DISCRIMINABILITY OF EACH VOXEL'S PREDICTED RESPONSES ######
+        sys.stdout.flush()
+        if do_sem_disc:
+
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start semantic discriminability analysis')
+            sys.stdout.flush()
+            labels_all = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+                                                     image_inds=val_stim_data, models=models,verbose=False)
+            discrim_each_axis_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, \
+                                                          val_voxel_data_pred, debug=debug)
+            if vi==0:
+                discrim_each_axis = np.zeros((n_voxels, discrim_each_axis_tmp.shape[1]), dtype=discrim_each_axis_tmp.dtype)            
+            discrim_each_axis[voxel_mask,:] = discrim_each_axis_tmp
+            
+            save_all(fn2save)
+
+        ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ###########
+        sys.stdout.flush()
+        if do_stack: 
+
+            if len(partial_version_names)>1:
+                gc.collect()
+                torch.cuda.empty_cache()
+                print('about to start stacking analysis')
+                sys.stdout.flush()
+
+                trn_holdout_voxel_data = trn_voxel_data_use[holdout_trial_order,:]
+                stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
+                    fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data_use, \
+                                              trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
+
+                save_all(fn2save)
+            else:
+                print('Skipping stacking analysis because you only have one set of features.')
+
+        ######### INVERTED ENCODING MODEL #############################
+        sys.stdout.flush()
+        if do_roi_recons: 
+
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start ROI reconstruction analysis')
+            sys.stdout.flush()
+
+            roi_def = roi_utils.get_combined_rois(subject, volume_space=volume_space, \
+                                          include_all=True, include_body=True, verbose=False)
+            pop_recs = \
+                reconstruct.get_population_recons(best_params_tmp, models, val_voxel_data_use, roi_def, \
+                      val_stim_data, _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
+            save_all(fn2save)
+
+        sys.stdout.flush()
+        if do_voxel_recons: 
+
+            gc.collect()
+            torch.cuda.empty_cache()
+            print('about to start voxelwise reconstruction analysis')
+            sys.stdout.flush()
+
+            voxel_recs = \
+                reconstruct.get_single_voxel_recons(best_params_tmp, models, val_voxel_data_use, val_stim_data, \
+                                          _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
+            save_all(fn2save)
+
            
             
             
@@ -543,7 +667,7 @@ if __name__ == '__main__':
    
     
     model_name, fitting_types = initialize_fitting.get_full_save_name(args)
-
+    
     # now actually call the function to execute fitting...
     fit_fwrf(fitting_types = fitting_types, model_name = model_name, \
              semantic_discrim_type = args.semantic_discrim_type, \

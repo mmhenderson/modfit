@@ -225,6 +225,34 @@ def load_precomputed_prfs(subject):
     
     return best_model_each_voxel, saved_prfs_fn
 
+def load_best_model_layers(subject, model):
+    
+    if subject==1:
+        if model=='clip':
+            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        elif model=='alexnet':
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')    
+    else:
+        raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+    
+    print('Loading best %s layer for all voxels from %s'%(model,saved_best_layer_fn))
+    
+    out = torch.load(saved_best_layer_fn)
+    if model=='alexnet':
+        layer_inds = [1,3,5,7,9]       
+    elif model=='clip':
+        layer_inds = np.arange(1,32,2)
+      
+    assert(np.all(['just_' in name for name in np.array(out['partial_version_names'])[layer_inds]]))
+    best_layer_each_voxel = np.argmax(out['val_r2'][:,layer_inds], axis=1)
+    unique, counts = np.unique(best_layer_each_voxel, return_counts=True)
+    print('layer indices:')
+    print(unique)
+    print('num voxels:')
+    print(counts)
+
+    return best_layer_each_voxel, saved_best_layer_fn
+
 def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonlin_fn=False):
     
     """

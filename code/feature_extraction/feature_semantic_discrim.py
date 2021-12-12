@@ -138,15 +138,18 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
             coco_df = pd.read_csv(coco_labels_fn, index_col=0)
             print('Using %s as label'%discrim_type)
             if discrim_type=='animacy':
-                 labels = np.array(coco_df['has_animate']).astype('int')
+                labels = np.array(coco_df['has_animate']).astype(np.float32)
             else:
-                labels = np.array(coco_df[discrim_type]).astype('int')
-            unvals = np.unique(labels)
-            ims_to_use = np.ones(np.shape(labels))==1
-            print('Unique labels:')
-            print(unvals)
-            print('Proportion with %s:'%discrim_type)
-            print(np.mean(labels==1))            
+                labels = np.array(coco_df[discrim_type]).astype(np.float32)
+            ims_to_use = np.any(np.array(coco_df)[:,0:12]==1)
+            labels[~ims_to_use] = np.nan
+            neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] + \
+                    [np.sum(np.isnan(labels))]
+            print('yes %s/no %s/no labels:'%(discrim_type, discrim_type))
+            print(neach)
+            unvals = np.unique(labels[ims_to_use])                               
+            print('unique values:')
+            print(unvals)          
         else:
             raise ValueError('discrimination type %s not recognized.'%discrim_type)
             

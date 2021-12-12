@@ -141,7 +141,7 @@ def get_discrim(subject, feature_type, discrim_type='animacy', which_prf_grid=1,
                 labels = np.array(coco_df['has_animate']).astype(np.float32)
             else:
                 labels = np.array(coco_df[discrim_type]).astype(np.float32)
-            ims_to_use = np.any(np.array(coco_df)[:,0:12]==1)
+            ims_to_use = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
             labels[~ims_to_use] = np.nan
             neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] + \
                     [np.sum(np.isnan(labels))]

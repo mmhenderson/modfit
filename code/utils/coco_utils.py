@@ -478,6 +478,146 @@ def write_indoor_outdoor_csv(subject):
 
     return
 
+
+def write_natural_humanmade_csv(subject, which_prf_grid):
+    """
+    Creating binary labels for natural/humanmade status of image patches (inferred based on presence of 
+    various categories in coco and coco-stuff).
+    """
+
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
+                get_coco_cat_info(coco_val)
+
+    stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
+            get_coco_cat_info(coco_stuff_val) 
+
+    must_be_natural = np.array([1,0,0,0,0,0,0,0,0,0,0,0,\
+                           0,0,1,1,1,1,1,1,1,1,1,1,\
+                           0,0,0,0,0,0,0,0,0,0,0,0,\
+                           0,0,0,0,0,0,0,0,0,0,1,1,\
+                           0,1,1,1,0,0,0,0,0,0,1,0,\
+                           0,0,0,0,0,0,0,0,0,0,0,0,\
+                           0,0,0,0,0,0,0,0], dtype=bool)
+
+    must_be_humanmade = np.array([0,1,1,1,1,1,1,1,1,1,1,1,\
+                             1,1,0,0,0,0,0,0,0,0,0,0,\
+                             1,1,1,1,1,1,1,1,1,1,1,1,\
+                             1,1,1,1,1,1,1,1,1,1,0,0,\
+                             0,0,0,0,0,0,0,0,1,1,0,1,\
+                             1,1,1,1,1,1,1,1,1,1,1,1,\
+                             1,1,1,1,1,1,1,1], dtype=bool)
+
+    print('things labels assumed to be natural:')
+    print(np.array(cat_names)[must_be_natural==1])
+    print('things labels assumed to be humanmade:')
+    print(np.array(cat_names)[must_be_humanmade==1])
+    print('things labels that are ambiguous:')
+    print(np.array(cat_names)[(must_be_humanmade==0) & (must_be_natural==0)])
+
+    stuff_must_be_natural = np.array([0,0,1,0,0,1,0,0,\
+                  0,0,0,0,0,0,1,0,0,0,0,1, \
+                  0,0,0,0,0,0,0,1,1,0,1,0, \
+                  1,0,0,1,0,1,0,0,0,0,1,1, \
+                  1,0,0,0,0,0,1,0,0,1,0,0, \
+                  1,0,1,0,0,0,1,1,0,1,0,1, \
+                  0,0,1,1,0,0,0,0,0,1,1,0, \
+                  0,0,0,0,0,0,1,1,0,0,0,0], dtype=bool)
+
+    stuff_must_be_humanmade = np.array([1,1,0,1,1,0,1,1, \
+                             1,1,1,1,1,1,0,1,1,1,1,0, \
+                             1,1,1,1,1,1,1,0,0,0,0,1, \
+                             0,0,0,0,1,0,0,1,1,1,0,0, \
+                             0,1,1,1,1,1,0,1,1,0,1,1, \
+                             0,1,0,1,1,0,0,0,1,0,1,0, \
+                             0,1,0,0,1,1,1,1,1,0,0,1, \
+                             1,1,1,1,1,1,0,0,1,1,0,0], dtype=bool)
+
+    print('stuff labels assumed to be natural:')
+    print(np.array(stuff_cat_names)[stuff_must_be_natural==1])
+    print('stuff labels assumed to be humanmade:')
+    print(np.array(stuff_cat_names)[stuff_must_be_humanmade==1])
+    print('stuff labels that are ambiguous:')
+    print(np.array(stuff_cat_names)[(stuff_must_be_humanmade==0) & (stuff_must_be_natural==0)])
+
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    n_prfs = len(models)
+    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
+                                                                                        which_prf_grid))
+    for prf_model_index in range(n_prfs):
+             
+        fn2load = os.path.join(labels_folder, \
+                              'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
+        coco_df = pd.read_csv(fn2load, index_col = 0)
+
+        cat_labels = np.array(coco_df)[:,12:92]
+
+        natural_columns = np.array([cat_labels[:,cc] for cc in np.where(must_be_natural)[0]]).T
+        natural_inds_things = np.any(natural_columns, axis=1)
+        natural_sum_things = np.sum(natural_columns==1, axis=1)
+
+        humanmade_columns = np.array([cat_labels[:,cc] for cc in np.where(must_be_humanmade)[0]]).T
+        humanmade_inds_things = np.any(humanmade_columns, axis=1)
+        humanmade_sum_things = np.sum(humanmade_columns==1, axis=1)
+
+        np.mean(humanmade_inds_things)
+
+        fn2load = os.path.join(labels_folder, \
+                              'S%d_cocolabs_stuff_binary_prf%d.csv'%(subject, prf_model_index))
+        coco_stuff_df = pd.read_csv(fn2load, index_col=0)
+
+        stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
+
+        natural_columns = np.array([stuff_cat_labels[:,cc] for cc in np.where(stuff_must_be_natural)[0]]).T
+        natural_inds_stuff = np.any(natural_columns, axis=1)
+        natural_sum_stuff = np.sum(natural_columns==1, axis=1)
+
+        humanmade_columns = np.array([stuff_cat_labels[:,cc] for cc in np.where(stuff_must_be_humanmade)[0]]).T
+        humanmade_inds_stuff = np.any(humanmade_columns, axis=1)
+        humanmade_sum_stuff = np.sum(humanmade_columns==1, axis=1)
+
+        humanmade_all = humanmade_inds_things | humanmade_inds_stuff
+        natural_all = natural_inds_things | natural_inds_stuff
+        
+        ambiguous = ~humanmade_all & ~natural_all
+        conflict = humanmade_all & natural_all
+
+        print(np.mean(conflict))
+
+        print('\n')
+        print('proportion of images that are ambiguous (no natural or humanmade object annotation):')
+        print(np.mean(ambiguous))
+        print('proportion of images with conflict (have annotation for both natural and humanmade object):')
+        print(np.mean(conflict))
+
+#         conflict_natural = conflict & (natural_sum_things+natural_sum_stuff > humanmade_sum_things+humanmade_sum_stuff)
+#         conflict_humanmade = conflict & (humanmade_sum_things+humanmade_sum_stuff > natural_sum_things+natural_sum_stuff)
+#         conflict_unresolved = conflict & (natural_sum_things+natural_sum_stuff == humanmade_sum_things+humanmade_sum_stuff)
+#         print('conflicting images that can be resolved to natural/humanmade/tie based on number annotations:')
+#         print([np.mean(conflict_natural), np.mean(conflict_humanmade), np.mean(conflict_unresolved)])
+
+#         # correct the conflicting images that we are able to resolve
+
+#         humanmade_all[conflict_natural] = 0
+#         natural_all[conflict_humanmade] = 0
+
+#         ambiguous = ~humanmade_all & ~natural_all
+#         conflict = humanmade_all & natural_all
+
+#         print('\nafter resolving conflicts based on number of annotations:')
+#         print('proportion of images that are ambiguous (no natural or humanmade object annotation):')
+#         print(np.mean(ambiguous))
+#         print('proportion of images with conflict (have annotation for both natural and humanmade object):')
+#         print(np.mean(conflict))
+
+
+        natural_humanmade_df = pd.DataFrame({'has_natural': natural_all, 'has_humanmade': humanmade_all})
+        fn2save = os.path.join(labels_folder, 'S%d_natural_humanmade_prf%d.csv'%(subject, prf_model_index))
+
+        print('Saving to %s'%fn2save)
+        natural_humanmade_df.to_csv(fn2save, header=True)
+
+    return
+
 def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
 
     """

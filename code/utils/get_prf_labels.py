@@ -21,8 +21,10 @@ if __name__ == '__main__':
     if args.debug:
         print('DEBUG MODE\n')
     
-    # doing these labels separately for coco labels (objects) and coco-stuff
+#     doing these labels separately for coco labels (objects) and coco-stuff
     coco_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pix=10, debug=args.debug, stuff=False, which_prf_grid=args.which_prf_grid)
     
     coco_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pix=10, debug=args.debug, stuff=True, which_prf_grid=args.which_prf_grid)
 
+    coco_utils.write_indoor_outdoor_csv(subject=args.subject)
+    coco_utils.write_natural_humanmade_csv(subject=args.subject, which_prf_grid=args.which_prf_grid)

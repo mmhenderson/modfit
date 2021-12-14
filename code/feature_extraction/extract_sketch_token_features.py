@@ -28,7 +28,8 @@ def extract_features(subject, use_node_storage=False, debug=False, which_prf_gri
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     
     # Fix these params
-    map_resolution = 227  
+#     map_resolution = 227  
+    map_resolution = 240
     n_prf_sd_out = 2
     batch_size = 100
     mult_patch_by_prf = True

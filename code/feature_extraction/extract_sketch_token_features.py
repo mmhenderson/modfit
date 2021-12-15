@@ -14,8 +14,10 @@ from utils import prf_utils, torch_utils, texture_utils, default_paths
 from model_fitting import initialize_fitting
 from feature_extraction import sketch_token_features
 
-device = initialize_fitting.init_cuda()
-
+if torch.cuda.is_available():
+    device = initialize_fitting.init_cuda()
+else:
+    device = 'cpu:0'
     
 def extract_features(subject, use_node_storage=False, debug=False, which_prf_grid=1):
     

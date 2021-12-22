@@ -229,9 +229,11 @@ def load_best_model_layers(subject, model):
     
     if subject==1:
         if model=='clip':
-            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                 'S01/clip_RN50_all_resblocks_pca/Dec-12-2021_1407_50/all_fit_params')
         elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')    
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                 'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')    
     else:
         raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
     

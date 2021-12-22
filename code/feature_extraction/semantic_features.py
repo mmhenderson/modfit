@@ -21,6 +21,13 @@ class semantic_feature_extractor(nn.Module):
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
             self.n_features = 2
+        elif discrim_type=='natural_humanmade':
+            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
+            self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_natural_humanmade_prf0.csv'%(self.subject))
+            self.same_labels_all_prfs=False
+            self.n_features = 2
         elif discrim_type=='all_supcat':
             self.labels_folder = os.path.join(default_paths.stim_labels_root, \
                                          'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
@@ -76,17 +83,24 @@ class semantic_feature_extractor(nn.Module):
                 raise ValueError('discrim type not implemented yet')
             
         else:
-            self.features_file = os.path.join(self.labels_folder, \
-                              'S%d_cocolabs_binary_prf%d.csv'%(self.subject, prf_model_index))
-            print('Loading pre-computed features from %s'%self.features_file)
-            coco_df = pd.read_csv(self.features_file, index_col=0)
-            if self.discrim_type=='animacy':
-                labels = np.array(coco_df['has_animate'])[:,np.newaxis]
-            elif self.discrim_type=='all_supcat':
-                # images can have more than one label or no labels here
-                labels = np.array(coco_df)[:,0:12]
+            if self.discrim_type=='natural_humanmade':
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_natural_humanmade_prf%d.csv'%(self.subject, prf_model_index))
+                print('Loading pre-computed features from %s'%self.features_file)
+                nat_hum_df = pd.read_csv(self.features_file, index_col=0)                
+                labels = np.array(nat_hum_df)
             else:
-                labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(self.subject, prf_model_index))
+                print('Loading pre-computed features from %s'%self.features_file)
+                coco_df = pd.read_csv(self.features_file, index_col=0)
+                if self.discrim_type=='animacy':
+                    labels = np.array(coco_df['has_animate'])[:,np.newaxis]
+                elif self.discrim_type=='all_supcat':
+                    # images can have more than one label or no labels here
+                    labels = np.array(coco_df)[:,0:12]
+                else:
+                    labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
             
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;

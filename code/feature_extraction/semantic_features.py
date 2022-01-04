@@ -41,7 +41,8 @@ class semantic_feature_extractor(nn.Module):
             self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
             self.same_labels_all_prfs=False
-            self.n_features = 1
+#             self.n_features = 1
+            self.n_features = 2
 
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
@@ -94,13 +95,21 @@ class semantic_feature_extractor(nn.Module):
                                   'S%d_cocolabs_binary_prf%d.csv'%(self.subject, prf_model_index))
                 print('Loading pre-computed features from %s'%self.features_file)
                 coco_df = pd.read_csv(self.features_file, index_col=0)
+                has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
                 if self.discrim_type=='animacy':
-                    labels = np.array(coco_df['has_animate'])[:,np.newaxis]
+#                     labels = np.array(coco_df['has_animate'])[:,np.newaxis]
+                    label1 = np.array(coco_df['has_animate'])[:,np.newaxis]
+                    # add another column to distinguish unlabeled from inanimate
+                    label2 = (label1==0) & (has_label[:,np.newaxis])
+                    labels = np.concatenate([label1, label2], axis=1)
                 elif self.discrim_type=='all_supcat':
                     # images can have more than one label or no labels here
                     labels = np.array(coco_df)[:,0:12]
                 else:
-                    labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+#                     labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+                    label1 = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+                    label2 = (label1==0) & (has_label[:,np.newaxis])
+                    labels = np.concatenate([label1, label2], axis=1)
             
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;

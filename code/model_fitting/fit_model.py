@@ -296,6 +296,8 @@ def fit_fwrf(fitting_types, model_name, \
         val_voxel_data_use = val_voxel_data[:,voxel_subset_mask]
         if best_model_each_voxel is not None:
             best_model_each_voxel_use = best_model_each_voxel[voxel_subset_mask]
+        else:
+            best_model_each_voxel_use = None
         print('voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_subset_masks), trn_voxel_data_use.shape[1]))
         if trn_voxel_data_use.shape[1]==0:
             print('no voxels, continuing loop')

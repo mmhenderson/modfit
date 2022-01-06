@@ -38,7 +38,8 @@ clip_model_architecture=RN50
 use_pca_clip_feats=1
 
 fitting_type2=semantic
-semantic_discrim_type=animacy
+# semantic_discrim_type=animacy
+semantic_discrim_type='all_supcat'
 
 cd $ROOT/code/model_fitting
 

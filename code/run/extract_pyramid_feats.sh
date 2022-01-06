@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
-#SBATCH --time=8-00:00:00
+#SBATCH --time=30-00:00:00
 
 debug=0
 use_node_storage=0
@@ -21,7 +21,7 @@ cd ../
 ROOT=$(pwd)
 cd $ROOT/feature_extraction
 
-sublist=(3 4 5 6 7 8)
+sublist=(4 5 6 7 8)
 for subj in ${sublist[@]}
 do
 

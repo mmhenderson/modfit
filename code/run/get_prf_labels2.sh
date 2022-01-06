@@ -14,7 +14,7 @@ subject=1
 debug=0
 which_prf_grid=5
 
-subjects=(2 3 4 5 6 7 8)
+subjects=(7)
 for subject in ${subjects[@]}
 do
     python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid

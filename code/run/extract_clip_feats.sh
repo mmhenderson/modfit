@@ -7,7 +7,7 @@
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=8-00:00:00
 
-subj=1
+subj=2
 debug=0
 use_node_storage=0
 which_prf_grid=5

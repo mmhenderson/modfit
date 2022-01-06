@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --nodelist=mind-1-5
+#SBATCH --nodelist=mind-1-11
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -16,7 +16,7 @@ codepath2=/user_data/mmhender/imStat/code/feature_extraction/
 use_node_storage=1
 which_prf_grid=5
 
-subjects=(3 4 5 6 7 8)
+subjects=(2)
 for subject in ${subjects[@]}
 do
 

@@ -340,7 +340,8 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
 
-def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, \
+                     which_prf_grid=1, save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.clip_feat_path
 
@@ -375,7 +376,8 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
 
-    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=np.float32)
+    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    actual_max_ncomp=0
     
     for prf_model_index in range(n_prfs):
 
@@ -439,17 +441,31 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         else:
             n_comp_needed = scores.shape[1]
         print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+        actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
         
         scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
         scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
-        
+     
+    # To save space, get rid of portion of array that ended up all nans
+    if debug:
+        actual_max_ncomp=np.max([2,actual_max_ncomp])
+        assert(np.all((scores_each_prf[:,actual_max_ncomp:,:]==0) | np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    else:
+        assert(np.all(np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    scores_each_prf = scores_each_prf[:,0:actual_max_ncomp,:]
+    print('final size of array to save:')
+    print(scores_each_prf.shape)
+    
     fn2save = os.path.join(path_to_save, 'S%d_%s_%s_PCA_grid%d.h5py'%(subject, model_architecture, \
                                                                               layer_name, which_prf_grid))
     print('saving to %s'%fn2save)
     
     t = time.time()
     with h5py.File(fn2save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=np.float64)
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype)
         data_set['/features'][:,:,:] = scores_each_prf
         data_set.close() 
     elapsed = time.time() - t

@@ -19,14 +19,12 @@ from feature_extraction import pca_feats
 # https://github.com/openai/CLIP
 import clip
 
-dtype=np.float32
-
 # Define stuff about the resnet layers here
 n_features_each_resnet_block = [256,256,256, 512,512,512,512, 1024,1024,1024,1024,1024,1024, 2048,2048,2048]
 resnet_block_names = ['block%d'%nn for nn in range(len(n_features_each_resnet_block))]
 
 def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=False, \
-                          which_prf_grid=1):
+                          which_prf_grid=1, save_dtype=np.float32):
     """
     Extract the portion of CNN feature maps corresponding to each pRF in the grid.
     Save values of the features in each pRF, for each layer of interest.
@@ -80,7 +78,7 @@ def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=
                 # doing the whole procedure of feature extraction one layer at a time
                 # otherwise will run out of memory bc huge arrays.
                 features_each_prf = np.zeros((n_images, n_features_each_resnet_block[ll], \
-                                              len(prfs_this_batch)),dtype=dtype)
+                                              len(prfs_this_batch)),dtype=save_dtype)
                 
                 for bb in range(n_batches):
 
@@ -157,7 +155,7 @@ def get_features_each_prf(subject, block_inds_do, use_node_storage=False, debug=
 
                 t = time.time()
                 with h5py.File(fn2save, 'w') as data_set:
-                    dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float64)
+                    dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=save_dtype)
                     data_set['/features'][:,:,:] = features_each_prf
                     data_set.close() 
                 elapsed = time.time() - t

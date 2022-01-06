@@ -245,7 +245,7 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
                       'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
 
     
-def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1, save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.alexnet_feat_path
 
@@ -256,6 +256,7 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
     with h5py.File(features_file, 'r') as data_set:
         dsize = data_set['/features'].shape
     n_features = dsize[1]
+    n_trials = dsize[0]
     
     path_to_save = os.path.join(path_to_load, 'PCA')
     if not os.path.exists(path_to_save):
@@ -269,7 +270,8 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
     prf_batch_size = 50 # batching prfs for loading
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
     prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
-  
+    prf_inds_loaded = []
+    
     zgroup_labels = np.ones(shape=(1,n_features))
 
     # training / validation data always split the same way - shared 1000 inds are validation.
@@ -277,11 +279,8 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
 
-    scores_each_prf = []
-    wts_each_prf = []
-    ev_each_prf = []
-    pre_mean_each_prf = []    
-    prf_inds_loaded = []
+    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    actual_max_ncomp=0
    
     for prf_model_index in range(n_prfs):
 
@@ -317,10 +316,16 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
         features_in_prf_z = np.zeros_like(features_in_prf)
         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
         features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
-           
+        # if any feature channels had no variance, fix them now
+        zero_var = (np.var(features_in_prf[trninds,:], axis=0)==0) | \
+                    (np.var(features_in_prf[~trninds,:], axis=0)==0)
+        features_in_prf_z[:,zero_var] = features_in_prf_z[0,zero_var]
+        
         print('Size of features array for this image set and prf is:')
         print(features_in_prf_z.shape)
-
+        print('any nans in array')
+        print(np.any(np.isnan(features_in_prf_z)))
+        
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
                                                       zscore_first=False)
@@ -329,15 +334,41 @@ def run_pca_alexnet(subject, layer_name, max_pc_to_retain=None, debug=False, zsc
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
         scores = feat_submean @ wts.T
         
-        scores_each_prf.append(scores)
-        wts_each_prf.append(wts)
-        ev_each_prf.append(ev)
-        pre_mean_each_prf.append(pre_mean)
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]
+        else:
+            n_comp_needed = scores.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+        actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
+        
+        scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
+        scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
 
-    fn2save = os.path.join(path_to_save, 'S%d_%s_ReLU_reflect_PCA_grid%d.npy'%(subject, layer_name, which_prf_grid))
+    # To save space, get rid of portion of array that ended up all nans
+    if debug:
+        actual_max_ncomp=np.max([2,actual_max_ncomp])
+        assert(np.all((scores_each_prf[:,actual_max_ncomp:,:]==0) | np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    else:
+        assert(np.all(np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    scores_each_prf = scores_each_prf[:,0:actual_max_ncomp,:]
+    print('final size of array to save:')
+    print(scores_each_prf.shape)
+    
+    fn2save = os.path.join(path_to_save, 'S%d_%s_ReLU_reflect_PCA_grid%d.h5py'%(subject, layer_name, which_prf_grid))
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
-                      'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
+    
+    t = time.time()
+    with h5py.File(fn2save, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_each_prf
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
 
 
 def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, \
@@ -550,7 +581,7 @@ if __name__ == '__main__':
     elif args.type=='alexnet':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         for layer in layers:
-            run_pca_alexnet(subject=args.subject, layer_name=layer, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+            run_pca_alexnet(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='clip':
         layers = ['block%d'%(ll) for ll in range(16)]
         for layer in layers:

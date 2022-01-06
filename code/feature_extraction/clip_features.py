@@ -15,7 +15,7 @@ n_features_each_layer = extract_clip_features.n_features_each_resnet_block
 class clip_feature_extractor(nn.Module):
     
     def __init__(self, subject, layer_name, device, which_prf_grid=1, model_architecture='RN50', \
-                use_pca_feats = False, min_pct_var = 95, max_pc_to_retain=100):
+                use_pca_feats = False):
         
         super(clip_feature_extractor, self).__init__()
         
@@ -35,7 +35,6 @@ class clip_feature_extractor(nn.Module):
             self.features_file = os.path.join(clip_feat_path, 'PCA', \
               'S%d_%s_%s_PCA_grid%d.h5py'%(self.subject, self.model_architecture, \
                                          self.layer_name, self.which_prf_grid))  
-            self.max_pc_to_retain = max_pc_to_retain
         else:
             raise RuntimeError('have to use pca feats for clip')
             
@@ -54,7 +53,12 @@ class clip_feature_extractor(nn.Module):
         Additional initialization operations.
         """        
         print('Initializing for fitting')
-        self.max_features = self.max_pc_to_retain        
+        with h5py.File(self.features_file, 'r') as file:
+            feat_shape = np.shape(file['/features'])
+            file.close()
+        n_feat_actual = feat_shape[1]
+        self.max_features = np.min([self.n_features, n_feat_actual])
+             
        
         # Prepare for loading the pre-computed features: as a 
         # compromise between speed and ram usage, will load them in
@@ -103,7 +107,7 @@ class clip_feature_extractor(nn.Module):
             feats_to_use = values[image_inds,:,:]
             nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
                         for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-            nan_inds = [ni[0][0] if len(ni)>0 else self.max_pc_to_retain for ni in nan_inds]
+            nan_inds = [ni[0][0] if len(ni)>0 else self.max_features for ni in nan_inds]
             print(nan_inds)
             self.features_each_prf_batch = [feats_to_use[:,0:nan_inds[mm],mm] \
                         for mm in range(len(self.prf_batch_inds[batch_to_use]))]

@@ -14,7 +14,9 @@ Code to perform PCA on features within a given feature space (texture or contour
 PCA is done separately within each pRF position, and the results for all pRFs are saved in a single file.
 """
 
-def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_retain=150, \
+                            debug=False, zscore_first=False, which_prf_grid=1, \
+                            save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.pyramid_texture_feat_path
 
@@ -63,7 +65,6 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     # For the marginal stats of lowpass recons, separating skew/kurtosis here
     zgroup_labels_ll[zgroup_labels_ll==9] = 10
     zgroup_labels_ll[0,np.where(zgroup_labels_ll==8)[1][np.arange(1,10,2)]] = 9
-
     # for higher level groups, just retaining original grouping scheme 
     zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
                                            for ff in range(len(zgroup_sizes_hl))], axis=1)
@@ -72,16 +73,15 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
+    n_trials = len(trninds)
+    
+    scores_ll_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    scores_hl_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    actual_max_ncomp_ll=0
+    actual_max_ncomp_hl=0
     
     prf_inds_loaded = []
-    scores_ll_each_prf = []
-    wts_ll_each_prf = []
-    ev_ll_each_prf = []
-    pre_mean_ll_each_prf = []
-    scores_hl_each_prf = []
-    wts_hl_each_prf = []
-    ev_hl_each_prf = []
-    pre_mean_hl_each_prf = []
+    
     
     for prf_model_index in range(n_prfs):
 
@@ -133,22 +133,34 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
                                                       zscore_first=False)
         feat_submean_ll = features_ll_z - np.tile(pre_mean_ll[np.newaxis,:], [features_ll_z.shape[0],1])
         scores_ll = feat_submean_ll @ wts_ll.T
-        scores_ll_each_prf.append(scores_ll)
-        wts_ll_each_prf.append(wts_ll)
-        ev_ll_each_prf.append(ev_ll)
-        pre_mean_ll_each_prf.append(pre_mean_ll)
+        
+        n_comp_needed_ll = np.where(np.cumsum(ev_ll)>min_pct_var)
+        if np.size(n_comp_needed_ll)>0:
+            n_comp_needed_ll = n_comp_needed_ll[0][0]
+        else:
+            n_comp_needed_ll = scores_ll.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed_ll, min_pct_var))
+        actual_max_ncomp_ll = np.max([n_comp_needed_ll, actual_max_ncomp_ll])
+        
+        scores_ll_each_prf[:,0:n_comp_needed_ll,prf_model_index] = scores_ll[:,0:n_comp_needed_ll]
+        scores_ll_each_prf[:,n_comp_needed_ll:,prf_model_index] = np.nan
+        
         
         _, wts_hl, pre_mean_hl, ev_hl = do_pca(features_hl_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
                                                       zscore_first=False)
         feat_submean_hl = features_hl_z - np.tile(pre_mean_hl[np.newaxis,:], [features_hl_z.shape[0],1])
         scores_hl = feat_submean_hl @ wts_hl.T
-        scores_hl_each_prf.append(scores_hl)
-        wts_hl_each_prf.append(wts_hl)
-        ev_hl_each_prf.append(ev_hl)
-        pre_mean_hl_each_prf.append(pre_mean_hl)
         
-        print('size of wts_hl:')
-        print(wts_hl.shape)    
+        n_comp_needed_hl = np.where(np.cumsum(ev_hl)>min_pct_var)
+        if np.size(n_comp_needed_hl)>0:
+            n_comp_needed_hl = n_comp_needed_hl[0][0]
+        else:
+            n_comp_needed_hl = scores_hl.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed_hl, min_pct_var))
+        actual_max_ncomp_hl = np.max([n_comp_needed_hl, actual_max_ncomp_hl])
+        
+        scores_hl_each_prf[:,0:n_comp_needed_hl,prf_model_index] = scores_hl[:,0:n_comp_needed_hl]
+        scores_hl_each_prf[:,n_comp_needed_hl:,prf_model_index] = np.nan
         
         print('size of scores_hl:')
         print(scores_hl.shape) 
@@ -157,20 +169,51 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, max_pc_to_retain=None, deb
         
         sys.stdout.flush()
 
-    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
-
-    print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_ll_each_prf,'wts': wts_ll_each_prf, \
-                      'ev': ev_ll_each_prf, 'pre_mean': pre_mean_ll_each_prf})
-
-    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject, n_ori, n_sf, which_prf_grid))
-
-    print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_hl_each_prf, 'wts': wts_hl_each_prf, \
-                      'ev': ev_hl_each_prf,  'pre_mean': pre_mean_hl_each_prf})
-
+    # To save space, get rid of portion of array that ended up all nans
+    if debug:
+        actual_max_ncomp_ll=np.max([2,actual_max_ncomp_ll])
+        assert(np.all((scores_each_prf_ll[:,actual_max_ncomp_ll:,:]==0) | np.isnan(scores_each_prf_ll[:,actual_max_ncomp_ll:,:])))
+        actual_max_ncomp_hl=np.max([2,actual_max_ncomp_hl])
+        assert(np.all((scores_each_prf_hl[:,actual_max_ncomp_hl:,:]==0) | np.isnan(scores_each_prf_hl[:,actual_max_ncomp_hl:,:])))
+    else:
+        assert(np.all(np.isnan(scores_each_prf_ll[:,actual_max_ncomp_ll:,:])))
+        assert(np.all(np.isnan(scores_each_prf_hl[:,actual_max_ncomp_hl:,:])))
+    scores_each_prf_ll = scores_each_prf_ll[:,0:actual_max_ncomp_ll,:]
+    print('final size of lower-level array to save:')
+    print(scores_each_prf_ll.shape)
+    scores_each_prf_hl = scores_each_prf_hl[:,0:actual_max_ncomp_hl,:]
+    print('final size of higher-level array to save:')
+    print(scores_each_prf_hl.shape)
     
-def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1):
+    fn2save_ll = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
+    print('saving to %s'%fn2save)
+    t = time.time()
+    with h5py.File(fn2save_ll, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf_ll), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf_ll), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_each_prf_ll
+        data_set.close() 
+    elapsed = time.time() - t
+    print('Took %.5f sec to write file'%elapsed)
+
+    fn2save_hl = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
+    print('saving to %s'%fn2save)
+    t = time.time()
+    with h5py.File(fn2save_hl, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf_hl), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf_hl), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_each_prf_hl
+        data_set.close() 
+    elapsed = time.time() - t
+    print('Took %.5f sec to write file'%elapsed)
+    
+    
+def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=False, zscore_first=False, which_prf_grid=1, \
+                          save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.sketch_token_feat_path
 
@@ -200,15 +243,14 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
+    n_trials = len(trninds)
     
     
     print('Size of features array for this image set is:')
     print(features_each_prf.shape)
 
-    scores_each_prf = []
-    wts_each_prf = []
-    ev_each_prf = []
-    pre_mean_each_prf = []
+    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    actual_max_ncomp=0
    
     for prf_model_index in range(n_prfs):
 
@@ -225,7 +267,9 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
            
         print('Size of features array for this image set and prf is:')
         print(features_in_prf_z.shape)
-
+        print('any nans in array')
+        print(np.any(np.isnan(features_in_prf_z)))
+        
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
                                                       zscore_first=False)
@@ -234,15 +278,40 @@ def run_pca_sketch_tokens(subject, max_pc_to_retain=None, debug=False, zscore_fi
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
         scores = feat_submean @ wts.T
         
-        scores_each_prf.append(scores)
-        wts_each_prf.append(wts)
-        ev_each_prf.append(ev)
-        pre_mean_each_prf.append(pre_mean)
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]
+        else:
+            n_comp_needed = scores.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+        actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
+        
+        scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
+        scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
 
-    fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.npy'%(subject, which_prf_grid))
+    # To save space, get rid of portion of array that ended up all nans
+    if debug:
+        actual_max_ncomp=np.max([2,actual_max_ncomp])
+        assert(np.all((scores_each_prf[:,actual_max_ncomp:,:]==0) | np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    else:
+        assert(np.all(np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    scores_each_prf = scores_each_prf[:,0:actual_max_ncomp,:]
+    print('final size of array to save:')
+    print(scores_each_prf.shape)
+    
+    fn2save = os.path.join(path_to_save, 'S%d_PCA_grid%d.h5py'%(subject, which_prf_grid))
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
-                      'ev': ev_each_prf, 'pre_mean': pre_mean_each_prf})
+    t = time.time()
+    with h5py.File(fn2save, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_each_prf
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
 
     
 def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1, save_dtype=np.float32, compress=True):
@@ -573,11 +642,11 @@ if __name__ == '__main__':
         args.max_pc_to_retain = None
     
     if args.type=='sketch_tokens':
-        run_pca_sketch_tokens(subject=args.subject, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+        run_pca_sketch_tokens(subject=args.subject, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='texture_pyramid':
         n_ori=4
         n_sf=4
-        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='alexnet':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         for layer in layers:

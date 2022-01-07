@@ -13,7 +13,7 @@ sketch_token_feat_path = default_paths.sketch_token_feat_path
 class sketch_token_feature_extractor(nn.Module):
     
     def __init__(self, subject, device, which_prf_grid=1, \
-                 use_pca_feats = False, min_pct_var = 99, max_pc_to_retain = 100, \
+                 use_pca_feats = False, \
                  use_lda_feats = False, lda_discrim_type = None, zscore_in_groups = False):
         
         super(sketch_token_feature_extractor, self).__init__()
@@ -29,9 +29,7 @@ class sketch_token_feature_extractor(nn.Module):
             self.n_features = 151
             self.use_lda_feats = False # only allow one of these to be true
             self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
-                                          'S%d_PCA_grid%d.npy'%(self.subject, self.which_prf_grid))     
-            self.min_pct_var = min_pct_var
-            self.max_pc_to_retain = np.min([self.n_features, max_pc_to_retain])
+                                          'S%d_PCA_grid%d.h5py'%(self.subject, self.which_prf_grid))     
         elif self.use_lda_feats:
             self.use_pca_feats = False
             self.min_pct_var = None
@@ -80,7 +78,11 @@ class sketch_token_feature_extractor(nn.Module):
         print('Initializing for fitting')
 
         if self.use_pca_feats:
-            self.max_features = self.max_pc_to_retain        
+            with h5py.File(self.features_file, 'r') as file:
+                feat_shape = np.shape(file['/features'])
+                file.close()
+            n_feat_actual = feat_shape[1]
+            self.max_features = np.min([self.n_features, n_feat_actual])       
         else:
             self.max_features = self.n_features
        
@@ -118,19 +120,23 @@ class sketch_token_feature_extractor(nn.Module):
             
             if self.use_pca_feats:
 
-                # loading pre-computed pca features, and deciding here how many features to 
-                # include in model.
-                pc_result = np.load(self.features_file, allow_pickle=True).item()
-                scores_each_prf = [pc_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                ev_each_prf = [pc_result['ev'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                pc_result = None
-                n_pcs_avail = scores_each_prf[0].shape[1]
-                n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
-                                   if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
-                                   else n_pcs_avail for ev in ev_each_prf]
-                n_feat_each_prf = [np.min([nf, self.max_pc_to_retain]) for nf in n_feat_each_prf]
-                self.features_each_prf_batch = [scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]] \
-                                          for mm in range(len(scores_each_prf))]   
+                # loading pre-computed pca features
+                t = time.time()
+                # Loading raw features.
+                with h5py.File(self.features_file, 'r') as data_set:
+                    values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                    data_set.close() 
+                elapsed = time.time() - t
+                print('Took %.5f seconds to load file'%elapsed)
+
+                feats_to_use = values[image_inds,:,:]
+                nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                            for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_features for ni in nan_inds]
+                print(nan_inds)
+                self.features_each_prf_batch = [feats_to_use[:,0:nan_inds[mm],mm] \
+                            for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                values=None
                 print('Length of features list this batch: %d'%len(self.features_each_prf_batch))
                 print('Size of features array for first prf model with this image set is:')
                 print(self.features_each_prf_batch[0].shape)

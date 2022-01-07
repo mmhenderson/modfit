@@ -367,8 +367,7 @@ def fit_fwrf(fitting_types, model_name, \
                     for ll in range(n_dnn_layers):
                         _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                      layer_name=names[ll], device=device, which_prf_grid=which_prf_grid, \
-                                     padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats, \
-                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                     padding_mode = alexnet_padding_mode, use_pca_feats=use_pca_alexnet_feats)
                         fe.append(_feature_extractor)   
                         fe_names.append('alexnet_%s'%names[ll])
                 elif alexnet_layer_name=='best_layer':
@@ -377,16 +376,14 @@ def fit_fwrf(fitting_types, model_name, \
                     _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                      layer_name=this_layer_name, device=device, \
                                      which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
-                                     use_pca_feats=use_pca_alexnet_feats, \
-                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                     use_pca_feats=use_pca_alexnet_feats)
                     fe.append(_feature_extractor)
                     fe_names.append(ft)
                 else:
                     _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=subject, \
                                      layer_name=alexnet_layer_name, device=device, \
                                      which_prf_grid=which_prf_grid, padding_mode = alexnet_padding_mode, \
-                                     use_pca_feats=use_pca_alexnet_feats, \
-                                     min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain)
+                                     use_pca_feats=use_pca_alexnet_feats)
                     fe.append(_feature_extractor)
                     fe_names.append(ft)
           

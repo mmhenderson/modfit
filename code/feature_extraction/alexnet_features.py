@@ -112,7 +112,7 @@ class alexnet_feature_extractor(nn.Module):
             feats_to_use = values[image_inds,:,:]
             nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
                         for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-            nan_inds = [ni[0][0] if len(ni)>0 else self.max_features for ni in nan_inds]
+            nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_features for ni in nan_inds]
             print(nan_inds)
             self.features_each_prf_batch = [feats_to_use[:,0:nan_inds[mm],mm] \
                         for mm in range(len(self.prf_batch_inds[batch_to_use]))]

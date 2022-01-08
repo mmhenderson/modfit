@@ -26,9 +26,8 @@ class texture_feature_extractor(nn.Module):
                  sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
                  aperture=1.0, do_varpart=False, zscore_in_groups=False, group_all_hl_feats=False, \
                  compute_features=True, \
-                 use_pca_feats_ll=False, use_pca_feats_hl=False, min_pct_var = 99, \
-                 max_pc_to_retain_ll = 100, \
-                 max_pc_to_retain_hl=100, device=None):
+                 use_pca_feats_ll=False, use_pca_feats_hl=False, \
+                 device=None):
         
         super(texture_feature_extractor, self).__init__()
         
@@ -53,28 +52,35 @@ class texture_feature_extractor(nn.Module):
         self.n_hl_feats = np.sum(np.array(self.feature_type_dims_include)[~self.feature_is_ll])
         
         self.any_pca=False
-        self.min_pct_var = min_pct_var
         if self.use_pca_feats_hl:
             self.any_pca=True
             assert(self.group_all_hl_feats==True)
             assert(len(self.feature_types_exclude)==0)
             self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                     'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.npy'%(subject,self.n_ori, \
+                     'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.h5py'%(subject,self.n_ori, \
                                                                 self.n_sf, self.which_prf_grid))   
             if not os.path.exists(self.features_file_hl):
                 raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_hl)   
-            self.max_pc_to_retain_hl = np.min([self.n_hl_feats, max_pc_to_retain_hl])
-            
+            with h5py.File(self.features_file_hl, 'r') as file:
+                feat_shape = np.shape(file['/features'])
+                file.close()
+            n_feat_actual = feat_shape[1]
+            self.max_pc_to_retain_hl = np.min([self.n_hl_feats, n_feat_actual])
+        
         if self.use_pca_feats_ll:
             self.any_pca=True
             assert(self.group_all_hl_feats==True)
             assert(len(self.feature_types_exclude)==0)
             self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                     'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.npy'%(subject,self.n_ori, \
+                     'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.h5py'%(subject,self.n_ori, \
                                                                    self.n_sf, self.which_prf_grid)) 
             if not os.path.exists(self.features_file_ll):
                 raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_ll)   
-            self.max_pc_to_retain_ll = np.min([self.n_ll_feats, max_pc_to_retain_ll])
+            with h5py.File(self.features_file_ll, 'r') as file:
+                feat_shape = np.shape(file['/features'])
+                file.close()
+            n_feat_actual = feat_shape[1]
+            self.max_pc_to_retain_ll = np.min([self.n_ll_feats, n_feat_actual])
         
         self.zscore_in_groups = zscore_in_groups
         if self.zscore_in_groups:
@@ -233,8 +239,7 @@ class texture_feature_extractor(nn.Module):
                                          bb in range(len(self.prf_batch_inds))])[0][0]
             assert(prf_model_index in self.prf_batch_inds[batch_to_use])
             self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
-            print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
-                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file))
+
             self.features_each_prf_batch = None
             self.n_ll_actual_batch = None
             self.n_hl_actual_batch = None
@@ -243,6 +248,8 @@ class texture_feature_extractor(nn.Module):
 
             if self.use_pca_feats_ll==False or self.use_pca_feats_hl==False:
                 
+                print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
+                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file))
                 t = time.time()
                 with h5py.File(self.features_file, 'r') as data_set:
                     values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
@@ -256,41 +263,53 @@ class texture_feature_extractor(nn.Module):
             if self.any_pca:
                 
                 if self.use_pca_feats_ll:
-                    # loading pre-computed pca features, and deciding here how many features to include in model.
-                    pc_result = np.load(self.features_file_ll, allow_pickle=True).item()
-                    scores_each_prf = [pc_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                    ev_each_prf = [pc_result['ev'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                    pc_result = None
-                    n_pcs_avail = scores_each_prf[0].shape[1]
-                    n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
-                                       if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
-                                       else n_pcs_avail for ev in ev_each_prf]
-                    n_feat_each_prf = [np.min([nf, self.max_pc_to_retain_ll]) for nf in n_feat_each_prf]
+                    # loading pre-computed pca features.
+                    print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
+                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file_ll))
+                    t = time.time()
+                    with h5py.File(self.features_file_ll, 'r') as data_set:
+                        values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                        data_set.close() 
+                    elapsed = time.time() - t
+                    print('Took %.5f seconds to load file'%elapsed)
+                    feats_to_use = values[image_inds,:,:]
+                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_pc_to_retain_ll for ni in nan_inds]
+                    print(nan_inds)
+                    n_feat_each_prf=nan_inds
                     self.n_ll_actual_batch = n_feat_each_prf
+                    
                     # putting these all into a 3d array - different sizes originally, so padding w zeros here
                     features_each_prf_ll = np.zeros((len(image_inds), self.n_ll_feats, len(n_feat_each_prf)))
                     for mm in range(len(n_feat_each_prf)):
-                        features_each_prf_ll[:,0:n_feat_each_prf[mm],mm] = scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]]
+                        features_each_prf_ll[:,0:n_feat_each_prf[mm],mm] = feats_to_use[:,0:n_feat_each_prf[mm],mm]
                     
                 else:                    
                     features_each_prf_ll = self.features_each_prf_batch[:,0:self.n_ll_feats,:]
                     self.n_ll_actual_batch = [self.n_ll_feats for bb in self.prf_batch_inds[batch_to_use]]
                     
                 if self.use_pca_feats_hl:
-                    # loading pre-computed pca features, and deciding here how many features to include in model.
-                    pc_result = np.load(self.features_file_hl, allow_pickle=True).item()
-                    scores_each_prf = [pc_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                    ev_each_prf = [pc_result['ev'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                    pc_result=None
-                    n_pcs_avail = scores_each_prf[0].shape[1]
-                    n_feat_each_prf = [np.where(np.cumsum(ev)>self.min_pct_var)[0][0] \
-                                       if np.size(np.where(np.cumsum(ev)>self.min_pct_var))>0 \
-                                       else n_pcs_avail for ev in ev_each_prf]
-                    n_feat_each_prf = [np.min([nf, self.max_pc_to_retain_hl]) for nf in n_feat_each_prf]
+                    # loading pre-computed pca features.
+                    print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
+                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file_hl))
+                    t = time.time()
+                    with h5py.File(self.features_file_hl, 'r') as data_set:
+                        values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                        data_set.close() 
+                    elapsed = time.time() - t
+                    print('Took %.5f seconds to load file'%elapsed)
+                    feats_to_use = values[image_inds,:,:]
+                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_pc_to_retain_hl for ni in nan_inds]
+                    print(nan_inds)
+                    n_feat_each_prf=nan_inds
                     self.n_hl_actual_batch = n_feat_each_prf
+                    
                     features_each_prf_hl = np.zeros((len(image_inds), self.n_hl_feats, len(n_feat_each_prf)))
                     for mm in range(len(n_feat_each_prf)):
-                        features_each_prf_hl[:,0:n_feat_each_prf[mm],mm] = scores_each_prf[mm][image_inds,0:n_feat_each_prf[mm]]
+                        features_each_prf_hl[:,0:n_feat_each_prf[mm],mm] = feats_to_use[:,0:n_feat_each_prf[mm],mm]
                      
                 else:                    
                     features_each_prf_hl = self.features_each_prf_batch[:,0:self.n_hl_feats,:]

@@ -32,8 +32,6 @@ class sketch_token_feature_extractor(nn.Module):
                                           'S%d_PCA_grid%d.h5py'%(self.subject, self.which_prf_grid))     
         elif self.use_lda_feats:
             self.use_pca_feats = False
-            self.min_pct_var = None
-            self.max_pc_to_retain = None  
             self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
                   'S%d_LDA_%s_grid%d.npy'%(self.subject, self.lda_discrim_type, self.which_prf_grid))
             if self.lda_discrim_type=='all_supcat':
@@ -49,8 +47,6 @@ class sketch_token_feature_extractor(nn.Module):
             self.n_features = 150 # 151
             self.features_file = os.path.join(sketch_token_feat_path, \
                                           'S%d_features_each_prf_grid%d.h5py'%(subject, self.which_prf_grid))
-            self.min_pct_var = None
-            self.max_pc_to_retain = None  
             if zscore_in_groups:
                 self.zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
                 self.zgroup_labels = self.zgroup_labels[0,0:self.n_features]

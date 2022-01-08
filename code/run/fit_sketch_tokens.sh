@@ -35,13 +35,14 @@ do_voxel_recons=0
 save_pred_data=0
 
 fitting_type=sketch_tokens
-use_pca_st_feats=0
+use_pca_st_feats=1
 use_lda_st_feats=0
 lda_discrim_type=None
 
 cd $ROOT/code/model_fitting
 
 subjects=(2 3 4 5 6 7 8)
+# subjects=(2)
 for subject in ${subjects[@]}
 do
 

@@ -47,8 +47,6 @@ def fit_fwrf(fitting_types, model_name, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
              use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
-             min_pct_var = 99, max_pc_to_retain = 400, \
-             max_pc_to_retain_pyr_ll = 100, max_pc_to_retain_pyr_hl = 100, \
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              use_pca_alexnet_feats = False, \
              clip_layer_name='Block15', clip_model_architecture='RN50', \
@@ -129,18 +127,13 @@ def fit_fwrf(fitting_types, model_name, \
             'semantic_discrim_type': semantic_discrim_type,
             })
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
-            dict2save.update({
-            'min_pct_var': min_pct_var,
-            'max_pc_to_retain': max_pc_to_retain,           
+            dict2save.update({         
             'use_pca_st_feats': use_pca_st_feats, 
             'use_lda_st_feats': use_lda_st_feats,
             'lda_discrim_type': lda_discrim_type, 
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
-            'min_pct_var': min_pct_var,
-            'max_pc_to_retain_pyr_ll': max_pc_to_retain_pyr_ll,
-            'max_pc_to_retain_pyr_hl': max_pc_to_retain_pyr_hl,
             'use_pca_pyr_feats_ll': use_pca_pyr_feats_ll,
             'use_pca_pyr_feats_hl': use_pca_pyr_feats_hl,
             'pyramid_feature_info':pyramid_feature_info,
@@ -164,9 +157,7 @@ def fit_fwrf(fitting_types, model_name, \
             dict2save.update({
             'alexnet_layer_name': alexnet_layer_name,
             'alexnet_padding_mode': alexnet_padding_mode,
-            'use_pca_alexnet_feats': use_pca_alexnet_feats,
-            'min_pct_var': min_pct_var,
-            'max_pc_to_retain': max_pc_to_retain,    
+            'use_pca_alexnet_feats': use_pca_alexnet_feats, 
             })
         if np.any(['clip' in ft for ft in fitting_types]):
             dict2save.update({
@@ -322,8 +313,7 @@ def fit_fwrf(fitting_types, model_name, \
                           do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
                           group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
                           use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
-                          min_pct_var = min_pct_var, max_pc_to_retain_ll = max_pc_to_retain_pyr_ll, \
-                          max_pc_to_retain_hl = max_pc_to_retain_pyr_hl, device=device)
+                          device=device)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
                 pyramid_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
@@ -355,7 +345,7 @@ def fit_fwrf(fitting_types, model_name, \
             elif 'sketch_tokens' in ft:
                 _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                          which_prf_grid=which_prf_grid, \
-                         use_pca_feats = use_pca_st_feats, min_pct_var = min_pct_var, max_pc_to_retain = max_pc_to_retain, \
+                         use_pca_feats = use_pca_st_feats,\
                          use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, \
                          zscore_in_groups = zscore_in_groups)
                 fe.append(_feature_extractor)
@@ -692,9 +682,6 @@ if __name__ == '__main__':
              use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \
              lda_discrim_type = args.lda_discrim_type, \
-             min_pct_var = args.min_pct_var, max_pc_to_retain = args.max_pc_to_retain, \
-             max_pc_to_retain_pyr_ll = args.max_pc_to_retain_pyr_ll, \
-             max_pc_to_retain_pyr_hl = args.max_pc_to_retain_pyr_hl, \
              alexnet_layer_name = args.alexnet_layer_name, \
              alexnet_padding_mode = args.alexnet_padding_mode, \
              use_pca_alexnet_feats = args.use_pca_alexnet_feats==1, \

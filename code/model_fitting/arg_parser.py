@@ -80,12 +80,6 @@ def get_args():
     parser.add_argument("--shuff_rnd_seed", type=int,default=0,
                     help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
    
-    # general PCA arguments
-    parser.add_argument("--min_pct_var", type=int,default=95,
-                    help="minimum percent var to use when choosing num pcs to retain, default 95")
-    parser.add_argument("--max_pc_to_retain", type=int,default=100,
-                    help="maximum number of pcs to retain, default 100")
-    
 
     # Stuff that is specific to 'gabor' or 'texture' models
     parser.add_argument("--n_ori_gabor", type=int,default=4,
@@ -105,10 +99,6 @@ def get_args():
                     help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
     parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
                     help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
-    parser.add_argument("--max_pc_to_retain_pyr_ll", type=int,default=100,
-                    help="maximum number of pcs to retain, default 100")
-    parser.add_argument("--max_pc_to_retain_pyr_hl", type=int,default=100,
-                    help="maximum number of pcs to retain, default 100")
     parser.add_argument("--group_all_hl_feats", type=int,default=0,
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
     

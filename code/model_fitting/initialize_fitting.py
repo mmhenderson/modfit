@@ -75,7 +75,7 @@ def get_full_save_name(args):
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
         elif 'sketch_tokens' in ft:      
             if args.use_pca_st_feats==True:       
-                model_name = 'sketch_tokens_pca_max%ddim'%args.max_pc_to_retain
+                model_name = 'sketch_tokens_pca'
             elif args.use_lda_st_feats==True:
                 model_name = 'sketch_tokens_lda_%s'%args.lda_discrim_type
             else:        

@@ -172,41 +172,41 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
     # To save space, get rid of portion of array that ended up all nans
     if debug:
         actual_max_ncomp_ll=np.max([2,actual_max_ncomp_ll])
-        assert(np.all((scores_each_prf_ll[:,actual_max_ncomp_ll:,:]==0) | np.isnan(scores_each_prf_ll[:,actual_max_ncomp_ll:,:])))
+        assert(np.all((scores_ll_each_prf[:,actual_max_ncomp_ll:,:]==0) | np.isnan(scores_ll_each_prf[:,actual_max_ncomp_ll:,:])))
         actual_max_ncomp_hl=np.max([2,actual_max_ncomp_hl])
-        assert(np.all((scores_each_prf_hl[:,actual_max_ncomp_hl:,:]==0) | np.isnan(scores_each_prf_hl[:,actual_max_ncomp_hl:,:])))
+        assert(np.all((scores_hl_each_prf[:,actual_max_ncomp_hl:,:]==0) | np.isnan(scores_hl_each_prf[:,actual_max_ncomp_hl:,:])))
     else:
-        assert(np.all(np.isnan(scores_each_prf_ll[:,actual_max_ncomp_ll:,:])))
-        assert(np.all(np.isnan(scores_each_prf_hl[:,actual_max_ncomp_hl:,:])))
-    scores_each_prf_ll = scores_each_prf_ll[:,0:actual_max_ncomp_ll,:]
+        assert(np.all(np.isnan(scores_ll_each_prf[:,actual_max_ncomp_ll:,:])))
+        assert(np.all(np.isnan(scores_hl_each_prf[:,actual_max_ncomp_hl:,:])))
+    scores_ll_each_prf = scores_ll_each_prf[:,0:actual_max_ncomp_ll,:]
     print('final size of lower-level array to save:')
-    print(scores_each_prf_ll.shape)
-    scores_each_prf_hl = scores_each_prf_hl[:,0:actual_max_ncomp_hl,:]
+    print(scores_ll_each_prf.shape)
+    scores_hl_each_prf = scores_hl_each_prf[:,0:actual_max_ncomp_hl,:]
     print('final size of higher-level array to save:')
-    print(scores_each_prf_hl.shape)
+    print(scores_hl_each_prf.shape)
     
     fn2save_ll = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
-    print('saving to %s'%fn2save)
+    print('saving to %s'%fn2save_ll)
     t = time.time()
     with h5py.File(fn2save_ll, 'w') as data_set:
         if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores_each_prf_ll), dtype=save_dtype, compression='gzip')
+            dset = data_set.create_dataset("features", np.shape(scores_ll_each_prf), dtype=save_dtype, compression='gzip')
         else:
-            dset = data_set.create_dataset("features", np.shape(scores_each_prf_ll), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores_each_prf_ll
+            dset = data_set.create_dataset("features", np.shape(scores_ll_each_prf), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_ll_each_prf
         data_set.close() 
     elapsed = time.time() - t
     print('Took %.5f sec to write file'%elapsed)
 
     fn2save_hl = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
-    print('saving to %s'%fn2save)
+    print('saving to %s'%fn2save_hl)
     t = time.time()
     with h5py.File(fn2save_hl, 'w') as data_set:
         if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores_each_prf_hl), dtype=save_dtype, compression='gzip')
+            dset = data_set.create_dataset("features", np.shape(scores_hl_each_prf), dtype=save_dtype, compression='gzip')
         else:
-            dset = data_set.create_dataset("features", np.shape(scores_each_prf_hl), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores_each_prf_hl
+            dset = data_set.create_dataset("features", np.shape(scores_hl_each_prf), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_hl_each_prf
         data_set.close() 
     elapsed = time.time() - t
     print('Took %.5f sec to write file'%elapsed)

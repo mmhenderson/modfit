@@ -41,7 +41,8 @@ use_pca_alexnet_feats=1
 
 cd $ROOT/code/model_fitting
 
-subjects=(2 3 4 5 6 7 8)
+# subjects=(2 3 4 5 6 7 8)
+subjects=(2)
 for subject in ${subjects[@]}
 do
 

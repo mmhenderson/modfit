@@ -91,7 +91,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     
     t = time.time()
     with h5py.File(fn2save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float64)
+        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float32)
         data_set['/features'][:,:,:] = features_each_prf
         data_set.close()  
     elapsed = time.time() - t

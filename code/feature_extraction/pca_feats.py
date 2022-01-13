@@ -122,12 +122,20 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
         assert(n_hl_feats==features_hl.shape[1])
         
         # z-score each group of columns.
-        features_ll_z = np.zeros_like(features_ll)
-        features_ll_z[trninds,:] = numpy_utils.zscore_in_groups(features_ll[trninds,:], zgroup_labels_ll)
-        features_ll_z[~trninds,:] = numpy_utils.zscore_in_groups(features_ll[~trninds,:], zgroup_labels_ll)
-        features_hl_z = np.zeros_like(features_hl)
-        features_hl_z[trninds,:] = numpy_utils.zscore_in_groups(features_hl[trninds,:], zgroup_labels_hl)
-        features_hl_z[~trninds,:] = numpy_utils.zscore_in_groups(features_hl[~trninds,:], zgroup_labels_hl)
+        trn_mean_ll = np.mean(features_ll[trninds,:], axis=0, keepdims=True)
+        trn_std_ll = np.std(features_ll[trninds,:], axis=0, keepdims=True)
+        features_ll_z = (features_ll - np.tile(trn_mean_ll, [features_ll.shape[0],1]))/ \
+                np.tile(trn_std_ll, [features_ll.shape[0],1])
+        trn_mean_hl = np.mean(features_hl[trninds,:], axis=0, keepdims=True)
+        trn_std_hl = np.std(features_hl[trninds,:], axis=0, keepdims=True)
+        features_hl_z = (features_hl - np.tile(trn_mean_hl, [features_hl.shape[0],1]))/ \
+                np.tile(trn_std_hl, [features_hl.shape[0],1])
+#         features_ll_z = np.zeros_like(features_ll)
+#         features_ll_z[trninds,:] = numpy_utils.zscore_in_groups(features_ll[trninds,:], zgroup_labels_ll)
+#         features_ll_z[~trninds,:] = numpy_utils.zscore_in_groups(features_ll[~trninds,:], zgroup_labels_ll)
+#         features_hl_z = np.zeros_like(features_hl)
+#         features_hl_z[trninds,:] = numpy_utils.zscore_in_groups(features_hl[trninds,:], zgroup_labels_hl)
+#         features_hl_z[~trninds,:] = numpy_utils.zscore_in_groups(features_hl[~trninds,:], zgroup_labels_hl)
         
         _, wts_ll, pre_mean_ll, ev_ll = do_pca(features_ll_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
                                                       zscore_first=False)

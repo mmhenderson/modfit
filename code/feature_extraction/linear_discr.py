@@ -9,8 +9,16 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
     
-def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=1, debug=False):
+def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=1, debug=False, zscore_each=True, zscore_groups=False, balance_downsample=True):
 
+    if zscore_each:
+        zscore_groups=False
+    if not zscore_each:
+        assert(balance_downsample)
+        
+    print('zscore_each=%s, zscore_groups=%s, balance_downsample=%s'\
+              %(zscore_each, zscore_groups, balance_downsample))
+        
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
@@ -88,7 +96,14 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
     path_to_save = os.path.join(path_to_load, 'LDA')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
-    fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
+    if zscore_groups==True:        
+        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_zscoregroups_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
+    elif zscore_each==False:
+        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_nzscore_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
+    elif balance_downsample==False:
+        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_nobalance_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
+    else:
+        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
                               
     prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
     n_prfs = models.shape[0]
@@ -205,19 +220,24 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
         assert(np.all(ims_to_use==~np.isnan(labels)))
           
         # z-score in advance of computing lda 
-        
-        trn_mean = np.mean(features_in_prf[trninds,:], axis=0, keepdims=True)
-        trn_std = np.std(features_in_prf[trninds,:], axis=0, keepdims=True)
-        features_in_prf_z = (features_in_prf - np.tile(trn_mean, [features_in_prf.shape[0],1]))/ \
-                np.tile(trn_std, [features_in_prf.shape[0],1])
-#         features_in_prf_z = np.zeros_like(features_in_prf)
-#         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-#         features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
-
+        if zscore_each:
+            trn_mean = np.mean(features_in_prf[trninds,:], axis=0, keepdims=True)
+            trn_std = np.std(features_in_prf[trninds,:], axis=0, keepdims=True)
+            features_in_prf_z = (features_in_prf - np.tile(trn_mean, [features_in_prf.shape[0],1]))/ \
+                    np.tile(trn_std, [features_in_prf.shape[0],1])
+        elif zscore_groups:
+            features_in_prf_z = np.zeros_like(features_in_prf)
+            trnz, tstz = numpy_utils.zscore_in_groups_trntest(features_in_prf[trninds,:],\
+                                                              features_in_prf[~trninds,:], zgroup_labels)
+            features_in_prf_z[trninds,:] = trnz
+            features_in_prf_z[~trninds,:] = tstz
+        else:
+            features_in_prf_z = features_in_prf
+            
         # Identify the LDA subspace, based on training data only.
         _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \
                                                        labels[trninds & ims_to_use], \
-                                                       verbose=True, balance_downsample=True)
+                                                       verbose=True, balance_downsample=balance_downsample)
         
         # applying the transformation to all images. Including both train and validation here.
         scores = clf.transform(features_in_prf_z)
@@ -346,11 +366,19 @@ if __name__ == '__main__':
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which prf grid to use")
-   
+    parser.add_argument("--zscore_each", type=int,default=0,
+                    help="want to zscore each column before decoding? 1 for yes, 0 for no")
+    parser.add_argument("--zscore_groups", type=int,default=0,
+                    help="want to zscore in groups of columns before decoding? 1 for yes, 0 for no")
+    parser.add_argument("--balance_downsample", type=int,default=0,
+                    help="want to re-sample if classes are unbalanced? 1 for yes, 0 for no")
     args = parser.parse_args()
 
     if args.debug:
         print('DEBUG MODE\n')
      
-    find_lda_axes(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, discrim_type=args.discrim_type, which_prf_grid=args.which_prf_grid)
+    find_lda_axes(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, \
+                  discrim_type=args.discrim_type, which_prf_grid=args.which_prf_grid, \
+                  zscore_each = args.zscore_each==1, zscore_groups = args.zscore_groups==1, \
+                  balance_downsample = args.balance_downsample==1)
     

@@ -205,9 +205,14 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
         assert(np.all(ims_to_use==~np.isnan(labels)))
           
         # z-score in advance of computing lda 
-        features_in_prf_z = np.zeros_like(features_in_prf)
-        features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+        
+        trn_mean = np.mean(features_in_prf[trninds,:], axis=0, keepdims=True)
+        trn_std = np.std(features_in_prf[trninds,:], axis=0, keepdims=True)
+        features_in_prf_z = (features_in_prf - np.tile(trn_mean, [features_in_prf.shape[0],1]))/ \
+                np.tile(trn_std, [features_in_prf.shape[0],1])
+#         features_in_prf_z = np.zeros_like(features_in_prf)
+#         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
+#         features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
 
         # Identify the LDA subspace, based on training data only.
         _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \

@@ -53,15 +53,15 @@ if __name__ == '__main__':
 #     subs2do = np.arange(1,9,1)
     features_folder = os.path.join(default_paths.root, 'features', 'pyramid_texture')
     for subject in subs2do:
-        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_4ori_4sf_grid5.h5py')
+        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_4ori_4sf_grid5.h5py'%subject)
         change_h5py_dtype(h5py_fn, dtype=np.float32, fieldname='features')
 
     features_folder = os.path.join(default_paths.root, 'features', 'sketch_tokens')
     for subject in subs2do:
-        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_grid5.h5py')
+        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_grid5.h5py'%subject)
         change_h5py_dtype(h5py_fn, dtype=np.float32, fieldname='features')
 
     features_folder = os.path.join(default_paths.root, 'features', 'gabor_texure')
     for subject in subs2do:
-        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_12ori_8sf_gabor_solo_nonlin_grid5.h5py')
+        h5py_fn = os.path.join(features_folder,'S%d_features_each_prf_12ori_8sf_gabor_solo_nonlin_grid5.h5py'%subject)
         change_h5py_dtype(h5py_fn, dtype=np.float32, fieldname='features')

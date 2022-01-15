@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
-#SBATCH --mem=100G
+#SBATCH --mem=120G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 

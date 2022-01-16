@@ -8,7 +8,6 @@ from model_fitting import initialize_fitting
 from feature_extraction import texture_statistics_pyramid
 from sklearn import decomposition
 import argparse
-import copy
 
 """
 Code to perform PCA on features within a given feature space (texture or contour etc).
@@ -43,197 +42,117 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
     # Set up the pyramid feature extractor (just to get dims of diff feature types, not using it for real here)
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
     _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn, subject=subject, \
-                                      sample_batch_size=None, feature_types_exclude=[], n_prf_sd_out=2, \
+                                      sample_batch_size=None, include_ll=True, include_hl=True, n_prf_sd_out=2, \
                                       aperture=1.0, do_varpart = False, compute_features=False, \
-                                      group_all_hl_feats = True, device='cpu:0', which_prf_grid=which_prf_grid)
+                                      group_all_hl_feats = False, device='cpu:0', which_prf_grid=which_prf_grid)
     # Get dims of each feature type
-    dims = np.array(_feature_extractor.feature_type_dims_all)
-    is_ll = _feature_extractor.feature_is_ll
-    # going to treat lower-level and higher-level separately here, doing pca within each set.
-    feature_type_dims_ll = dims[is_ll]
-    feature_type_dims_hl = dims[~is_ll]
-    n_ll_feats = np.sum(feature_type_dims_ll)
-    n_hl_feats = np.sum(feature_type_dims_hl)
+    feature_type_dims = np.array(_feature_extractor.feature_type_dims_all)
+    feature_type_names = np.array(_feature_extractor.feature_types_include)
+    gets_pca = np.ones((len(feature_type_dims),))==1
+    gets_pca[0:5] = False # skip all the 'lower-level' features, because they're already pretty small.
+    print('will perform PCA on these sets of features:')
+    print(feature_type_names[gets_pca])
+    print('will skip these sets of features:')
+    print(feature_type_names[~gets_pca])
+    feature_type_dims = feature_type_dims[gets_pca]
+    feature_type_names = feature_type_names[gets_pca]
+    feature_inds = np.array([_feature_extractor.feature_column_labels==fi for fi in np.where(gets_pca)[0]])
+    assert(np.all(np.sum(feature_inds, axis=1)==feature_type_dims))
     
-    # Define groups of columns to zscore within.
-    # Treating every pixel statistic as a different group because of different scales.
-    # Keeping the groups of mean magnitude features together across orients and scales - rather
-    # than z-scoring each column, to preserve informative difference across these channels.
-    zgroup_sizes_ll = [1,1,1,1,1,1] + list(feature_type_dims_ll[1:])
-    zgroup_sizes_hl = list(feature_type_dims_hl)
-    zgroup_labels_ll = np.concatenate([np.ones(shape=(1, zgroup_sizes_ll[ff]))*ff \
-                                           for ff in range(len(zgroup_sizes_ll))], axis=1)
-    # For the marginal stats of lowpass recons, separating skew/kurtosis here
-    zgroup_labels_ll[zgroup_labels_ll==9] = 10
-    zgroup_labels_ll[0,np.where(zgroup_labels_ll==8)[1][np.arange(1,10,2)]] = 9
-    # for higher level groups, just retaining original grouping scheme 
-    zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
-                                           for ff in range(len(zgroup_sizes_hl))], axis=1)
-
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
     n_trials = len(trninds)
-    
-    scores_ll_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
-    scores_hl_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
-    actual_max_ncomp_ll=0
-    actual_max_ncomp_hl=0
-    
-    prf_inds_loaded = []
-    
-    
-    for prf_model_index in range(n_prfs):
 
-        if debug and prf_model_index>1:
-            continue
+    # going to loop over one set of features at a time
+    # (this isn't the fastest way but uses less memory at a time)
+    for fi, feature_type_name in enumerate(feature_type_names):
+   
+        print('\nProcessing feature subset: %s\n'%feature_type_name)
+        scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+        actual_max_ncomp = 0;        
+        prf_inds_loaded = []
 
-        print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
-        if prf_model_index not in prf_inds_loaded:
+        for prf_model_index in range(n_prfs):
 
-            batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
-                                     bb in range(len(prf_batch_inds))])[0][0]
-            assert(prf_model_index in prf_batch_inds[batch_to_use])
+            if debug and prf_model_index>1:
+                continue
 
-            print('Loading pre-computed features for prf models [%d - %d] from %s'%(prf_batch_inds[batch_to_use][0], \
-                                                                              prf_batch_inds[batch_to_use][-1], features_file))
-            features_each_prf_batch = None
+            print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+            if prf_model_index not in prf_inds_loaded:
 
-            t = time.time()
-            with h5py.File(features_file, 'r') as data_set:
-                values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
-                data_set.close() 
-            elapsed = time.time() - t
-            print('Took %.5f seconds to load file'%elapsed)
+                batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
+                                         bb in range(len(prf_batch_inds))])[0][0]
+                assert(prf_model_index in prf_batch_inds[batch_to_use])
 
-            prf_inds_loaded = prf_batch_inds[batch_to_use]
-            features_each_prf_batch = values.astype(np.float32)
-            values=None
+                print('Loading pre-computed features for prf models [%d - %d] from %s'\
+                      %(prf_batch_inds[batch_to_use][0], prf_batch_inds[batch_to_use][-1], \
+                        features_file))
+                features_each_prf_batch = None
 
-        index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
-        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
-        features_in_prf = features_each_prf_batch[:,:,index_into_batch]
-        values=None
-        print('Size of features array for this image set and prf is:')
-        print(features_in_prf.shape)
-        
-        features_ll = features_in_prf[:,0:n_ll_feats]
-        features_hl = features_in_prf[:,n_ll_feats:]
-        assert(n_hl_feats==features_hl.shape[1])
-        
-        # z-score each group of columns.
-        features_ll_z = np.zeros_like(features_ll)
-        trnz, tstz = numpy_utils.zscore_in_groups_trntest(features_ll[trninds,:],\
-                                              features_ll[~trninds,:], zgroup_labels_ll)
-        features_ll_z[trninds,:] = trnz
-        features_ll_z[~trninds,:] = tstz
-        
-        features_hl_z = np.zeros_like(features_hl)
-        trnz, tstz = numpy_utils.zscore_in_groups_trntest(features_hl[trninds,:],\
-                                              features_hl[~trninds,:], zgroup_labels_hl)
-        features_hl_z[trninds,:] = trnz
-        features_hl_z[~trninds,:] = tstz
-        
-#         trn_mean_ll = np.mean(features_ll[trninds,:], axis=0, keepdims=True)
-#         trn_std_ll = np.std(features_ll[trninds,:], axis=0, keepdims=True)
-#         features_ll_z = (features_ll - np.tile(trn_mean_ll, [features_ll.shape[0],1]))/ \
-#                 np.tile(trn_std_ll, [features_ll.shape[0],1])
-#         trn_mean_hl = np.mean(features_hl[trninds,:], axis=0, keepdims=True)
-#         trn_std_hl = np.std(features_hl[trninds,:], axis=0, keepdims=True)
-#         features_hl_z = (features_hl - np.tile(trn_mean_hl, [features_hl.shape[0],1]))/ \
-#                 np.tile(trn_std_hl, [features_hl.shape[0],1])
+                t = time.time()
+                with h5py.File(features_file, 'r') as data_set:
+                    values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                    data_set.close() 
+                elapsed = time.time() - t
+                print('Took %.5f seconds to load file'%elapsed)
 
-#         features_ll_z = np.zeros_like(features_ll)
-#         features_ll_z[trninds,:] = numpy_utils.zscore_in_groups(features_ll[trninds,:], zgroup_labels_ll)
-#         features_ll_z[~trninds,:] = numpy_utils.zscore_in_groups(features_ll[~trninds,:], zgroup_labels_ll)
-#         features_hl_z = np.zeros_like(features_hl)
-#         features_hl_z[trninds,:] = numpy_utils.zscore_in_groups(features_hl[trninds,:], zgroup_labels_hl)
-#         features_hl_z[~trninds,:] = numpy_utils.zscore_in_groups(features_hl[~trninds,:], zgroup_labels_hl)
-        
-        _, wts_ll, pre_mean_ll, ev_ll = do_pca(features_ll_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=False)
-        feat_submean_ll = features_ll_z - np.tile(pre_mean_ll[np.newaxis,:], [features_ll_z.shape[0],1])
-        scores_ll = feat_submean_ll @ wts_ll.T
-        
-        n_comp_needed_ll = np.where(np.cumsum(ev_ll)>min_pct_var)
-        if np.size(n_comp_needed_ll)>0:
-            n_comp_needed_ll = n_comp_needed_ll[0][0]
+                prf_inds_loaded = prf_batch_inds[batch_to_use]
+                # take out just the feature subset of interest here
+                features_each_prf_batch = values[:,feature_inds[fi,:],:].astype(np.float32)
+                assert(features_each_prf_batch.shape[1]==feature_type_dims[fi])
+                values=None
+
+            index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
+            print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
+            features_in_prf = features_each_prf_batch[:,:,index_into_batch]
+            print('Processing %s, size of array before PCA:'%feature_type_name)
+            print(features_in_prf.shape)
+
+            _, wts, pre_mean, ev = do_pca(features_in_prf[trninds,:], max_pc_to_retain=max_pc_to_retain,\
+                                                          zscore_first=zscore_first)
+            feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
+            scores = feat_submean @ wts.T
+
+            n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+            if np.size(n_comp_needed)>0:
+                n_comp_needed = n_comp_needed[0][0]
+            else:
+                n_comp_needed = scores.shape[1]
+            print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+            actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
+
+            scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
+            scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
+
+        # To save space, get rid of portion of array that ended up all nans
+        if debug:
+            actual_max_ncomp=np.max([2,actual_max_ncomp])
+            assert(np.all((scores_each_prf[:,actual_max_ncomp:,:]==0) | \
+                          np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
         else:
-            n_comp_needed_ll = scores_ll.shape[1]
-        print('Retaining %d components to explain %d pct var'%(n_comp_needed_ll, min_pct_var))
-        actual_max_ncomp_ll = np.max([n_comp_needed_ll, actual_max_ncomp_ll])
+            assert(np.all(np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+        scores_each_prf = scores_each_prf[:,0:actual_max_ncomp,:]
+        print('final size of array to save (for %s):'%feature_type_name)
+        print(scores_each_prf.shape)
         
-        scores_ll_each_prf[:,0:n_comp_needed_ll,prf_model_index] = scores_ll[:,0:n_comp_needed_ll]
-        scores_ll_each_prf[:,n_comp_needed_ll:,prf_model_index] = np.nan
-        
-        
-        _, wts_hl, pre_mean_hl, ev_hl = do_pca(features_hl_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=False)
-        feat_submean_hl = features_hl_z - np.tile(pre_mean_hl[np.newaxis,:], [features_hl_z.shape[0],1])
-        scores_hl = feat_submean_hl @ wts_hl.T
-        
-        n_comp_needed_hl = np.where(np.cumsum(ev_hl)>min_pct_var)
-        if np.size(n_comp_needed_hl)>0:
-            n_comp_needed_hl = n_comp_needed_hl[0][0]
-        else:
-            n_comp_needed_hl = scores_hl.shape[1]
-        print('Retaining %d components to explain %d pct var'%(n_comp_needed_hl, min_pct_var))
-        actual_max_ncomp_hl = np.max([n_comp_needed_hl, actual_max_ncomp_hl])
-        
-        scores_hl_each_prf[:,0:n_comp_needed_hl,prf_model_index] = scores_hl[:,0:n_comp_needed_hl]
-        scores_hl_each_prf[:,n_comp_needed_hl:,prf_model_index] = np.nan
-        
-        print('size of scores_hl:')
-        print(scores_hl.shape) 
-        print(scores_hl.dtype)
-        print('scores_hl_each_prf list is approx %.2f GiB'%numpy_utils.get_list_size_gib(scores_hl_each_prf))
-        
-        sys.stdout.flush()
+        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
+                               %(subject,n_ori, n_sf, feature_type_name, which_prf_grid))
+        print('saving to %s'%fn2save)
+        t = time.time()
+        with h5py.File(fn2save, 'w') as data_set:
+            if compress==True:
+                dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype, compression='gzip')
+            else:
+                dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype)
+            data_set['/features'][:,:,:] = scores_each_prf
+            data_set.close() 
+        elapsed = time.time() - t
+        print('Took %.5f sec to write file'%elapsed)
 
-    # To save space, get rid of portion of array that ended up all nans
-    if debug:
-        actual_max_ncomp_ll=np.max([2,actual_max_ncomp_ll])
-        assert(np.all((scores_ll_each_prf[:,actual_max_ncomp_ll:,:]==0) | np.isnan(scores_ll_each_prf[:,actual_max_ncomp_ll:,:])))
-        actual_max_ncomp_hl=np.max([2,actual_max_ncomp_hl])
-        assert(np.all((scores_hl_each_prf[:,actual_max_ncomp_hl:,:]==0) | np.isnan(scores_hl_each_prf[:,actual_max_ncomp_hl:,:])))
-    else:
-        assert(np.all(np.isnan(scores_ll_each_prf[:,actual_max_ncomp_ll:,:])))
-        assert(np.all(np.isnan(scores_hl_each_prf[:,actual_max_ncomp_hl:,:])))
-    scores_ll_each_prf = scores_ll_each_prf[:,0:actual_max_ncomp_ll,:]
-    print('final size of lower-level array to save:')
-    print(scores_ll_each_prf.shape)
-    scores_hl_each_prf = scores_hl_each_prf[:,0:actual_max_ncomp_hl,:]
-    print('final size of higher-level array to save:')
-    print(scores_hl_each_prf.shape)
-    
-    fn2save_ll = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
-    print('saving to %s'%fn2save_ll)
-    t = time.time()
-    with h5py.File(fn2save_ll, 'w') as data_set:
-        if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores_ll_each_prf), dtype=save_dtype, compression='gzip')
-        else:
-            dset = data_set.create_dataset("features", np.shape(scores_ll_each_prf), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores_ll_each_prf
-        data_set.close() 
-    elapsed = time.time() - t
-    print('Took %.5f sec to write file'%elapsed)
-
-    fn2save_hl = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
-    print('saving to %s'%fn2save_hl)
-    t = time.time()
-    with h5py.File(fn2save_hl, 'w') as data_set:
-        if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores_hl_each_prf), dtype=save_dtype, compression='gzip')
-        else:
-            dset = data_set.create_dataset("features", np.shape(scores_hl_each_prf), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores_hl_each_prf
-        data_set.close() 
-    elapsed = time.time() - t
-    print('Took %.5f sec to write file'%elapsed)
-    
-    
+        
+        
 def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=False, zscore_first=False, which_prf_grid=1, \
                           save_dtype=np.float32, compress=True):
 

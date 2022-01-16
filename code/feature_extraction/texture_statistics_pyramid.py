@@ -23,10 +23,11 @@ class texture_feature_extractor(nn.Module):
     """
     
     def __init__(self,_fmaps_fn, subject=None, which_prf_grid=1, \
-                 sample_batch_size=100, feature_types_exclude=None, n_prf_sd_out=2, \
-                 aperture=1.0, do_varpart=False, zscore_in_groups=False, group_all_hl_feats=False, \
+                 sample_batch_size=100, n_prf_sd_out=2, \
+                 aperture=1.0, do_varpart=False, group_all_hl_feats=False, \
+                 include_ll = True, include_hl = True, \
                  compute_features=True, \
-                 use_pca_feats_ll=False, use_pca_feats_hl=False, \
+                 use_pca_feats_hl=False, \
                  device=None):
         
         super(texture_feature_extractor, self).__init__()
@@ -45,58 +46,32 @@ class texture_feature_extractor(nn.Module):
         self.do_varpart = do_varpart
         self.group_all_hl_feats = group_all_hl_feats
    
-        self.update_feature_list(feature_types_exclude)
+        self.include_ll = include_ll
+        self.include_hl = include_hl
+        if self.include_ll==False and self.include_hl==False:
+            raise ValueError('cannot exclude both low and high level texture features.')
+        self.update_feature_list()
+        
         self.use_pca_feats_hl = use_pca_feats_hl
-        self.use_pca_feats_ll = use_pca_feats_ll
-        self.n_ll_feats = np.sum(np.array(self.feature_type_dims_include)[self.feature_is_ll])
-        self.n_hl_feats = np.sum(np.array(self.feature_type_dims_include)[~self.feature_is_ll])
-        
-        self.any_pca=False
-        if self.use_pca_feats_hl:
-            self.any_pca=True
-            assert(self.group_all_hl_feats==True)
-            assert(len(self.feature_types_exclude)==0)
-            self.features_file_hl = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                     'S%d_%dori_%dsf_PCA_higher-level_only_grid%d.h5py'%(subject,self.n_ori, \
-                                                                self.n_sf, self.which_prf_grid))   
-            if not os.path.exists(self.features_file_hl):
-                raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_hl)   
-            with h5py.File(self.features_file_hl, 'r') as file:
-                feat_shape = np.shape(file['/features'])
-                file.close()
-            n_feat_actual = feat_shape[1]
-            self.max_pc_to_retain_hl = np.min([self.n_hl_feats, n_feat_actual])
-        
-        if self.use_pca_feats_ll:
-            self.any_pca=True
-            assert(self.group_all_hl_feats==True)
-            assert(len(self.feature_types_exclude)==0)
-            self.features_file_ll = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                     'S%d_%dori_%dsf_PCA_lower-level_only_grid%d.h5py'%(subject,self.n_ori, \
-                                                                   self.n_sf, self.which_prf_grid)) 
-            if not os.path.exists(self.features_file_ll):
-                raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_file_ll)   
-            with h5py.File(self.features_file_ll, 'r') as file:
-                feat_shape = np.shape(file['/features'])
-                file.close()
-            n_feat_actual = feat_shape[1]
-            self.max_pc_to_retain_ll = np.min([self.n_ll_feats, n_feat_actual])
-        
-        self.zscore_in_groups = zscore_in_groups
-        if self.zscore_in_groups:
-            # Define groups of columns to zscore within.           
-            assert(len(self.feature_types_exclude)==0)
-            assert(self.any_pca==False)      
-            dims = np.array(self.feature_type_dims_all)
-            # Treat each pixelwise stat as a separate group since diff scales
-            zgroup_sizes = [1,1,1,1,1,1] + list(dims[1:])          
-            zgroup_labels = np.concatenate([np.ones(shape=(1, zgroup_sizes[ff]))*ff \
-                                                   for ff in range(len(zgroup_sizes))], axis=1)
-            # For the marginal stats of lowpass recons, separating skew/kurtosis here
-            zgroup_labels[zgroup_labels>8] = zgroup_labels[zgroup_labels>8]+1
-            zgroup_labels[0,np.where(zgroup_labels==8)[1][np.arange(1,10,2)]] = 9
-            self.zgroup_labels = zgroup_labels
-            
+        if not self.include_hl:
+            self.use_pca_feats_hl = False
+        if self.include_hl and self.use_pca_feats_hl:
+            self.feature_names_hl = self.feature_types_include[~self.feature_is_ll]
+            self.feature_dims_hl = self.feature_type_dims_include[~self.feature_is_ll]
+            self.features_files_hl = ['' for fi in range(len(self.feature_dims_hl))]
+            self.max_pc_to_retain_hl = [0 for fi in range(len(self.feature_dims_hl))]
+            for fi, feature_type_name in enumerate(self.feature_names_hl):
+                self.features_files_hl[fi] = os.path.join(pyramid_texture_feat_path, 'PCA', \
+                         'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'%\
+                         (subject, self.n_ori, self.n_sf, feature_type_name, self.which_prf_grid))   
+                if not os.path.exists(self.features_files_hl[fi]):
+                    raise RuntimeError('Looking at %s for precomputed pca features, not found.'%self.features_files_hl[fi]) 
+                with h5py.File(self.features_files_hl[fi], 'r') as file:
+                    feat_shape = np.shape(file['/features'])
+                    file.close()
+                n_feat_actual = feat_shape[1]
+                self.max_pc_to_retain_hl[fi] = np.min([self.feature_dims_hl[fi], n_feat_actual])
+    
         # if compute features is false, this means the features are already generated, so will be looking for a 
         # saved h5py file of pre-computed features. If true, will run the extraction step now.
         self.compute_features = compute_features
@@ -109,8 +84,7 @@ class texture_feature_extractor(nn.Module):
                 raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)                
             self.prf_batch_size=50
             self.features_each_prf_batch = None
-            self.n_ll_actual_batch = None
-            self.n_hl_actual_batch = None
+            self.is_defined_each_prf_batch = None        
             self.prf_inds_loaded = []
         else:
             self.fmaps = None
@@ -122,57 +96,50 @@ class texture_feature_extractor(nn.Module):
         """
        
         print('Initializing for fitting')
-        self.max_features = self.n_ll_feats+self.n_hl_feats
+        self.max_features = self.n_features_total
         self.clear_big_features()
         
         if not self.compute_features:
-            # Prepare for loading the pre-computed features: as a compromise between speed and ram usage, will load them in
+            # Prepare for loading the pre-computed features, will load them in
             # batches of multiple prfs at a time. 
             n_prfs = models.shape[0]
             n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
             self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
         
-    def update_feature_list(self, feature_types_exclude):
+    def update_feature_list(self):
         
         # First defining all the possible features and their dimensionality (fixed)
-        feature_types_all = ['pixel_stats', 'mean_magnitudes', 'mean_realparts', 'marginal_stats_lowpass_recons', 'variance_highpass_resid', \
+        self.feature_types_all = np.array(['pixel_stats', 'mean_magnitudes', 'mean_realparts', \
+                             'marginal_stats_lowpass_recons', 'variance_highpass_resid', \
             'magnitude_feature_autocorrs', 'lowpass_recon_autocorrs', 'highpass_resid_autocorrs', \
-            'magnitude_within_scale_crosscorrs', 'real_within_scale_crosscorrs', 'magnitude_across_scale_crosscorrs', 'real_imag_across_scale_crosscorrs', \
-            'real_spatshift_within_scale_crosscorrs', 'real_spatshift_across_scale_crosscorrs']
-        self.feature_types_all = feature_types_all
-        feature_type_dims = [6,16,16,10,1,\
-                        272,73,25,\
-                        24,24,48,96,\
-                       10,20]
-        self.feature_is_ll = list(np.ones((5,))==1) + list(np.zeros((9,))==1)
-        self.feature_type_dims_all = feature_type_dims        
-         
-        # Decide which features to ignore, or use all features      
-        if feature_types_exclude is None:
-            feature_types_exclude = []
-        # a few shorthands for ignoring sets of features at a time
-        if 'crosscorrs' in feature_types_exclude:
-            feature_types_exclude.extend( [ff for ff in feature_types_all if 'crosscorrs' in ff])
-        if 'autocorrs' in feature_types_exclude:
-            feature_types_exclude.extend( [ff for ff in feature_types_all if 'autocorrs' in ff])
-        if 'pixel' in feature_types_exclude:
-            feature_types_exclude.extend(['pixel_stats'])
-        self.feature_types_exclude = feature_types_exclude
-        print('Feature types to exclude from the model:')
-        print(self.feature_types_exclude)    
-
-        # Now list all the features that we do want to use
-        self.feature_types_include  = [ff for ff in feature_types_all if not ff in self.feature_types_exclude]
-        if len(self.feature_types_include)==0:
-            raise ValueError('you have specified too many features to exclude, and now you have no features left! aborting.')
+            'magnitude_within_scale_crosscorrs', 'real_within_scale_crosscorrs', \
+            'magnitude_across_scale_crosscorrs', 'real_imag_across_scale_crosscorrs', \
+            'real_spatshift_within_scale_crosscorrs', 'real_spatshift_across_scale_crosscorrs'])
+        self.feature_is_ll = np.arange(14)<5
+        self.feature_type_dims_all = np.array([6,16,16,10,1,\
+                             272,73,25,24,24,48,96,10,20])        
+        self.n_ll_feats = np.sum(self.feature_type_dims_all[self.feature_is_ll])
+        self.n_hl_feats = np.sum(self.feature_type_dims_all[~self.feature_is_ll])
+        
+        # Now decide which of these features to include now (usually including all of them)
+        if self.include_ll and self.include_hl:
+            inds_include = np.ones(np.shape(self.feature_is_ll))==1          
+        elif self.include_ll:
+            inds_include = self.feature_is_ll==1            
+        else:
+            inds_include = self.feature_is_ll==0        
             
-        self.feature_type_dims_include = [feature_type_dims[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude]
-        # how many features will be needed, in total?
+        self.feature_types_include = self.feature_types_all[inds_include]
+        self.feature_type_dims_include = self.feature_type_dims_all[inds_include]
+        self.feature_is_ll = self.feature_is_ll[inds_include]
+        
+        # count the number of features that we are including in the model           
+        
         self.n_features_total = np.sum(self.feature_type_dims_include)
-        self.feature_is_ll = np.array([self.feature_is_ll[fi] for fi in range(len(feature_type_dims)) if not feature_types_all[fi] in self.feature_types_exclude])
-
+            
         # Numbers that define which feature types are in which columns of final output matrix
-        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_include[fi]]) for fi in range(len(self.feature_type_dims_include))], axis=1).astype('int'))
+        self.feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_include[fi]]) \
+                                for fi in range(len(self.feature_type_dims_include))], axis=1).astype('int'))
         assert(np.size(self.feature_column_labels)==self.n_features_total)
         
         if self.group_all_hl_feats:
@@ -190,10 +157,12 @@ class texture_feature_extractor(nn.Module):
             print('Grouping higher level features:')
             print(np.array(self.feature_types_include)[~self.feature_is_ll])
         else:
+            # otherwise treating each sub-set separately for variance partition.
             self.feature_group_names = self.feature_types_include
             
     def get_partial_versions(self):
         
+        # define which sets of columns to group together for variance partition
         if not hasattr(self, 'max_features'):
             raise RuntimeError('need to run init_for_fitting first')
             
@@ -203,21 +172,111 @@ class texture_feature_extractor(nn.Module):
         
         if self.do_varpart and n_feature_types>1:
             
-            # "Partial versions" will be listed as: [full model, model w only first set of features, model w only second set, ...             
+            # "Partial versions" will be listed as: [full model, model w only first set of features,
+            # model w only second set, ...             
             partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]
-            masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+            masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) \
+                                     for ff in np.arange(0,n_feature_types)], axis=0)
             masks = np.concatenate((masks, masks2), axis=0)
             
             if n_feature_types > 2:
-                # if more than two types, also include models where we leave out first set of features, leave out second set of features...]
+                # if more than two types, also include models where we leave out first set of features, 
+                # leave out second set of features...]
                 partial_version_names += ['leave_out_%s'%ff for ff in self.feature_group_names]           
-                masks3 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels!=ff).astype('int'), axis=0) for ff in np.arange(0,n_feature_types)], axis=0)
+                masks3 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels!=ff).astype('int'), axis=0) \
+                                         for ff in np.arange(0,n_feature_types)], axis=0)
                 masks = np.concatenate((masks, masks3), axis=0)           
         
         # masks always goes [n partial versions x n total features]
         return masks, partial_version_names
 
     
+    def load_precomputed_features(self, image_inds, prf_model_index):
+    
+        if prf_model_index not in self.prf_inds_loaded:
+            
+            batch_to_use = np.where([prf_model_index in self.prf_batch_inds[bb] for \
+                                         bb in range(len(self.prf_batch_inds))])[0][0]
+            assert(prf_model_index in self.prf_batch_inds[batch_to_use])
+            self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
+
+            self.features_each_prf_batch = None
+            self.is_defined_each_prf_batch = None
+           
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            # First load the full features matrix
+            print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
+                                                  self.prf_batch_inds[batch_to_use][-1], self.features_file))
+            t = time.time()
+            with h5py.File(self.features_file, 'r') as data_set:
+                values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                data_set.close() 
+            elapsed = time.time() - t
+            print('Took %.5f seconds to load file'%elapsed)
+
+            if self.use_pca_feats_hl:
+                
+                # take out just the lower-level features from here
+                features_each_prf_ll = values[image_inds,0:self.n_ll_feats,:]
+                values = None
+                is_defined_each_prf_ll = np.ones((self.n_ll_feats, len(self.prf_batch_inds[batch_to_use])),dtype=bool)
+                
+                features_each_prf_hl = np.zeros((len(image_inds), self.n_hl_feats, len(self.prf_batch_inds[batch_to_use])))
+                is_defined_each_prf_hl = np.zeros((self.n_hl_feats, len(self.prf_batch_inds[batch_to_use])),dtype=bool)
+                
+                for fi, feature_type_name in enumerate(self.feature_names_hl):
+
+                    # loading pre-computed pca features.
+                    print('Loading pre-computed %s features for models [%d - %d] from %s'%\
+                          (feature_type_name, \
+                           self.prf_batch_inds[batch_to_use][0],self.prf_batch_inds[batch_to_use][-1],\
+                           self.features_files_hl[fi]))
+                    t = time.time()
+                    with h5py.File(self.features_files_hl[fi], 'r') as data_set:
+                        values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
+                        data_set.close() 
+                    elapsed = time.time() - t
+                    print('Took %.5f seconds to load file'%elapsed)
+                    feats_to_use = values[image_inds,:,:]
+                    value = None
+                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
+                                else self.max_pc_to_retain_hl[fi] for ni in nan_inds]
+                    print(nan_inds)
+                    n_feat_each_prf=nan_inds
+                    
+                    start_ind = np.sum(self.feature_dims_hl[0:fi])
+                    print('start ind: %d'%start_ind)
+                    for mm in range(len(self.prf_batch_inds[batch_to_use])):
+                        features_each_prf_hl[:,start_ind:start_ind+n_feat_each_prf[mm],mm] = \
+                                feats_to_use[:,0:n_feat_each_prf[mm],mm]
+                        is_defined_each_prf_hl[start_ind:start_ind+n_feat_each_prf[mm],mm] = True;
+                        
+                self.features_each_prf_batch = np.concatenate([features_each_prf_ll, features_each_prf_hl], axis=1)
+                self.is_defined_each_prf_batch = np.concatenate([is_defined_each_prf_ll, \
+                                                                     is_defined_each_prf_hl], axis=0)
+            else:
+                self.features_each_prf_batch = values[image_inds,:,:]
+                self.is_defined_each_prf_batch = np.ones((values.shape[1],\
+                                                          len(self.prf_batch_inds[batch_to_use])),dtype=bool)
+                values=None
+            
+            print('Size of features array for this batch is:')
+            print(self.features_each_prf_batch.shape)
+            
+        else:
+            assert(len(image_inds)==self.features_each_prf_batch.shape[0])
+            
+        index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
+        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
+        features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
+        feature_inds_defined = self.is_defined_each_prf_batch[:,index_into_batch]
+  
+        return features_in_prf, feature_inds_defined
+            
     def get_maps(self, images):
     
         print('Running steerable pyramid feature extraction...')
@@ -231,115 +290,6 @@ class texture_feature_extractor(nn.Module):
         elapsed =  time.time() - t
         print('time elapsed = %.5f'%elapsed)
 
-    def load_precomputed_features(self, image_inds, prf_model_index):
-    
-        if prf_model_index not in self.prf_inds_loaded:
-            
-            batch_to_use = np.where([prf_model_index in self.prf_batch_inds[bb] for \
-                                         bb in range(len(self.prf_batch_inds))])[0][0]
-            assert(prf_model_index in self.prf_batch_inds[batch_to_use])
-            self.prf_inds_loaded = self.prf_batch_inds[batch_to_use]
-
-            self.features_each_prf_batch = None
-            self.n_ll_actual_batch = None
-            self.n_hl_actual_batch = None
-            gc.collect()
-            torch.cuda.empty_cache()
-
-            if self.use_pca_feats_ll==False or self.use_pca_feats_hl==False:
-                
-                print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
-                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file))
-                t = time.time()
-                with h5py.File(self.features_file, 'r') as data_set:
-                    values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
-                    data_set.close() 
-                elapsed = time.time() - t
-                print('Took %.5f seconds to load file'%elapsed)
-
-                self.features_each_prf_batch = values[image_inds,:,:]
-                values=None
-
-            if self.any_pca:
-                
-                if self.use_pca_feats_ll:
-                    # loading pre-computed pca features.
-                    print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
-                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file_ll))
-                    t = time.time()
-                    with h5py.File(self.features_file_ll, 'r') as data_set:
-                        values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
-                        data_set.close() 
-                    elapsed = time.time() - t
-                    print('Took %.5f seconds to load file'%elapsed)
-                    feats_to_use = values[image_inds,:,:]
-                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
-                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_pc_to_retain_ll for ni in nan_inds]
-                    print(nan_inds)
-                    n_feat_each_prf=nan_inds
-                    self.n_ll_actual_batch = n_feat_each_prf
-                    
-                    # putting these all into a 3d array - different sizes originally, so padding w zeros here
-                    features_each_prf_ll = np.zeros((len(image_inds), self.n_ll_feats, len(n_feat_each_prf)))
-                    for mm in range(len(n_feat_each_prf)):
-                        features_each_prf_ll[:,0:n_feat_each_prf[mm],mm] = feats_to_use[:,0:n_feat_each_prf[mm],mm]
-                    
-                else:                    
-                    features_each_prf_ll = self.features_each_prf_batch[:,0:self.n_ll_feats,:]
-                    self.n_ll_actual_batch = [self.n_ll_feats for bb in self.prf_batch_inds[batch_to_use]]
-                    
-                if self.use_pca_feats_hl:
-                    # loading pre-computed pca features.
-                    print('Loading pre-computed features for models [%d - %d] from %s'%(self.prf_batch_inds[batch_to_use][0], \
-                                                      self.prf_batch_inds[batch_to_use][-1], self.features_file_hl))
-                    t = time.time()
-                    with h5py.File(self.features_file_hl, 'r') as data_set:
-                        values = np.copy(data_set['/features'][:,:,self.prf_batch_inds[batch_to_use]])
-                        data_set.close() 
-                    elapsed = time.time() - t
-                    print('Took %.5f seconds to load file'%elapsed)
-                    feats_to_use = values[image_inds,:,:]
-                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
-                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_pc_to_retain_hl for ni in nan_inds]
-                    print(nan_inds)
-                    n_feat_each_prf=nan_inds
-                    self.n_hl_actual_batch = n_feat_each_prf
-                    
-                    features_each_prf_hl = np.zeros((len(image_inds), self.n_hl_feats, len(n_feat_each_prf)))
-                    for mm in range(len(n_feat_each_prf)):
-                        features_each_prf_hl[:,0:n_feat_each_prf[mm],mm] = feats_to_use[:,0:n_feat_each_prf[mm],mm]
-                     
-                else:                    
-                    features_each_prf_hl = self.features_each_prf_batch[:,0:self.n_hl_feats,:]
-                    self.n_hl_actual_batch = [self.n_hl_feats for bb in self.prf_batch_inds[batch_to_use]]
-                    
-                self.features_each_prf_batch = np.concatenate([features_each_prf_ll, features_each_prf_hl], axis=1)
-                
-            print('Size of features array for this batch is:')
-            print(self.features_each_prf_batch.shape)
-            
-        else:
-            assert(len(image_inds)==self.features_each_prf_batch.shape[0])
-            
-        index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
-        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
-        features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]
-        values=None
-        print('Size of features array for this image set and prf is:')
-        print(features_in_prf.shape)
-        if self.any_pca==False:
-            feature_inds_defined = None # have to compute this later
-        else:
-            feature_inds_defined = np.zeros((self.max_features,), dtype=bool)
-            feature_inds_defined[0:self.n_ll_actual_batch[index_into_batch]] = 1
-            feature_inds_defined[self.n_ll_feats:self.n_ll_feats+self.n_hl_actual_batch[index_into_batch]] = 1
-            
-            
-        return features_in_prf, feature_inds_defined
-        
-    
     def clear_big_features(self):
         
         if self.compute_features:
@@ -348,8 +298,7 @@ class texture_feature_extractor(nn.Module):
         else:
             print('Clearing precomputed features from memory.')
             self.features_each_prf_batch = None
-            self.n_ll_actual_batch = None
-            self.n_hl_actual_batch = None
+            self.is_defined_each_prf_batch = None
             self.prf_inds_loaded = []
             gc.collect()
             torch.cuda.empty_cache()
@@ -360,22 +309,30 @@ class texture_feature_extractor(nn.Module):
         if not self.compute_features:
             
             # Load from file the features for this set of images
-            # In this case, the item passed in through "images" must actually be the indices of the images to use, not images themselves.
-            # Check to make sure this is the case.
+            # In this case, the item passed in through "images" must actually be the indices of the images to use, 
+            # not images themselves. Check to make sure this is the case.
             assert(len(images.shape)==1)
             image_inds = images
+            # Note that "features" here always has the max number of features (including all subtypes) - 
+            # the ones we don't want to use will get removed in the next step.
             features, feature_inds_defined = self.load_precomputed_features(image_inds, prf_model_index)            
             assert(features.shape[0]==len(image_inds))
             features = torch_utils._to_torch(features, self.device)
+           
             
             # Choosing which of these columns to include in model (might be all)
-            feature_column_labels_all = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_all[fi]]) for fi in range(len(self.feature_type_dims_all))], axis=1).astype('int'))
+            feature_column_labels_all = np.squeeze(np.concatenate([fi*np.ones([1,self.feature_type_dims_all[fi]]) \
+                                       for fi in range(len(self.feature_type_dims_all))], axis=1).astype('int'))
             all_feat = OrderedDict()
+            all_feat_inds_defined = []
             for fi, ff in enumerate(self.feature_types_all):
                 if ff in self.feature_types_include:
                     all_feat[ff] = features[:,feature_column_labels_all==fi]
+                    all_feat_inds_defined = np.concatenate([all_feat_inds_defined, \
+                                                    feature_inds_defined[feature_column_labels_all==fi]], axis=0)
                 else:
                     all_feat[ff] = None
+            all_feat_inds_defined = all_feat_inds_defined==1  
             
         else:
             
@@ -396,9 +353,12 @@ class texture_feature_extractor(nn.Module):
             t = time.time()
             pixel_stats, mean_magnitudes, mean_realparts, marginal_stats_lowpass_recons, variance_highpass_resid, \
                 magnitude_feature_autocorrs, lowpass_recon_autocorrs, highpass_resid_autocorrs, \
-                magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
+                magnitude_within_scale_crosscorrs, real_within_scale_crosscorrs, \
+                magnitude_across_scale_crosscorrs, real_imag_across_scale_crosscorrs, \
                 real_spatshift_within_scale_crosscorrs, real_spatshift_across_scale_crosscorrs =  \
-                        get_higher_order_features(self.fmaps, images, prf_params, sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, aperture=self.aperture, device=self.device)
+                        get_higher_order_features(self.fmaps, images, prf_params, \
+                                  sample_batch_size=self.sample_batch_size, n_prf_sd_out=self.n_prf_sd_out, \
+                                  aperture=self.aperture, device=self.device)
             if torch.any(torch.abs(pixel_stats)>10**6):
                 print('WARNING THERE ARE SOME VERY BIG VALUES (>10^6) IN PIXEL STATS')
                 print(torch.max(pixel_stats))
@@ -406,19 +366,23 @@ class texture_feature_extractor(nn.Module):
             elapsed =  time.time() - t
             print('time elapsed = %.5f'%elapsed)
 
-            all_feat = OrderedDict({'pixel_stats':pixel_stats, 'mean_magnitudes':mean_magnitudes, 'mean_realparts':mean_realparts, \
-                                    'marginal_stats_lowpass_recons':marginal_stats_lowpass_recons, 'variance_highpass_resid':variance_highpass_resid, \
-                'magnitude_feature_autocorrs':magnitude_feature_autocorrs, 'lowpass_recon_autocorrs':lowpass_recon_autocorrs, 'highpass_resid_autocorrs':highpass_resid_autocorrs, \
-                'magnitude_within_scale_crosscorrs':magnitude_within_scale_crosscorrs, 'real_within_scale_crosscorrs':real_within_scale_crosscorrs, \
-                'magnitude_across_scale_crosscorrs':magnitude_across_scale_crosscorrs, 'real_imag_across_scale_crosscorrs':real_imag_across_scale_crosscorrs, \
-                'real_spatshift_within_scale_crosscorrs':real_spatshift_within_scale_crosscorrs, 'real_spatshift_across_scale_crosscorrs':real_spatshift_across_scale_crosscorrs})
+            all_feat = OrderedDict({'pixel_stats':pixel_stats, \
+                                    'mean_magnitudes':mean_magnitudes, \
+                                    'mean_realparts':mean_realparts, \
+                                    'marginal_stats_lowpass_recons':marginal_stats_lowpass_recons, \
+                                    'variance_highpass_resid':variance_highpass_resid, \
+                                    'magnitude_feature_autocorrs':magnitude_feature_autocorrs, \
+                                    'lowpass_recon_autocorrs':lowpass_recon_autocorrs, \
+                                    'highpass_resid_autocorrs':highpass_resid_autocorrs, \
+                                    'magnitude_within_scale_crosscorrs':magnitude_within_scale_crosscorrs, \
+                                    'real_within_scale_crosscorrs':real_within_scale_crosscorrs, \
+                                    'magnitude_across_scale_crosscorrs':magnitude_across_scale_crosscorrs, \
+                                    'real_imag_across_scale_crosscorrs':real_imag_across_scale_crosscorrs, \
+                                    'real_spatshift_within_scale_crosscorrs':real_spatshift_within_scale_crosscorrs, \
+                                    'real_spatshift_across_scale_crosscorrs':real_spatshift_across_scale_crosscorrs})
 
         # Now concatenating everything to a big matrix
-        feature_names_full = list(all_feat.keys())
-        feature_names = [fname for fname in feature_names_full if fname in self.feature_types_include]
-        assert(feature_names==self.feature_types_include) # double check here that the order is correct
-
-        for ff, feature_name in enumerate(feature_names):   
+        for ff, feature_name in enumerate(self.feature_types_include):   
             assert(all_feat[feature_name] is not None)
             if ff==0:
                 all_feat_concat = all_feat[feature_name]
@@ -428,7 +392,7 @@ class texture_feature_extractor(nn.Module):
         assert(all_feat_concat.shape[1]==self.n_features_total)
         print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
         print('Feature types included are:')
-        print(feature_names)
+        print(self.feature_types_include)
         
         if torch.any(torch.isnan(all_feat_concat)):
             print('\nWARNING THERE ARE NANS IN FEATURES MATRIX\n')
@@ -437,15 +401,17 @@ class texture_feature_extractor(nn.Module):
             print('zeros for columns:')
             print(np.where(torch_utils.get_value(torch.all(all_feat_concat==0, axis=0))))
 
-        print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
-        
-        if not self.any_pca:
-            feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
+        if not self.compute_features:            
+            assert(len(all_feat_inds_defined)==all_feat_concat.shape[1])
+            feature_inds_defined = all_feat_inds_defined                                       
         else:
-            all_feat_concat = all_feat_concat[:,feature_inds_defined]
-            
-        print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
+            feature_inds_defined = np.ones((self.n_features_total,), dtype=bool)
         
+        # remove any features that are not defined
+        all_feat_concat = all_feat_concat[:,feature_inds_defined] 
+                                                  
+        print('Final size of features concatenated is [%d x %d]'%(all_feat_concat.shape[0], all_feat_concat.shape[1]))
+       
         return all_feat_concat, feature_inds_defined
     
     

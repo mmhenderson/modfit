@@ -8,6 +8,7 @@ from model_fitting import initialize_fitting
 from feature_extraction import texture_statistics_pyramid
 from sklearn import decomposition
 import argparse
+import copy
 
 """
 Code to perform PCA on features within a given feature space (texture or contour etc).
@@ -293,7 +294,7 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
         
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=False)
+                                                      zscore_first=zscore_first)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
@@ -418,7 +419,7 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
         
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=False)
+                                                      zscore_first=zscore_first)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
@@ -550,7 +551,7 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         print(np.any(np.isnan(features_in_prf_z)))
         # finding pca solution for just training data
         _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=False)
+                                                      zscore_first=zscore_first)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])

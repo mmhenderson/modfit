@@ -55,8 +55,6 @@ def get_full_save_name(args):
             else:
                 model_name += '_OLS'
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
-            if args.use_pca_pyr_feats_ll:
-                model_name += '_pca_LL'   
             if args.use_pca_pyr_feats_hl:
                 model_name += '_pca_HL'   
         elif 'gabor_texture' in ft:      

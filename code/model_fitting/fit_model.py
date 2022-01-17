@@ -46,7 +46,7 @@ def fit_fwrf(fitting_types, model_name, \
              do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
-             use_pca_pyr_feats_ll = False, use_pca_pyr_feats_hl = False,\
+             use_pca_pyr_feats_hl = False,\
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              use_pca_alexnet_feats = False, \
              clip_layer_name='Block15', clip_model_architecture='RN50', \
@@ -134,7 +134,6 @@ def fit_fwrf(fitting_types, model_name, \
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
-            'use_pca_pyr_feats_ll': use_pca_pyr_feats_ll,
             'use_pca_pyr_feats_hl': use_pca_pyr_feats_hl,
             'pyramid_feature_info':pyramid_feature_info,
             'group_all_hl_feats': group_all_hl_feats,
@@ -304,15 +303,17 @@ def fit_fwrf(fitting_types, model_name, \
             if 'pyramid' in ft:
                 # Set up the pyramid
                 compute_features = False
-                feature_types_exclude = []
+                include_ll=True
+                include_hl=True
                 _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf_pyr, n_ori = n_ori_pyr)
                 # Initialize the "texture" model which builds on first level feature maps
                 _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                          subject=subject, feature_types_exclude=feature_types_exclude, \
+                          subject=subject, include_ll=include_ll, include_hl=include_hl, \
                           which_prf_grid=which_prf_grid, \
                           do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
-                          group_all_hl_feats = group_all_hl_feats, compute_features = compute_features, \
-                          use_pca_feats_ll = use_pca_pyr_feats_ll, use_pca_feats_hl = use_pca_pyr_feats_hl, \
+                          group_all_hl_feats = group_all_hl_feats, \
+                          compute_features = compute_features, \
+                          use_pca_feats_hl = use_pca_pyr_feats_hl, \
                           device=device)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
@@ -677,7 +678,6 @@ if __name__ == '__main__':
              do_varpart = args.do_varpart==1, do_roi_recons = args.do_roi_recons==1, \
              do_voxel_recons = args.do_voxel_recons==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
-             use_pca_pyr_feats_ll = args.use_pca_pyr_feats_ll==1, \
              use_pca_pyr_feats_hl = args.use_pca_pyr_feats_hl==1, \
              use_pca_st_feats = args.use_pca_st_feats==1, \
              use_lda_st_feats = args.use_lda_st_feats==1, \

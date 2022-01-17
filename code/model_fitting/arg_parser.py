@@ -95,8 +95,6 @@ def get_args():
                     help="number of orientation channels to use")
     parser.add_argument("--n_sf_pyr", type=int,default=4,
                     help="number of spatial frequency channels to use")
-    parser.add_argument("--use_pca_pyr_feats_ll", type=int, default=1,
-                    help="want to do PCA on lower level texture features before fitting? 1 for yes, 0 for no")    
     parser.add_argument("--use_pca_pyr_feats_hl", type=int, default=1,
                     help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--group_all_hl_feats", type=int,default=0,

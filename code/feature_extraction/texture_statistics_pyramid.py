@@ -240,7 +240,7 @@ class texture_feature_extractor(nn.Module):
                     elapsed = time.time() - t
                     print('Took %.5f seconds to load file'%elapsed)
                     feats_to_use = values[image_inds,:,:]
-                    value = None
+                    values = None
                     nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
                                 for mm in range(len(self.prf_batch_inds[batch_to_use]))]
                     nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \

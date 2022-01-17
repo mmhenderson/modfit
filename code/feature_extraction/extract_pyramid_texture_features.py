@@ -33,17 +33,20 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 
     # Set up the pyramid
-    feature_types_exclude = []
+    include_ll = True
+    include_hl = True
     n_prf_sd_out = 2
     do_varpart=False # this doesn't do anything here
     group_all_hl_feats = False # this doesn't do anything here
 
     compute_features = True
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
-    _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=batch_size, \
-                                                                             feature_types_exclude=feature_types_exclude, \
-                                                   n_prf_sd_out=n_prf_sd_out, aperture=1.0, do_varpart = do_varpart, \
-                                  compute_features=compute_features, group_all_hl_feats = group_all_hl_feats, device=device)
+    _feature_extractor = \
+        texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=batch_size, \
+                                include_ll=include_ll, include_hl=include_hl, \
+                                n_prf_sd_out=n_prf_sd_out, aperture=1.0, do_varpart = do_varpart, \
+                                compute_features=compute_features, \
+                                group_all_hl_feats = group_all_hl_feats, device=device)
 
     n_features = _feature_extractor.n_features_total
     n_images = image_data.shape[0]

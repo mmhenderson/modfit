@@ -30,6 +30,7 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
+    n_trials = len(trninds)
     
     if feature_type=='sketch_tokens':
 
@@ -41,17 +42,18 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
         features_to_use = np.ones(np.shape(zgroup_labels))==1
         n_features = 151
         
-    elif (feature_type=='pyramid_texture_ll') or (feature_type=='pyramid_texture_hl'):
+    elif 'pyramid_texture' in feature_type:
         
         path_to_load = default_paths.pyramid_texture_feat_path      
         n_ori = 4; n_sf = 4;
         features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%\
                                      (subject,n_ori, n_sf, which_prf_grid))  
         # Get dims of each feature type
-        feature_type_dims_ll = [ 6, 16, 16, 10,  1];
+        feature_type_dims_ll = np.array([ 6, 16, 16, 10,  1],dtype=int);
         n_ll_feats = np.sum(feature_type_dims_ll)
-        feature_type_dims_hl = [272,  73,  25,  24,  24,  48,  96,  10,  20];  
+        feature_type_dims_hl = np.array([272,  73,  25,  24,  24,  48,  96,  10,  20], dtype=int);  
         n_hl_feats = np.sum(feature_type_dims_hl)
+
         if feature_type=='pyramid_texture_ll':   
             # Define groups of columns to zscore within.
             # Treating every pixel statistic as a different group because of different scales.
@@ -66,7 +68,8 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
             zgroup_labels = zgroup_labels_ll
             features_to_use = np.arange(n_ll_feats+n_hl_feats)<n_ll_feats
             n_features = n_ll_feats
-        else:
+            
+        elif feature_type=='pyramid_texture_hl':
             zgroup_sizes_hl = list(feature_type_dims_hl)
             # for higher level groups, just retaining original grouping scheme 
             zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
@@ -74,6 +77,25 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
             zgroup_labels = zgroup_labels_hl
             features_to_use = np.arange(n_ll_feats+n_hl_feats)>=n_ll_feats
             n_features = n_hl_feats
+            
+        elif feature_type=='pyramid_texture_hl_pca':
+            feature_type_names_hl = ['magnitude_feature_autocorrs', 'lowpass_recon_autocorrs', 'highpass_resid_autocorrs', \
+            'magnitude_within_scale_crosscorrs', 'real_within_scale_crosscorrs', \
+            'magnitude_across_scale_crosscorrs', 'real_imag_across_scale_crosscorrs', \
+            'real_spatshift_within_scale_crosscorrs', 'real_spatshift_across_scale_crosscorrs']
+            features_files_hl = ['' for fi in range(len(feature_type_names_hl))]
+            max_pc_to_retain_hl = [0 for fi in range(len(feature_type_names_hl))]
+            for fi, feature_type_name in enumerate(feature_type_names_hl):
+                features_files_hl[fi] = os.path.join(default_paths.pyramid_texture_feat_path, 'PCA', \
+                         'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'%\
+                         (subject, n_ori, n_sf, feature_type_name, which_prf_grid))   
+                with h5py.File(features_files_hl[fi], 'r') as file:
+                    feat_shape = np.shape(file['/features'])
+                    file.close()
+                max_pc_to_retain_hl[fi] = feat_shape[1]
+            n_features = np.sum(max_pc_to_retain_hl)
+        else:
+            raise ValueError('feature type %s not recognized'%feature_type)
             
     elif feature_type=='gabor_solo':
         
@@ -152,27 +174,71 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
             print('Loading pre-computed features for prf models [%d - %d] from %s'%\
                   (prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1], features_file))
             features_each_prf_batch = None
+            
+            if feature_type=='pyramid_texture_hl_pca':
+                features_each_prf_batch = \
+                    np.zeros((n_trials, n_hl_feats,len(prf_batch_inds[batch_to_use])))
+                is_defined_each_prf_hl = \
+                    np.zeros((n_hl_feats, len(prf_batch_inds[batch_to_use])),dtype=bool)
+                
+                for fi, feature_type_name in enumerate(feature_type_names_hl):
 
-            t = time.time()
-            with h5py.File(features_file, 'r') as data_set:
-                values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
-                data_set.close() 
-            elapsed = time.time() - t
-            print('Took %.5f seconds to load file'%elapsed)
-
+                    # loading pre-computed pca features.
+                    print('Loading pre-computed %s features for models [%d - %d] from %s'%\
+                          (feature_type_name, \
+                           prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1],\
+                           features_files_hl[fi]))
+                    t = time.time()
+                    with h5py.File(features_files_hl[fi], 'r') as data_set:
+                        values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                        data_set.close() 
+                    elapsed = time.time() - t
+                    print('Took %.5f seconds to load file'%elapsed)
+                    feats_to_use = values
+                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                                for mm in range(len(prf_batch_inds[batch_to_use]))]
+                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
+                                else max_pc_to_retain_hl[fi] for ni in nan_inds]
+                    print(nan_inds)
+                    n_feat_each_prf=np.array(nan_inds).astype('int')
+                    
+                    start_ind = int(np.sum(feature_type_dims_hl[0:fi]))
+                    print('start ind: %d'%start_ind)
+                    for mm in range(len(prf_batch_inds[batch_to_use])):        
+                        features_each_prf_batch[:,start_ind:start_ind+n_feat_each_prf[mm],mm] = \
+                                feats_to_use[:,0:n_feat_each_prf[mm],mm]
+                        is_defined_each_prf_hl[start_ind:start_ind+n_feat_each_prf[mm],mm] = True;
+                      
+            else:
+                t = time.time()
+                with h5py.File(features_file, 'r') as data_set:
+                    values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
+                    data_set.close() 
+                elapsed = time.time() - t
+                print('Took %.5f seconds to load file'%elapsed)
+                features_each_prf_batch = values[:,features_to_use,:].astype(np.float32)
+                values=None
+                is_defined_each_prf_hl = None
+            
             prf_inds_loaded = prf_batch_inds[batch_to_use]
-            features_each_prf_batch = values[:,features_to_use,:].astype(np.float32)
-            values=None
+
                                  
         index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
         print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
         features_in_prf = features_each_prf_batch[:,:,index_into_batch]
-        assert(features_in_prf.shape[1]==n_features)
+        if is_defined_each_prf_hl is not None:
+            features_in_prf = features_in_prf[:,is_defined_each_prf_hl[:,index_into_batch]]
+            print(features_in_prf.shape)
+            print(n_features)
+            assert(features_in_prf.shape[1]<=n_features)
+        else:
+            assert(features_in_prf.shape[1]==n_features)
         values=None
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
-
-            
+        assert(not np.any(np.isnan(features_in_prf)))
+        assert(not np.any(np.sum(features_in_prf, axis=0)==0))
+        
         # Gather semantic labels for the images, specific to this pRF position.
         if discrim_type=='indoor_outdoor':
             labels = labels
@@ -234,6 +300,7 @@ def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=
         else:
             features_in_prf_z = features_in_prf
             
+        
         # Identify the LDA subspace, based on training data only.
         _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \
                                                        labels[trninds & ims_to_use], \

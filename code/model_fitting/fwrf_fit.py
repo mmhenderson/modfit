@@ -122,19 +122,10 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     if add_bias:
         best_w_params = np.concatenate([best_w_params, np.zeros(shape=(n_voxels,1,n_partial_versions), dtype=dtype)], axis=1)
 
-    if zscore:
-        if hasattr(_feature_extractor, 'zgroup_labels') and \
-                        _feature_extractor.zgroup_labels is not None:
-            zscore_in_groups = True
-            features_mean = None
-            features_std = None
-            zgroup_labels = _feature_extractor.zgroup_labels
-            print('will z-score columns in groups')
-        else:
-            zscore_in_groups = False
-            features_mean = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
-            features_std  = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
-            print('will z-score each column')
+    if zscore:        
+        features_mean = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
+        features_std  = np.zeros(shape=(n_prfs, max_features), dtype=dtype)
+        print('will z-score each column')
     else:
         features_mean = None
         features_std = None
@@ -169,20 +160,15 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
 
             n_features_actual = features.shape[1]
             
-            if zscore:  
-                if zscore_in_groups:
-                    features = numpy_utils.zscore_in_groups(features, zgroup_labels)
-                else:
-                    # otherwise do each column separately, this is usual way
-                    features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
-                    features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
-                    features -= features_m
-                    features /= features_s   
-                    # saving these for later so we can exactly reproduce this normalization
-                    # when doing validation pass...
-                    features_mean[m,feature_inds_defined] = features_m
-                    features_std[m,feature_inds_defined] = features_s
-
+            if zscore:                
+                features_m = np.mean(features, axis=0, keepdims=True) #[:trn_size]
+                features_s = np.std(features, axis=0, keepdims=True) + 1e-6          
+                features -= features_m
+                features /= features_s   
+                # saving these for later so we can exactly reproduce this normalization
+                # when doing validation pass...
+                features_mean[m,feature_inds_defined] = features_m
+                features_std[m,feature_inds_defined] = features_s
             if add_bias:
                 features = np.concatenate([features, np.ones(shape=(len(features), 1), dtype=dtype)], axis=1)
                 feature_inds_defined = np.concatenate((feature_inds_defined, [True]), axis=0)

@@ -31,15 +31,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     n_features_max = _feature_extractor.max_features
     n_partial_versions = len(partial_version_names)
     
-    if zscore:
-        if hasattr(_feature_extractor, 'zgroup_labels') and \
-                        _feature_extractor.zgroup_labels is not None:
-            zscore_in_groups = True
-            zgroup_labels = _feature_extractor.zgroup_labels
-            print('will z-score columns in groups')
-        else:
-            zscore_in_groups = False
-            print('will z-score each column')
+    if zscore:       
+        print('will z-score each column')
     else:
         print('will not z-score')
     
@@ -73,15 +66,11 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             
             all_feat_concat = torch_utils.get_value(all_feat_concat)
             if zscore:
-                if zscore_in_groups:
-                    all_feat_concat = numpy_utils.zscore_in_groups(all_feat_concat, zgroup_labels)
-                else:
-                    # using mean and std that were computed on training set during fitting - keeping 
-                    # these pars constant here seems to improve fits. 
-                    tiled_mean = np.tile(features_mt[mm,feature_inds_defined], [n_trials, 1])
-                    tiled_std = np.tile(features_st[mm,feature_inds_defined], [n_trials, 1])
-                    all_feat_concat = (all_feat_concat - tiled_mean)/tiled_std
-#                     all_feat_concat = scipy.stats.zscore(all_feat_concat, axis=0)
+                # using mean and std that were computed on training set during fitting - keeping 
+                # these pars constant here seems to improve fits. 
+                tiled_mean = np.tile(features_mt[mm,feature_inds_defined], [n_trials, 1])
+                tiled_std = np.tile(features_st[mm,feature_inds_defined], [n_trials, 1])
+                all_feat_concat = (all_feat_concat - tiled_mean)/tiled_std
                 # if any entries in std are zero or nan, this gives bad result - fix these now.
                 # these bad entries will also be zero in weights, so doesn't matter. 
                 # just want to avoid nans.

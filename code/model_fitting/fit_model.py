@@ -39,7 +39,7 @@ def fit_fwrf(fitting_types, model_name, \
              n_ori_gabor = 4, n_sf_gabor = 4, gabor_nonlin_fn=False, \
              group_all_hl_feats = False, \
              sample_batch_size = 50, voxel_batch_size = 100, \
-             zscore_features = True, zscore_in_groups = False, ridge = True, \
+             zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, use_precomputed_prfs = False, do_val = True, \
              do_stack=False, do_tuning=True, do_sem_disc=True, \
@@ -80,7 +80,6 @@ def fit_fwrf(fitting_types, model_name, \
         'partial_masks': partial_masks, 
         'partial_version_names': partial_version_names,        
         'zscore_features': zscore_features, 
-        'zscore_in_groups': zscore_in_groups,
         'ridge': ridge,
         'debug': debug,
         'up_to_sess': up_to_sess,
@@ -310,7 +309,7 @@ def fit_fwrf(fitting_types, model_name, \
                 _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
                           subject=subject, include_ll=include_ll, include_hl=include_hl, \
                           which_prf_grid=which_prf_grid, \
-                          do_varpart = do_varpart, zscore_in_groups = zscore_in_groups,\
+                          do_varpart = do_varpart,\
                           group_all_hl_feats = group_all_hl_feats, \
                           compute_features = compute_features, \
                           use_pca_feats_hl = use_pca_pyr_feats_hl, \
@@ -347,8 +346,7 @@ def fit_fwrf(fitting_types, model_name, \
                 _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                          which_prf_grid=which_prf_grid, \
                          use_pca_feats = use_pca_st_feats,\
-                         use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type, \
-                         zscore_in_groups = zscore_in_groups)
+                         use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
           
@@ -668,7 +666,7 @@ if __name__ == '__main__':
              gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
              group_all_hl_feats = args.group_all_hl_feats, \
              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
-             zscore_features = args.zscore_features==1, zscore_in_groups = args.zscore_in_groups==1, \
+             zscore_features = args.zscore_features==1, \
              ridge = args.ridge==1, \
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
              random_voxel_data = args.random_voxel_data==1, \

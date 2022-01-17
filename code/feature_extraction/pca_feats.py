@@ -117,7 +117,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
 
             n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
             if np.size(n_comp_needed)>0:
-                n_comp_needed = n_comp_needed[0][0]
+                n_comp_needed = n_comp_needed[0][0]+1
             else:
                 n_comp_needed = scores.shape[1]
             print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
@@ -221,7 +221,7 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
         
         n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
         if np.size(n_comp_needed)>0:
-            n_comp_needed = n_comp_needed[0][0]
+            n_comp_needed = n_comp_needed[0][0]+1
         else:
             n_comp_needed = scores.shape[1]
         print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
@@ -346,7 +346,7 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
         
         n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
         if np.size(n_comp_needed)>0:
-            n_comp_needed = n_comp_needed[0][0]
+            n_comp_needed = n_comp_needed[0][0]+1
         else:
             n_comp_needed = scores.shape[1]
         print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
@@ -478,7 +478,7 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         
         n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
         if np.size(n_comp_needed)>0:
-            n_comp_needed = n_comp_needed[0][0]
+            n_comp_needed = n_comp_needed[0][0]+1
         else:
             n_comp_needed = scores.shape[1]
         print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))

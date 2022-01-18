@@ -547,7 +547,7 @@ def do_pca(values, max_pc_to_retain=None, zscore_first=False):
     print('First element of ev: %.2f'%ev[0])
     # print this out as a check...if it is always 1, this can mean something is wrong w data.
     if np.size(np.where(np.cumsum(ev)>=95))>0:
-        n_comp_needed = np.where(np.cumsum(ev)>=95)[0][0]
+        n_comp_needed = np.where(np.cumsum(ev)>=95)[0][0]+1
         print('Requires %d components to explain 95 pct var'%n_comp_needed)    
     else:
         n_comp_needed = n_comp
@@ -583,18 +583,27 @@ if __name__ == '__main__':
         args.max_pc_to_retain = None
     
     if args.type=='sketch_tokens':
-        run_pca_sketch_tokens(subject=args.subject, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+        run_pca_sketch_tokens(subject=args.subject, min_pct_var=args.min_pct_var, \
+                              max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                              zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='texture_pyramid':
         n_ori=4
         n_sf=4
-        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+        run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, \
+                                min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain,\
+                                debug=args.debug==1, zscore_first=args.zscore==1, \
+                                which_prf_grid=args.which_prf_grid)
     elif args.type=='alexnet':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         for layer in layers:
-            run_pca_alexnet(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+            run_pca_alexnet(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, \
+                            max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                            zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
     elif args.type=='clip':
         layers = ['block%d'%(ll) for ll in range(16)]
         for layer in layers:
-            run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)    
+            run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, \
+                         max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                         zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)    
     else:
         raise ValueError('--type %s is not recognized'%args.type)

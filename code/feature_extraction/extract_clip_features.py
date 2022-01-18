@@ -250,7 +250,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     n_blocks = len(resnet_block_names)  
-    for ll in range(n_blocks):
+    if subject==6:
+        blocks_to_do = np.arange(13,16)
+    else:
+        blocks_to_do = np.arange(16)
+                                
+    for ll in blocks_to_do:
 
         # The clip activations are big, so going to make each layer and then delete
         # it as soon as pca is done.

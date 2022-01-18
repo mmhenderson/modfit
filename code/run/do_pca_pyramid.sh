@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --partition=gpu
+#SBATCH --partition=cpu
 #SBATCH --gres=gpu:0
-#SBATCH --mem=64G
+#SBATCH --mem=12G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -11,15 +11,15 @@ debug=0
 type=texture_pyramid
 zscore=0
 min_pct_var=95
-max_pc_to_retain=150
+max_pc_to_retain=100
 which_prf_grid=5
 
 source ~/myenv/bin/activate
 cd ../
 cd feature_extraction
 
-# subjects=(2 3 4 5 6 7 8)
-subjects=(2)
+subjects=(2 1 3 4 5 6 7 8)
+# subjects=(2)
 for subject in ${subjects[@]}
 do
 

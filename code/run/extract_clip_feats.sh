@@ -17,7 +17,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/feature_extraction/
 
-subjects=(1 3 4 5 6 7 8)
+subjects=(6 7 8)
 for subject in ${subjects[@]}
 do
 

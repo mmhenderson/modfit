@@ -159,8 +159,8 @@ def get_lambdas(zscore_features=True, ridge=True):
         return lambdas
     
     if zscore_features==True:
-#         lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
-        lambdas = np.logspace(np.log(0.01),np.log(10**7+0.01),10, dtype=np.float32, base=np.e) - 0.01
+        lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
+#         lambdas = np.logspace(np.log(0.01),np.log(10**7+0.01),10, dtype=np.float32, base=np.e) - 0.01
     else:
         # range of values are different if choosing not to z-score - note the performance of these lambdas
         # will vary depending on actual feature value ranges, be sure to check the results carefully

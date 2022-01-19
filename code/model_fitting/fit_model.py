@@ -258,7 +258,9 @@ def fit_fwrf(fitting_types, model_name, \
         val_stim_data = image_order_val
    
     ########## DEFINE PARAMETERS #############################################################################
-    holdout_size, lambdas = initialize_fitting.get_fitting_pars(trn_voxel_data, zscore_features, ridge=ridge, gabor_nonlin_fn=gabor_nonlin_fn)
+    lambdas = initialize_fitting.get_lambdas(zscore_features=zscore_features, ridge=ridge)
+    holdout_pct=0.10
+    holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))
     
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid) 

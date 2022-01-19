@@ -151,28 +151,25 @@ def get_save_path(subject, volume_space, model_name, shuffle_images, random_imag
     
     return output_dir, fn2save
  
-def get_fitting_pars(trn_voxel_data, zscore_features=True, ridge=True, holdout_pct=0.10, gabor_nonlin_fn=False):
-
-    holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))
-
-    if ridge==True:
-        if zscore_features==True:
-#             lambdas = np.logspace(0.,5.,9, dtype=np.float32) 
-            lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
-        else:
-            lambdas = np.logspace(-6., 1., 9).astype(np.float64)
-    else:
+def get_lambdas(zscore_features=True, ridge=True):
+    
+    if ridge==False:
         # putting in two zeros because the code might break with a singleton dimension for lambdas.
         lambdas = np.array([0.0,0.0])
-    if gabor_nonlin_fn:
-        lambdas = np.logspace(np.log(0.01),np.log(100000),9, dtype=np.float32, base=np.e) - 0.01
-#         lambdas = np.logspace(np.log(0.01),np.log(100),9, dtype=np.float32, base=np.e) - 0.01
-#         lambdas = np.logspace(np.log(0.01),np.log(10),9, dtype=np.float32, base=np.e) - 0.01
+        return lambdas
+    
+    if zscore_features==True:
+#         lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
+        lambdas = np.logspace(np.log(0.01),np.log(10**7+0.01),10, dtype=np.float32, base=np.e) - 0.01
+    else:
+        # range of values are different if choosing not to z-score - note the performance of these lambdas
+        # will vary depending on actual feature value ranges, be sure to check the results carefully
+        lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
         
     print('\nPossible lambda values are:')
     print(lambdas)
-
-    return holdout_size, lambdas
+    
+    return lambdas
 
 def get_prf_models(which_grid=5):
 

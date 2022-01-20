@@ -113,7 +113,8 @@ def fit_fwrf(fitting_types, model_name, \
             })
         if do_sem_disc:
             dict2save.update({
-            'discrim_each_axis': discrim_each_axis
+            'discrim_each_axis': discrim_each_axis,
+            'discrim_type_list': discrim_type_list,
             })
         if save_pred_data:
             dict2save.update({
@@ -200,6 +201,7 @@ def fit_fwrf(fitting_types, model_name, \
         corr_each_feature = None
     if do_sem_disc:
         discrim_each_axis = None
+        discrim_type_list = None
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
         n_dnn_layers = 5;
@@ -406,8 +408,9 @@ def fit_fwrf(fitting_types, model_name, \
                     fe_names.append(ft)   
           
             elif 'semantic' in ft:
+                this_feature_set = ft.split('semantic_')[1]
                 _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
-                        feature_set=semantic_feature_set, sessions=sessions, device=device, \
+                        feature_set=this_feature_set, sessions=sessions, device=device, \
                                         which_prf_grid=which_prf_grid)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
@@ -512,6 +515,7 @@ def fit_fwrf(fitting_types, model_name, \
             if 'discrim_each_axis' in list(out.keys()):
                 assert(do_sem_disc)
                 discrim_each_axis = out['discrim_each_axis']
+                discrim_type_list = out['discrim_type_list']
             if 'voxel_recs' in list(out.keys()):
                 assert(do_voxel_recons)
                 voxel_recs = out['voxel_recs']
@@ -587,7 +591,7 @@ def fit_fwrf(fitting_types, model_name, \
             torch.cuda.empty_cache()
             print('about to start semantic discriminability analysis')
             sys.stdout.flush()
-            labels_all = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+            labels_all, discrim_type_list = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
                                                      image_inds=val_stim_data, models=models,verbose=False)
             discrim_each_axis_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, \
                                                           val_voxel_data_pred, debug=debug)

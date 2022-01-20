@@ -33,80 +33,90 @@ def init_cuda():
 
 def get_full_save_name(args):
 
-    print(args.fitting_type)
-    if args.fitting_type=='full_midlevel':
-        fitting_types = ['gabor_solo', 'pyramid_texture','sketch_tokens']
-    else:
-        fitting_types = [args.fitting_type]
-    
-    if not (args.fitting_type2==''):
-        fitting_types += [args.fitting_type2]
-    if not (args.fitting_type3==''):
-        fitting_types += [args.fitting_type3]
-       
-    print(fitting_types)
-    model_names = []
-    for ft in fitting_types:
-
-        if 'pyramid' in ft:
-            model_name = 'texture_pyramid'
+    input_fitting_types = [args.fitting_type, args.fitting_type2, args.fitting_type3]
+    fitting_types = [] # this is a list of all the feature types to include, used to create modules.
+    model_name = '' # model_name is a string used to name the folder we will save to
+    for fi, ft in enumerate(input_fitting_types):
+        if ft=='':
+            continue
+        print(ft)
+        if ft=='full_midlevel':
+            fitting_types += ['gabor_solo', 'pyramid_texture','sketch_tokens']
+            model_name += 'full_midlevel'
+        elif ft=='semantic':
+            if args.semantic_feature_set=='all_coco':
+                fitting_types += ['semantic_coco_things_supcateg','semantic_coco_things_categ',\
+                             'semantic_coco_stuff_supcateg','semantic_coco_stuff_categ']
+                model_name += 'all_coco'
+            elif args.semantic_feature_set=='all_coco_stuff':
+                fitting_types += ['semantic_coco_stuff_supcateg','semantic_coco_stuff_categ']
+                model_name += 'all_coco_stuff'
+            elif args.semantic_feature_set=='all_coco_things':
+                fitting_types += ['semantic_coco_things_supcateg','semantic_coco_things_categ']
+                model_name += 'all_coco_things'
+            elif args.semantic_feature_set=='all_coco_categ':
+                fitting_types += ['semantic_coco_things_categ','semantic_coco_stuff_categ']
+                model_name += 'all_coco_categ'
+            else:
+                fitting_types += ['semantic_%s'%args.semantic_feature_set]
+                model_name += 'semantic_%s'%args.semantic_feature_set
+        elif 'texture_pyramid' in ft:
+            fitting_types += [ft]
+            model_name += 'texture_pyramid'
             if args.ridge==True:   
                 model_name += '_ridge'
             else:
                 model_name += '_OLS'
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
             if args.use_pca_pyr_feats_hl:
-                model_name += '_pca_HL'   
-        elif 'gabor_texture' in ft:      
-            model_name = 'texture_gabor'
+                model_name += '_pca_HL' 
+        elif 'gabor_texture' in ft:     
+            fitting_types += [ft]
+            model_name += 'texture_gabor'
             if args.ridge==True:   
                 model_name += '_ridge'
             else:
                 model_name += '_OLS'
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
-        elif 'gabor_solo' in ft:        
-            model_name = 'gabor_solo'
+        elif 'gabor_solo' in ft:     
+            fitting_types += [ft]
+            model_name += 'gabor_solo'
             if args.ridge==True:   
                 model_name += '_ridge'
             else:
                 model_name += '_OLS'
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
         elif 'sketch_tokens' in ft:      
+            fitting_types += [ft]
             if args.use_pca_st_feats==True:       
-                model_name = 'sketch_tokens_pca'
+                model_name += 'sketch_tokens_pca'
             elif args.use_lda_st_feats==True:
-                model_name = 'sketch_tokens_lda_%s'%args.lda_discrim_type
+                model_name += 'sketch_tokens_lda_%s'%args.lda_discrim_type
             else:        
-                model_name = 'sketch_tokens'
+                model_name += 'sketch_tokens'
         elif 'alexnet' in ft:
+            fitting_types += [ft]
             if 'ReLU' in args.alexnet_layer_name:
                 name = args.alexnet_layer_name.split('_')[0]
             else:
                 name = args.alexnet_layer_name
-            model_name = 'alexnet_%s'%name
+            model_name += 'alexnet_%s'%name
             if args.use_pca_alexnet_feats:
                 model_name += '_pca'
         elif 'clip' in ft:
-            model_name = 'clip_%s_%s'%(args.clip_model_architecture, args.clip_layer_name)
+            fitting_types += [ft]
+            model_name += 'clip_%s_%s'%(args.clip_model_architecture, args.clip_layer_name)
             if args.use_pca_clip_feats:
                 model_name += '_pca'
-        elif 'semantic' in ft:
-            model_name = 'semantic_%s'%args.semantic_feature_set            
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
         
-        model_names.append(model_name)
-        
-    if args.fitting_type=='full_midlevel':
-        # shorten this one because gets too long
-        model_name = 'full_midlevel'
-        for mn in model_names[3:]:
-            model_name += '_plus_%s'%mn
-    else:
-        model_name = model_names[0]
-        for mn in model_names[1:]:
-            model_name += '_plus_%s'%mn 
+        if fi<len(input_fitting_types)-1:
+            model_name+='_plus_'
 
+    print(fitting_types)
+    print(model_name)
+    
     return model_name, fitting_types
 
 

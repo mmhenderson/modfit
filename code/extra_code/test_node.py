@@ -18,6 +18,6 @@ print ('cudnn:', torch.backends.cudnn.version())
 print ('dtype:', torch.get_default_dtype())
 
 a = np.random.normal(0,1,[100,200,50])
-a = a.to(device)
+a = torch.Tensor(a).to(device)
 
 print('done')

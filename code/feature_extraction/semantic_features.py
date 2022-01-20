@@ -96,12 +96,19 @@ class semantic_feature_extractor(nn.Module):
                 print('Loading pre-computed features from %s'%self.features_file)
                 coco_df = pd.read_csv(self.features_file, index_col=0)
                 has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
-                if self.discrim_type=='animacy':
+                if self.discrim_type=='animacy':                    
+                    animate_supcats = [1,9]
+                    inanimate_supcats = [ii for ii in range(len(supcat_names))\
+                                         if ii not in animate_supcats]
+                    has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                                   for ii in animate_supcats]), axis=0)
+                    has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                                for ii in inanimate_supcats]), axis=0)
 #                     labels = np.array(coco_df['has_animate'])[:,np.newaxis]
-                    label1 = np.array(coco_df['has_animate'])[:,np.newaxis]
+#                     label1 = np.array(coco_df['has_animate'])[:,np.newaxis]
                     # add another column to distinguish unlabeled from inanimate
-                    label2 = (label1==0) & (has_label[:,np.newaxis])
-                    labels = np.concatenate([label1, label2], axis=1)
+#                     label2 = (label1==0) & (has_label[:,np.newaxis])
+                    labels = np.concatenate([has_animate, has_inanimate], axis=1)
                 elif self.discrim_type=='all_supcat':
                     # images can have more than one label or no labels here
                     labels = np.array(coco_df)[:,0:12]
@@ -113,10 +120,18 @@ class semantic_feature_extractor(nn.Module):
             
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;
-            
-        print('num 0/1 values:')
-        print([np.sum(self.features_in_prf==0), np.sum(self.features_in_prf==1)])
 
+        # print counts to verify things are working ok
+        if self.n_features==2:
+            print('num 1/1, 1/0, 0/1, 0/0:')
+            print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
+                   np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
+                   np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
+                   np.sum((labels[:,0]==0) & (labels[:,1]==0))])
+        else:
+            print('num each column:')
+            print(np.sum(labels, axis=0))
+            
         print('Size of features array for this image set is:')
         print(self.features_in_prf.shape)
         

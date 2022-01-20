@@ -91,7 +91,7 @@ def get_full_save_name(args):
             if args.use_pca_clip_feats:
                 model_name += '_pca'
         elif 'semantic' in ft:
-            model_name = 'semantic_%s'%args.semantic_discrim_type            
+            model_name = 'semantic_%s'%args.semantic_feature_set            
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
         

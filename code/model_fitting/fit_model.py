@@ -51,7 +51,7 @@ def fit_fwrf(fitting_types, model_name, \
              use_pca_alexnet_feats = False, \
              clip_layer_name='Block15', clip_model_architecture='RN50', \
              use_pca_clip_feats = True, \
-             semantic_discrim_type=None, \
+             semantic_feature_set=None, \
              which_prf_grid=1, save_pred_data=False):
     
     def save_all(fn2save):
@@ -123,7 +123,7 @@ def fit_fwrf(fitting_types, model_name, \
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
-            'semantic_discrim_type': semantic_discrim_type,
+            'semantic_feature_set': semantic_feature_set,
             })
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({         
@@ -407,7 +407,7 @@ def fit_fwrf(fitting_types, model_name, \
           
             elif 'semantic' in ft:
                 _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
-                                        discrim_type=semantic_discrim_type, device=device, \
+                                        feature_set=semantic_feature_set, device=device, \
                                         which_prf_grid=which_prf_grid)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
@@ -660,7 +660,7 @@ if __name__ == '__main__':
     
     # now actually call the function to execute fitting...
     fit_fwrf(fitting_types = fitting_types, model_name = model_name, \
-             semantic_discrim_type = args.semantic_discrim_type, \
+             semantic_feature_set = args.semantic_feature_set, \
              subject=args.subject, volume_space = args.volume_space, \
              up_to_sess = args.up_to_sess, single_sess = args.single_sess, \
              n_ori_pyr = args.n_ori_pyr, n_sf_pyr = args.n_sf_pyr, \

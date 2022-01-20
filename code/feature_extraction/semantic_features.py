@@ -8,41 +8,45 @@ from utils import torch_utils, default_paths
 
 class semantic_feature_extractor(nn.Module):
     
-    def __init__(self, subject, discrim_type, device, which_prf_grid=1):
+    def __init__(self, subject, feature_set, device, which_prf_grid=1):
         
         super(semantic_feature_extractor, self).__init__()
         
         self.subject = subject
-        self.discrim_type = discrim_type  
+        self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
         
-        if discrim_type=='indoor_outdoor':
+        if feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
             self.n_features = 2
-        elif discrim_type=='natural_humanmade':
-            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
-                                         'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
-            self.features_file = os.path.join(self.labels_folder, \
-                                  'S%d_natural_humanmade_prf0.csv'%(self.subject))
-            self.same_labels_all_prfs=False
-            self.n_features = 2
-        elif discrim_type=='all_supcat':
-            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
-                                         'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
-            self.features_file = os.path.join(self.labels_folder, \
-                                  'S%d_cocolabs_binary_prf0.csv'%(self.subject))
-            self.same_labels_all_prfs=False
-            self.n_features = 12
         else:
             self.labels_folder = os.path.join(default_paths.stim_labels_root, \
                                          'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
-            self.features_file = os.path.join(self.labels_folder, \
-                                  'S%d_cocolabs_binary_prf0.csv'%(self.subject))
             self.same_labels_all_prfs=False
-#             self.n_features = 1
-            self.n_features = 2
+            if feature_set=='natural_humanmade':            
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_natural_humanmade_prf0.csv'%(self.subject))          
+                self.n_features = 2
+            elif 'coco_things' in feature_set:
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_binary_prf0.csv'%(self.subject))
+                if 'supcateg' in feature_set:                    
+                    self.n_features = 12
+                else:
+                    self.n_features = 80
+            elif 'coco_stuff' in feature_set:
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_stuff_binary_prf0.csv'%(self.subject))
+                if 'supcateg' in feature_set:                    
+                    self.n_features = 16
+                else:
+                    self.n_features = 92           
+            else:
+                self.features_file = os.path.join(self.labels_folder, \
+                                      'S%d_cocolabs_binary_prf0.csv'%(self.subject))
+                self.n_features = 2
 
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
@@ -75,7 +79,7 @@ class semantic_feature_extractor(nn.Module):
         if self.same_labels_all_prfs:
             print('Loading pre-computed features from %s'%self.features_file)        
             coco_df = pd.read_csv(self.features_file, index_col=0)
-            if self.discrim_type=='indoor_outdoor':
+            if self.feature_set=='indoor_outdoor':
                 # some of these images are ambiguous, so leaving both columns here to allow
                 # for images to have both/neither label
                 labels = np.concatenate([np.array(coco_df['has_indoor'])[:,np.newaxis], \
@@ -84,21 +88,34 @@ class semantic_feature_extractor(nn.Module):
                 raise ValueError('discrim type not implemented yet')
             
         else:
-            if self.discrim_type=='natural_humanmade':
+            if self.feature_set=='natural_humanmade':
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_natural_humanmade_prf%d.csv'%(self.subject, prf_model_index))
                 print('Loading pre-computed features from %s'%self.features_file)
                 nat_hum_df = pd.read_csv(self.features_file, index_col=0)                
                 labels = np.array(nat_hum_df)
+            elif 'coco_stuff' in self.feature_set:
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_stuff_binary_prf%d.csv'%(self.subject, prf_model_index))
+                print('Loading pre-computed features from %s'%self.features_file)
+                coco_df = pd.read_csv(self.features_file, index_col=0)
+                if 'supcateg' in self.feature_set:
+                    labels = np.array(coco_df)[:,0:16]
+                else:
+                    labels = np.array(coco_df)[:,16:]                
             else:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf%d.csv'%(self.subject, prf_model_index))
                 print('Loading pre-computed features from %s'%self.features_file)
                 coco_df = pd.read_csv(self.features_file, index_col=0)
-                has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
-                if self.discrim_type=='animacy':                    
+                if 'supcateg' in self.feature_set:
+                    labels = np.array(coco_df)[:,0:12]
+                elif 'categ' in self.feature_set:
+                    labels = np.array(coco_df)[:,12:92]                
+                elif self.feature_set=='animacy':    
+                    supcat_labels = np.array(coco_df)[:,0:12]
                     animate_supcats = [1,9]
-                    inanimate_supcats = [ii for ii in range(len(supcat_names))\
+                    inanimate_supcats = [ii for ii in range(12)\
                                          if ii not in animate_supcats]
                     has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
                                                    for ii in animate_supcats]), axis=0)
@@ -108,19 +125,19 @@ class semantic_feature_extractor(nn.Module):
 #                     label1 = np.array(coco_df['has_animate'])[:,np.newaxis]
                     # add another column to distinguish unlabeled from inanimate
 #                     label2 = (label1==0) & (has_label[:,np.newaxis])
-                    labels = np.concatenate([has_animate, has_inanimate], axis=1)
-                elif self.discrim_type=='all_supcat':
-                    # images can have more than one label or no labels here
-                    labels = np.array(coco_df)[:,0:12]
+                    labels = np.concatenate([has_animate[:,np.newaxis], \
+                                             has_inanimate[:,np.newaxis]], axis=1)
                 else:
-#                     labels = np.array(coco_df[self.discrim_type])[:,np.newaxis]
-                    label1 = np.array(coco_df[self.discrim_type])[:,np.newaxis]
+#                     labels = np.array(coco_df[self.feature_set])[:,np.newaxis]
+                    has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
+                    label1 = np.array(coco_df[self.feature_set])[:,np.newaxis]
                     label2 = (label1==0) & (has_label[:,np.newaxis])
                     labels = np.concatenate([label1, label2], axis=1)
-            
+
+        assert(labels.shape[1]==self.n_features)
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;
-
+        print('processing feature set: %s'%self.feature_set)
         # print counts to verify things are working ok
         if self.n_features==2:
             print('num 1/1, 1/0, 0/1, 0/0:')

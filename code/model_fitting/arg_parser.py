@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument("--fitting_type3", type=str,default='',
                     help="additional fitting type, for variance partition?")
     
-    parser.add_argument("--semantic_discrim_type", type=str,default='',
+    parser.add_argument("--semantic_feature_set", type=str,default='',
                     help="if semantic model, what dimension?")
     
     

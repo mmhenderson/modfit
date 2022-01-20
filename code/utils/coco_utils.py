@@ -791,4 +791,4 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
             labels_all[:,dd,prf_model_index] = labels
     
 
-    return labels_all
+    return labels_all, discrim_type_list

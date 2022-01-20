@@ -27,16 +27,11 @@ do_tuning=1
 do_sem_disc=1
 use_precomputed_prfs=1
 
-# semantic_discrim_type=natural_humanmade
-semantic_discrim_type=animacy
-# semantic_discrim_type=food
-# semantic_discrim_type=vehicle
-# semantic_discrim_type=person
-# semantic_discrim_type=indoor_outdoor
-# semantic_discrim_type=all_supcat
+sets=(animacy coco_things_supcateg coco_things_categ coco_stuff_supcateg coco_stuff_categ)
+# sets=(coco_things_categ coco_stuff_categ)
+for semantic_feature_set in ${sets[@]}
+do
 
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --ridge $ridge --which_prf_grid $which_prf_grid --do_fitting $do_fitting --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --use_precomputed_prfs $use_precomputed_prfs --semantic_discrim_type $semantic_discrim_type
+python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --ridge $ridge --which_prf_grid $which_prf_grid --do_fitting $do_fitting --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --use_precomputed_prfs $use_precomputed_prfs --semantic_feature_set $semantic_feature_set
 
-semantic_discrim_type=food
-
-python3 fit_model.py --subject $subj --debug $debug --fitting_type $fitting_type --volume_space $volume_space --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --ridge $ridge --which_prf_grid $which_prf_grid --do_fitting $do_fitting --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --use_precomputed_prfs $use_precomputed_prfs --semantic_discrim_type $semantic_discrim_type
+done

@@ -13,7 +13,7 @@ CWD=$(pwd)
 cd ../../
 ROOT=$(pwd)
 
-subj=2
+subj=1
 debug=0
 volume_space=1
 up_to_sess=40

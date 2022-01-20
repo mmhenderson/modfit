@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=cpu
 #SBATCH --gres=gpu:0
-#SBATCH --mem=12G
+#SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 

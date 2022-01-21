@@ -357,6 +357,8 @@ def _cofactor_fn_cpu(_x, lambdas):
         print(_x.shape)
         print('Rank of _x:')
         print(torch.matrix_rank(_x))
+        print('Any zero columns:')
+        print(np.where(np.sum(_x.numpy(), axis=0)==1))
         raise
     # [#lambdas, #feature, #feature] 
     cof = torch.tensordot(_f, _x, dims=[[2],[1]]) # [#lambdas, #feature, #sample]

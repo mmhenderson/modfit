@@ -34,11 +34,10 @@ def init_cuda():
 def get_full_save_name(args):
 
     input_fitting_types = [args.fitting_type, args.fitting_type2, args.fitting_type3]
+    input_fitting_types = [ft for ft in input_fitting_types if ft!='']
     fitting_types = [] # this is a list of all the feature types to include, used to create modules.
     model_name = '' # model_name is a string used to name the folder we will save to
     for fi, ft in enumerate(input_fitting_types):
-        if ft=='':
-            continue
         print(ft)
         if ft=='full_midlevel':
             fitting_types += ['gabor_solo', 'pyramid_texture','sketch_tokens']

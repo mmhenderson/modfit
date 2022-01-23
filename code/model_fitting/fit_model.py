@@ -410,8 +410,8 @@ def fit_fwrf(fitting_types, model_name, \
             elif 'semantic' in ft:
                 this_feature_set = ft.split('semantic_')[1]
                 _feature_extractor = semantic_features.semantic_feature_extractor(subject=subject, \
-                        feature_set=this_feature_set, sessions=sessions, device=device, \
-                                        which_prf_grid=which_prf_grid)
+                        feature_set=this_feature_set, sessions=sessions, shuff_rnd_seed = shuff_rnd_seed, \
+                                      holdout_size = holdout_size, device=device, which_prf_grid=which_prf_grid)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
           

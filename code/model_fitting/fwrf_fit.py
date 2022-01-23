@@ -348,18 +348,25 @@ def _cofactor_fn_cpu(_x, lambdas):
     type_orig = _x.dtype
     # switch to this specific format which works with inverse
     _x = _x.to('cpu').to(torch.float64)
+    
     try: 
         _f = torch.stack([(torch.mm(torch.t(_x), _x) + torch.eye(_x.size()[1], device='cpu', dtype=torch.float64) * l).inverse() for l in lambdas], axis=0) 
+        
     except RuntimeError:
-        # if we get an error here, print some things to help diagnose it
-        print('Problem with inverse in _cofactor_fn_cpu.')
+        # problem with inverse - print some info to help diagnose the problem.
+        # usually due to zero columns or duplicate columns.
+        print('WARNING: Problem with inverse in _cofactor_fn_cpu.')
         print('Size of _x (trials x features):')
         print(_x.shape)
         print('Rank of _x:')
         print(torch.matrix_rank(_x))
-        print('Any zero columns:')
-        print(np.where(np.sum(_x.numpy(), axis=0)==1))
-        raise
+        # to prevent a crash, replace 0 with a small lambda value, just temporarily
+        lambdas_adjusted = copy.deepcopy(lambdas)
+        lambdas_adjusted[lambdas_adjusted==0] = 10e-9
+        print('Trying again with these lambda values:')
+        print(lambdas_adjusted)
+        _f = torch.stack([(torch.mm(torch.t(_x), _x) + torch.eye(_x.size()[1], device='cpu', dtype=torch.float64) * l).inverse() for l in lambdas_adjusted], axis=0) 
+
     # [#lambdas, #feature, #feature] 
     cof = torch.tensordot(_f, _x, dims=[[2],[1]]) # [#lambdas, #feature, #sample]
     

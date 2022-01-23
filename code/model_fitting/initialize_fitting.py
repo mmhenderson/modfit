@@ -230,6 +230,15 @@ def load_precomputed_prfs(subject):
     elif subject==4:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params')
+    elif subject==5:
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                'S05/alexnet_all_conv_pca/Jan-15-2022_1936_46/all_fit_params')
+    elif subject==6:
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                'S06/alexnet_all_conv_pca/Jan-19-2022_1358_01/all_fit_params')
+    elif subject==7:
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params')
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 
@@ -250,13 +259,15 @@ def load_best_model_layers(subject, model):
                  'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params')    
     elif subject==2:
         if model=='clip':
-            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                 'S02/clip_RN50_all_resblocks_pca/Jan-13-2022_1121_18/all_fit_params')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params')
     elif subject==3:
         if model=='clip':
-            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                 'S03/clip_RN50_all_resblocks_pca/Jan-18-2022_1156_04/all_fit_params')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params')
@@ -266,6 +277,24 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params')
+    elif subject==5:
+        if model=='clip':
+            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        elif model=='alexnet':
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S05/alexnet_all_conv_pca/Jan-15-2022_1936_46/all_fit_params')
+    elif subject==6:
+        if model=='clip':
+            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        elif model=='alexnet':
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S06/alexnet_all_conv_pca/Jan-19-2022_1358_01/all_fit_params')
+    elif subject==7:
+        if model=='clip':
+            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        elif model=='alexnet':
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params')
     else:
         raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
     

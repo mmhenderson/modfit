@@ -8,7 +8,7 @@ from utils import torch_utils, default_paths, nsd_utils
 
 class semantic_feature_extractor(nn.Module):
     
-    def __init__(self, subject, feature_set, device, sessions=None, which_prf_grid=1):
+    def __init__(self, subject, feature_set, device, sessions=None, which_prf_grid=1, shuff_rnd_seed=0, holdout_size=100):
         
         super(semantic_feature_extractor, self).__init__()
         
@@ -16,7 +16,7 @@ class semantic_feature_extractor(nn.Module):
         self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
 
-        self.get_trn_val_inds(sessions)
+        self.get_trn_val_inds(sessions, shuff_rnd_seed, holdout_size)
         
         if feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
@@ -56,7 +56,7 @@ class semantic_feature_extractor(nn.Module):
         self.device = device
         self.features_in_prf = None
         
-    def get_trn_val_inds(self, sessions):
+    def get_trn_val_inds(self, sessions, shuff_rnd_seed, holdout_size):
         
         # need to know which sessions we plan to work with, to see if any 
         # of the features will be missing in training set.
@@ -72,9 +72,22 @@ class semantic_feature_extractor(nn.Module):
         session_inds = nsd_utils.get_session_inds_full()
         inds2use = np.isin(session_inds, self.sessions)
         image_order = image_order[inds2use]
-        shared_1000_inds = image_order<1000   
-        self.image_order_val = image_order[shared_1000_inds]
-        self.image_order_trn = image_order[~shared_1000_inds]
+        shared_1000_inds = image_order<1000  
+        image_order_trn = image_order[~shared_1000_inds]
+        
+        self.trn_size = len(image_order_trn) - holdout_size
+        order = np.arange(len(image_order_trn), dtype=int)
+        if shuff_rnd_seed==0:
+            print('Computing a new random seed')
+            shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
+        print('Seeding random number generator: seed is %d'%shuff_rnd_seed)
+        np.random.seed(shuff_rnd_seed)
+        np.random.shuffle(order)
+        
+        self.image_order_trn = image_order_trn[order[0:self.trn_size]]
+        print('Training image index list:')
+        print(len(self.image_order_trn))
+        print(self.image_order_trn[0:20])
         
     def init_for_fitting(self, image_size, models, dtype):
 
@@ -192,6 +205,9 @@ class semantic_feature_extractor(nn.Module):
        
     def forward(self, image_inds, prf_params, prf_model_index, fitting_mode = True):
 
+        if fitting_mode:
+            assert(np.all(image_inds[0:self.trn_size]==self.image_order_trn))
+            
         if (not self.same_labels_all_prfs) or (self.features_in_prf is None):
             self.load_precomputed_features(image_inds, prf_model_index)
         

@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --nodelist=mind-1-13
-#SBATCH --mem=16G
+#SBATCH --mem=32G
+#SBATCH --nodelist=mind-1-23
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -10,10 +10,6 @@
 
 source ~/myenv/bin/activate
 
-CWD=$(pwd)
-cd ../../
-ROOT=$(pwd)
+cd /user_data/mmhender/imStat/code/extra_code
 
-cd $ROOT/code/model_fitting
-
-python3 test_loading.py
+python3 test_node.py

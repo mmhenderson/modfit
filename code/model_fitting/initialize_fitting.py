@@ -239,6 +239,9 @@ def load_precomputed_prfs(subject):
     elif subject==7:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params')
+    elif subject==8:
+        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                'S08/alexnet_all_conv_pca/Jan-22-2022_1508_21/all_fit_params')
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 
@@ -295,6 +298,12 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params')
+    elif subject==8:
+        if model=='clip':
+            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        elif model=='alexnet':
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S08/alexnet_all_conv_pca/Jan-22-2022_1508_21/all_fit_params')
     else:
         raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
     

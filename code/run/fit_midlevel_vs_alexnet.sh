@@ -34,7 +34,7 @@ do_sem_disc=1
 
 fitting_type=full_midlevel
 fitting_type2=semantic
-semantic_feature_set=all_coco
+semantic_feature_set=all_coco_categ
 
 n_ori_gabor=12
 n_sf_gabor=8

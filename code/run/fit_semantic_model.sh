@@ -30,8 +30,9 @@ use_precomputed_prfs=1
 
 # sets=(animacy coco_things_supcateg coco_things_categ coco_stuff_supcateg coco_stuff_categ)
 # sets=(coco_things_categ coco_stuff_categ)
-# sets=(all_coco all_coco_stuff all_coco_things all_coco_categ)
-sets=(all_coco_stuff)
+sets=(coco_things_supcateg)
+
+# sets=(all_coco_stuff)
 for semantic_feature_set in ${sets[@]}
 do
 

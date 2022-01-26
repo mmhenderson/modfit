@@ -16,7 +16,8 @@ codepath2=/user_data/mmhender/imStat/code/feature_extraction/
 use_node_storage=1
 which_prf_grid=5
 
-subjects=(3 4 5 6 7 8)
+subjects=(1)
+# subjects=(3 4 5 6 7 8)
 for subject in ${subjects[@]}
 do
 
@@ -35,9 +36,17 @@ do
     scp $fn_features_node $fn_features_local
     echo Done copying file!
     rm $fn_features_node
-
-    fn_edges_node=/scratch/mmhender/features/sketch_tokens/S${subject}_edges_240.h5py
-    rm $fn_edges_node   
+ 
     fn_features_big_node=/scratch/mmhender/features/sketch_tokens/S${subject}_features_240.h5py
+    fn_features_big_local=/user_data/mmhender/features/sketch_tokens/S${subject}_features_240.h5py
+    
+    echo Copying file back from $fn_features_big_node to $fn_features_big_local
+    scp $fn_features_big_node $fn_features_big_local
+    echo Done copying file!
     rm $fn_features_big_node
+    
+    fn_edges_node=/scratch/mmhender/features/sketch_tokens/S${subject}_edges_240.h5py
+    
+    rm $fn_edges_node  
+    
 done

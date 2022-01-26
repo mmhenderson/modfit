@@ -182,9 +182,9 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
         # activation in the feature of interest on each trial.
         feat_act = features_each_prf[:,:,best_model_inds[vv,0]]
         
-        corrmat = np.corrcoef(np.tile(resp[:,np.newaxis], [1,n_features]).T, feat_act.T)
+        for ff in range(n_features):
 
-        corr_each_feature[vv,:] = corrmat[0,n_features:]
+            corr_each_feature[vv,ff] = stats_utils.numpy_corrcoef_warn(resp, feat_act[:,ff])[0,1]
 
     return corr_each_feature
 
@@ -216,16 +216,23 @@ def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=Fal
             inds2use = ~np.isnan(labels)
             inds1 = (labels==0) & inds2use
             inds2 = (labels==1) & inds2use
-            if np.any(inds1) and np.any(inds2):
-                # (mu1-mu2) / std
-                if np.std(resp[inds2use])==0:
-                    print('std==0')
+            
+            if np.any(inds1) and np.any(inds2) and np.std(resp[inds2use])>0:
+                
+                # (mu1-mu2) / std       
                 discrim_each_axis[vv,aa] = (np.mean(resp[inds1]) - np.mean(resp[inds2]))/ \
                                                     np.std(resp[inds2use]) 
             else:
-                print('voxel %d, model %d - at least one label category is missing for axis %d'%(vv,best_model_inds[vv,0], aa))
+                
                 discrim_each_axis[vv,aa] = np.nan
                 
+                if not (np.any(inds1) and np.any(inds2)):
+                    print('nan for voxel %d, model %d, axis %d - at least one label category is missing'\
+                          %(vv,best_model_inds[vv,0], aa))
+                else:
+                    print('nan for voxel %d, model %d, axis %d - sum=%.2f, std=%.2f'\
+                          %(vv,best_model_inds[vv,0], aa, np.sum(resp[inds2use]),np.std(resp[inds2use])))
+               
     return discrim_each_axis
 
 

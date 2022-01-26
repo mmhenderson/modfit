@@ -1,5 +1,29 @@
 import numpy as np
 import scipy.stats
+import warnings
+
+def numpy_corrcoef_warn(a,b):
+    
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            cc = np.corrcoef(a,b)
+        except RuntimeWarning as e:
+            print('Warning: problem computing correlation coefficient')
+            print('shape a: ',a.shape)
+            print('shape b: ',b.shape)
+            print('sum a: %.2f'%np.sum(a))
+            print('sum b: %.2f'%np.sum(b))
+            print('std a: %.2f'%np.std(a))
+            print('std b: %.2f'%np.std(b))
+            print(e)
+            warnings.filterwarnings('ignore')
+            cc = np.corrcoef(a,b)
+            
+    if np.any(np.isnan(cc)):
+        print('There are nans in correlation coefficient')
+    
+    return cc
 
 def get_r2(actual,predicted):
     """
@@ -22,7 +46,7 @@ def get_corrcoef(actual,predicted,dtype=np.float32):
     assert(len(actual.shape)==2)
     vals_cc = np.full(fill_value=0, shape=(actual.shape[1],), dtype=dtype)
     for vv in range(actual.shape[1]):
-        vals_cc[vv] = np.corrcoef(actual[:,vv], predicted[:,vv])[0,1] 
+        vals_cc[vv] = numpy_corrcoef_warn(actual[:,vv], predicted[:,vv])[0,1] 
     return vals_cc
  
 def get_dprime(predlabs,reallabs,un=None):

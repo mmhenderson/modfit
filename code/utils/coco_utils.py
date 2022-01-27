@@ -618,11 +618,13 @@ def write_natural_humanmade_csv(subject, which_prf_grid):
 
     return
 
-def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
+def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
 
     """
-    Load csv files containing binary labels for coco images.
-    Makes an array [n_trials x n_discrim_types x n_prfs]
+    Concatenate the csv files containing a range of different labels for each image patch.
+    Save a file that is loaded later on by "load_labels_each_prf".
+    Each column is a single attribute with multiple levels - nans indicate that the attribute 
+    was ambiguous in that pRF.
     """
 
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
@@ -630,90 +632,79 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
             get_coco_cat_info(coco_stuff_val)
-    
+
     labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))
-    
-    print('loading labels from folders at %s and %s (will be slow...)'%\
+
+    print('concatenating labels from folders at %s and %s (will be slow...)'%\
           (default_paths.stim_labels_root, labels_folder))
+
+    # list all the attributes we want to look at here
     discrim_type_list = ['indoor_outdoor','natural_humanmade','animacy']
-    discrim_type_list+=supcat_names
+
+    discrim_type_list+=supcat_names # presence or absence of each superordinate category
+    discrim_type_list+=['all_things_supcateg'] # multi-class label for all superordinate categories
+    # within each superordinate category, will label the basic-level sub-categories 
+    discrim_type_list+=['within_%s'%supcat_names[sc] \
+                        for sc in range(len(supcat_names)) if len(ids_each_supcat[sc])>1 ]
+
+    # same idea for the coco-stuff labels
     discrim_type_list+=stuff_supcat_names
+    discrim_type_list+=['all_stuff_supcateg']
+    discrim_type_list+=['within_%s'%stuff_supcat_names[sc] \
+                        for sc in range(len(stuff_supcat_names)) if len(stuff_ids_each_supcat[sc])>1 ]
 
     n_sem_axes = len(discrim_type_list)
-    n_trials = image_inds.shape[0]
+    subject_df = nsd_utils.get_subj_df(subject);
+    n_trials = len(subject_df)
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     n_prfs = models.shape[0]
 
-    labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
-
-    # get indoor/outdoor labels first, this property is defined across whole images  
-    dd=0;
-    discrim_type = discrim_type_list[dd]
-    labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
+    # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
+    in_out_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
     if verbose:
-        print('Loading pre-computed features from %s'%labels_fn)
-    in_out_df = pd.read_csv(labels_fn, index_col=0)
-    labels = np.array(in_out_df)
-    labels = labels[image_inds,:].astype(np.float32)
-    colnames = list(in_out_df.keys())
-    if verbose:
-        print(discrim_type)
-        print(colnames)
-        print('num 1/1, 1/0, 0/1, 0/0:')
-        print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
-        np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
-        np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
-        np.sum((labels[:,0]==0) & (labels[:,1]==0))])
-
-    # remove any images with both/neither label, since these are ambiguous.
-    ims_to_use = np.sum(labels, axis=1)==1
-    labels[~ims_to_use,:] = np.nan
-    if verbose:
-        print('n trials labeled/ambiguous: %d/%d'%\
-              (np.sum(~np.isnan(labels[:,0])), np.sum(np.isnan(labels[:,0]))))
-    labels_all[:,dd,:] = np.tile(labels[:,0:1], [1,n_prfs]) # then can convert to a single dimension.
+        print('Loading pre-computed features from %s'%in_out_labels_fn)
+    in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
 
     for prf_model_index in range(n_prfs):
 
-        # First get natural-humanmade labels
-        dd=1;
-        discrim_type = discrim_type_list[dd]
-        labels_fn = os.path.join(labels_folder, \
+        # will make a single dataframe for each pRF
+        labels_df = pd.DataFrame({})
+        save_name = os.path.join(labels_folder, \
+                                  'S%d_concat_prf%d.csv'%(subject, prf_model_index))
+
+        # load all the different binary label sets for this pRF
+        nat_hum_labels_fn = os.path.join(labels_folder, \
                                   'S%d_natural_humanmade_prf%d.csv'%(subject, prf_model_index))
+        coco_things_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))  
+        coco_stuff_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_stuff_binary_prf%d.csv'%(subject, prf_model_index))  
+
         if verbose and (prf_model_index==0):
-            print('Loading pre-computed features from %s'%labels_fn)
-        nat_hum_df = pd.read_csv(labels_fn, index_col=0)                
-        labels = np.array(nat_hum_df)
-        labels = labels[image_inds,:].astype(np.float32)
-        colnames = list(nat_hum_df.keys())
-        if verbose and (prf_model_index==0):
-            print(discrim_type)
-            print(colnames)
-            print('num 1/1, 1/0, 0/1, 0/0:')
-            print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
-            np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
-            np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
-            np.sum((labels[:,0]==0) & (labels[:,1]==0))])
-        # remove any images with both/neither label, since these are ambiguous.
-        ims_to_use = np.sum(labels, axis=1)==1
-        labels[~ims_to_use,:] = np.nan
-        if verbose and (prf_model_index==0):
-            print('n trials labeled/ambiguous: %d/%d'%\
-                  (np.sum(~np.isnan(labels[:,0])), np.sum(np.isnan(labels[:,0]))))
-        labels_all[:,dd,prf_model_index] = labels[:,0] # then can convert to a single dimension.
-                
-        # Get all the labels that are based on coco-things 
-        labels_fn = os.path.join(labels_folder, \
-                                  'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))        
-        if verbose and (prf_model_index==0):
-            print('Loading pre-computed features from %s'%labels_fn)
+            print('Loading pre-computed features from %s'%nat_hum_labels_fn)
+            print('Loading pre-computed features from %s'%coco_things_labels_fn)
+            print('Loading pre-computed features from %s'%coco_stuff_labels_fn)
+
+        nat_hum_df = pd.read_csv(nat_hum_labels_fn, index_col=0)   
+        coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
+        coco_stuff_df = pd.read_csv(coco_stuff_labels_fn, index_col=0)
+
+        for dd in range(n_sem_axes):
+
+            labels=None; colnames=None;
             
-        coco_df = pd.read_csv(labels_fn, index_col=0)
-        
-        for dd in np.arange(2, 2+1+len(supcat_names)):
             discrim_type = discrim_type_list[dd]
-            if discrim_type=='animacy':
-                supcat_labels = np.array(coco_df)[:,0:12]
+            if 'indoor_outdoor' in discrim_type:
+                labels = np.array(in_out_df).astype(np.float32)
+                colnames = list(in_out_df.keys())
+
+            elif 'natural_humanmade' in discrim_type:
+                labels = np.array(nat_hum_df).astype(np.float32)
+                colnames = list(nat_hum_df.keys())
+
+            elif 'animacy' in discrim_type:
+                supcat_labels = np.array(coco_things_df)[:,0:12]
                 animate_supcats = [1,9]
                 inanimate_supcats = [ii for ii in range(12)\
                                      if ii not in animate_supcats]
@@ -724,71 +715,113 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
                 labels = np.concatenate([has_animate[:,np.newaxis], \
                                              has_inanimate[:,np.newaxis]], axis=1).astype(np.float32)
                 colnames = ['has_animate','has_inanimate']
-            else:
-                has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
-                label1 = np.array(coco_df[discrim_type])[:,np.newaxis]
+
+            elif discrim_type=='all_things_supcateg':
+                labels = np.array(coco_things_df)[:,0:12].astype(np.float32)
+                colnames = list(coco_things_df.keys())[0:12]
+
+            elif discrim_type=='all_stuff_supcateg':
+                labels = np.array(coco_stuff_df)[:,0:16].astype(np.float32)
+                colnames = list(coco_stuff_df.keys())[0:16]
+
+            elif discrim_type in supcat_names:
+                has_label = np.any(np.array(coco_things_df)[:,0:12]==1, axis=1)
+                label1 = np.array(coco_things_df[discrim_type])[:,np.newaxis]
                 label2 = (label1==0) & (has_label[:,np.newaxis])
                 labels = np.concatenate([label1, label2], axis=1).astype(np.float32)
                 colnames = ['has_%s'%discrim_type, 'has_other']
-       
-            labels = labels[image_inds,:]
-            if verbose and (prf_model_index==0):
-                print(discrim_type)
-                print(colnames)
-                print('num 1/1, 1/0, 0/1, 0/0:')
-                print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
-                np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
-                np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
-                np.sum((labels[:,0]==0) & (labels[:,1]==0))])
-            
-            # remove any images with both/neither label, since these are ambiguous.
-            ims_to_use = np.sum(labels, axis=1)==1
-            labels[~ims_to_use,:] = np.nan
-            if verbose and (prf_model_index==0):
-                print('n trials labeled/ambiguous: %d/%d'%\
-                  (np.sum(~np.isnan(labels[:,0])), np.sum(np.isnan(labels[:,0]))))
-            labels = labels[:,0] # then can convert to a single dimension.
-            
-            # put into big array
-            labels_all[:,dd,prf_model_index] = labels
+
+            elif discrim_type in stuff_supcat_names:
+                has_label = np.any(np.array(coco_stuff_df)[:,0:16]==1, axis=1)
+                label1 = np.array(coco_stuff_df[discrim_type])[:,np.newaxis]
+                label2 = (label1==0) & (has_label[:,np.newaxis])
+                labels = np.concatenate([label1, label2], axis=1).astype(np.float32)
+                colnames = ['has_%s'%discrim_type, 'has_other']
+
+            elif 'within_' in discrim_type:
+
+                # for a given super-category, label the individual sub-categories.
+                if discrim_type.split('within_')[1] in supcat_names:
+                    cat_labels = np.array(coco_things_df)[:,12:92]
+                    supcat_ind = np.where([sc==discrim_type.split('within_')[1] for sc in supcat_names])[0][0]
+                    cols_to_use = np.where(np.isin(cat_ids, ids_each_supcat[supcat_ind]))[0]
+                    labels = cat_labels[:,cols_to_use].astype(np.float32)
+                    colnames = np.array(coco_things_df.keys())[12+cols_to_use]
+
+                elif discrim_type.split('within_')[1] in stuff_supcat_names:
+                    stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
+                    supcat_ind = np.where([sc==discrim_type.split('within_')[1] for sc in stuff_supcat_names])[0][0]
+                    cols_to_use = np.where(np.isin(stuff_cat_ids, stuff_ids_each_supcat[supcat_ind]))[0]
+                    labels = stuff_cat_labels[:,cols_to_use].astype(np.float32)
+                    colnames = np.array(coco_stuff_df.keys())[16+cols_to_use]
+
         
-        # Get all the labels that are based on coco-stuff
-        labels_fn = os.path.join(labels_folder, \
-                                  'S%d_cocolabs_stuff_binary_prf%d.csv'%(subject, prf_model_index))        
-        if verbose and (prf_model_index==0):
-            print('Loading pre-computed features from %s'%labels_fn)
-            
-        coco_stuff_df = pd.read_csv(labels_fn, index_col=0)
-        
-        for dd in np.arange(3+len(supcat_names), 3+len(supcat_names)+len(stuff_supcat_names)):
-            discrim_type = discrim_type_list[dd]
-            
-            has_label = np.any(np.array(coco_stuff_df)[:,0:16]==1, axis=1)
-            label1 = np.array(coco_stuff_df[discrim_type])[:,np.newaxis]
-            label2 = (label1==0) & (has_label[:,np.newaxis])
-            labels = np.concatenate([label1, label2], axis=1).astype(np.float32)
-            colnames = ['has_%s'%discrim_type, 'has_other']
-       
-            labels = labels[image_inds,:]
-            if verbose and (prf_model_index==0):
+            if verbose:
                 print(discrim_type)
-                print(colnames)
-                print('num 1/1, 1/0, 0/1, 0/0:')
-                print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
-                np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
-                np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
-                np.sum((labels[:,0]==0) & (labels[:,1]==0))])
-            
-            # remove any images with both/neither label, since these are ambiguous.
-            ims_to_use = np.sum(labels, axis=1)==1
-            labels[~ims_to_use,:] = np.nan
-            if verbose and (prf_model_index==0):
+                print(colnames)          
+                if labels.shape[1]==2:
+                    print('num 1/1, 1/0, 0/1, 0/0:')
+                    print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
+                    np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
+                    np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
+                    np.sum((labels[:,0]==0) & (labels[:,1]==0))])
+                else:
+                    print('num each column:')
+                    print(np.sum(labels, axis=0).astype(int))
+
+            # remove any images with >1 or 0 labels, since these are ambiguous.
+            assert(len(colnames)==labels.shape[1])
+            has_one_label = np.sum(labels, axis=1)==1
+            labels = np.array([np.where(labels[ii,:]==1)[0][0] \
+                       if has_one_label[ii] else np.nan \
+                       for ii in range(labels.shape[0])])
+
+            if verbose:
                 print('n trials labeled/ambiguous: %d/%d'%\
-                  (np.sum(~np.isnan(labels[:,0])), np.sum(np.isnan(labels[:,0]))))
-            labels = labels[:,0] # then can convert to a single dimension.
-            
-            # put into big array
-            labels_all[:,dd,prf_model_index] = labels
+                      (np.sum(~np.isnan(labels)), np.sum(np.isnan(labels))))
+
+            labels_df[discrim_type] = labels
+
+        if verbose:
+            print('Saving to %s'%save_name)
+
+        labels_df.to_csv(save_name, header=True)
+        
+
+
+def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
+
+    """
+    Load csv files containing binary labels for coco images.
+    Makes an array [n_trials x n_discrim_types x n_prfs]
+    """
+
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    
+    print('loading labels from folders at %s (will be slow...)'%(labels_folder))
+  
+    n_trials = image_inds.shape[0]
+    n_prfs = models.shape[0]
+
+    for prf_model_index in range(n_prfs):
+        
+        fn2load = os.path.join(labels_folder, \
+                                  'S%d_concat_prf%d.csv'%(subject, prf_model_index))
+        concat_df = pd.read_csv(fn2load, index_col=0)
+        labels = np.array(concat_df)[image_inds,:]
+        discrim_type_list = list(concat_df.keys())
+        
+        if prf_model_index==0:
+            print(discrim_type_list)
+            print('num nans each column (out of %d trials):'%n_trials)
+            print(np.sum(np.isnan(labels), axis=0))
+            n_sem_axes = len(discrim_type_list)
+            labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
+
+        # put into big array
+        
+        labels_all[:,:,prf_model_index] = labels
     
 
     return labels_all, discrim_type_list

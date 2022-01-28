@@ -1,345 +1,198 @@
 import sys, os
 import numpy as np
 import time, h5py
-codepath = '/user_data/mmhender/imStat/code'
-sys.path.append(codepath)
-from utils import default_paths, nsd_utils, numpy_utils, stats_utils
-from model_fitting import initialize_fitting 
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
-    
-def find_lda_axes(subject, feature_type, discrim_type='animacy', which_prf_grid=1, debug=False, zscore_each=True, zscore_groups=False, balance_downsample=True):
 
-    if zscore_each:
-        zscore_groups=False
-    if not zscore_each:
-        assert(balance_downsample)
-        
-    print('zscore_each=%s, zscore_groups=%s, balance_downsample=%s'\
-              %(zscore_each, zscore_groups, balance_downsample))
+codepath = '/user_data/mmhender/imStat/code'
+sys.path.append(codepath)
+from utils import default_paths, nsd_utils, numpy_utils, stats_utils, coco_utils
+from model_fitting import initialize_fitting 
+from feature_extraction import texture_statistics_gabor, sketch_token_features, \
+                texture_statistics_pyramid
+    
+def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
+                  zscore_each=False, balance_downsample=False, device=None):
+  
+    if device is None:
+        device = 'cpu:0'
         
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
-    
-    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
-                                                                                      which_prf_grid))  
-    
+
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    trninds = np.array(subject_df['shared1000']==False)    
     n_trials = len(trninds)
+    image_inds = np.arange(n_trials)
     
+    labels_all, discrim_type_list, unique_labels_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+                                                     image_inds=image_inds, models=models,verbose=False)
+    n_sem_axes = labels_all.shape[1] 
+    
+    # create feature extractor (just a module that will load the pre-computed features easily)
     if feature_type=='sketch_tokens':
 
         path_to_load = default_paths.sketch_token_feat_path
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_grid%d.h5py'%(subject, \
-                                                                                        which_prf_grid)) 
-         # how to do z-scoring? can set up groups of columns here.
-        zgroup_labels = np.concatenate([np.zeros(shape=(150,)), np.ones(shape=(1,))], axis=0)
-        features_to_use = np.ones(np.shape(zgroup_labels))==1
-        n_features = 151
+        _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
+                         which_prf_grid=which_prf_grid, \
+                         use_pca_feats = False);
         
     elif 'pyramid_texture' in feature_type:
         
-        path_to_load = default_paths.pyramid_texture_feat_path      
-        n_ori = 4; n_sf = 4;
-        features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%\
-                                     (subject,n_ori, n_sf, which_prf_grid))  
-        # Get dims of each feature type
-        feature_type_dims_ll = np.array([ 6, 16, 16, 10,  1],dtype=int);
-        n_ll_feats = np.sum(feature_type_dims_ll)
-        feature_type_dims_hl = np.array([272,  73,  25,  24,  24,  48,  96,  10,  20], dtype=int);  
-        n_hl_feats = np.sum(feature_type_dims_hl)
-
-        if feature_type=='pyramid_texture_ll':   
-            # Define groups of columns to zscore within.
-            # Treating every pixel statistic as a different group because of different scales.
-            # Keeping the groups of mean magnitude features together across orients and scales - rather
-            # than z-scoring each column, to preserve informative difference across these channels.
-            zgroup_sizes_ll = [1,1,1,1,1,1] + list(feature_type_dims_ll[1:])
-            zgroup_labels_ll = np.concatenate([np.ones(shape=(1, zgroup_sizes_ll[ff]))*ff \
-                                               for ff in range(len(zgroup_sizes_ll))], axis=1)
-            # For the marginal stats of lowpass recons, separating skew/kurtosis here
-            zgroup_labels_ll[zgroup_labels_ll==9] = 10
-            zgroup_labels_ll[0,np.where(zgroup_labels_ll==8)[1][np.arange(1,10,2)]] = 9
-            zgroup_labels = zgroup_labels_ll
-            features_to_use = np.arange(n_ll_feats+n_hl_feats)<n_ll_feats
-            n_features = n_ll_feats
-            
+        path_to_load = default_paths.pyramid_texture_feat_path
+        # Set up the pyramid loader       
+        if feature_type=='pyramid_texture_ll': 
+            include_ll=True
+            include_hl=False
+            use_pca_feats_hl = False
         elif feature_type=='pyramid_texture_hl':
-            zgroup_sizes_hl = list(feature_type_dims_hl)
-            # for higher level groups, just retaining original grouping scheme 
-            zgroup_labels_hl = np.concatenate([np.ones(shape=(1, zgroup_sizes_hl[ff]))*ff \
-                                                   for ff in range(len(zgroup_sizes_hl))], axis=1)
-            zgroup_labels = zgroup_labels_hl
-            features_to_use = np.arange(n_ll_feats+n_hl_feats)>=n_ll_feats
-            n_features = n_hl_feats
-            
+            include_ll=False
+            include_hl=True
+            use_pca_feats_hl = False
         elif feature_type=='pyramid_texture_hl_pca':
-            feature_type_names_hl = ['magnitude_feature_autocorrs', 'lowpass_recon_autocorrs', 'highpass_resid_autocorrs', \
-            'magnitude_within_scale_crosscorrs', 'real_within_scale_crosscorrs', \
-            'magnitude_across_scale_crosscorrs', 'real_imag_across_scale_crosscorrs', \
-            'real_spatshift_within_scale_crosscorrs', 'real_spatshift_across_scale_crosscorrs']
-            features_files_hl = ['' for fi in range(len(feature_type_names_hl))]
-            max_pc_to_retain_hl = [0 for fi in range(len(feature_type_names_hl))]
-            for fi, feature_type_name in enumerate(feature_type_names_hl):
-                features_files_hl[fi] = os.path.join(default_paths.pyramid_texture_feat_path, 'PCA', \
-                         'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'%\
-                         (subject, n_ori, n_sf, feature_type_name, which_prf_grid))   
-                with h5py.File(features_files_hl[fi], 'r') as file:
-                    feat_shape = np.shape(file['/features'])
-                    file.close()
-                max_pc_to_retain_hl[fi] = feat_shape[1]
-            n_features = np.sum(max_pc_to_retain_hl)
-        else:
-            raise ValueError('feature type %s not recognized'%feature_type)
+            include_ll=False
+            include_hl=True
+            use_pca_feats_hl = True
             
+        compute_features = False; do_varpart=False; group_all_hl_feats=True;
+        n_ori = 4; n_sf = 4;
+        _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
+        _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
+                  subject=subject, include_ll=include_ll, include_hl=include_hl, \
+                  use_pca_feats_hl = use_pca_pyr_feats_hl,\
+                  which_prf_grid=which_prf_grid, \
+                  do_varpart = do_varpart, group_all_hl_feats = group_all_hl_feats, \
+                  compute_features = compute_features, device=device)
+        
     elif feature_type=='gabor_solo':
         
         path_to_load = default_paths.gabor_texture_feat_path   
-        n_ori = 12; n_sf = 8;
-        features_file = os.path.join(path_to_load, \
-                                 'S%d_features_each_prf_%dori_%dsf_gabor_solo_nonlin_grid%d.h5py'%\
-                                 (subject,n_ori, n_sf, which_prf_grid))
-        zgroup_labels = np.ones((n_ori*n_sf,))
-        features_to_use = np.ones(np.shape(zgroup_labels))==1
-        n_features = n_ori*n_sf
-        
+        feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
+        gabor_nonlin_fn=True
+        n_ori=12; n_sf=8; autocorr_output_pix=5
+        _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
+                    initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device,\
+                    nonlin_fn=gabor_nonlin_fn);    
+        compute_features = False; do_varpart=False; group_all_hl_feats_gabor = False;
+        _feature_extractor = texture_statistics_gabor.texture_feature_extractor(\
+                    _fmaps_fn_complex,_fmaps_fn_simple,\
+                    subject=subject, which_prf_grid=which_prf_grid,\
+                    autocorr_output_pix=autocorr_output_pix, \
+                    feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
+                    group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=gabor_nonlin_fn, \
+                    compute_features = compute_features, device=device)  
     else:
         raise RuntimeError('feature type %s not recognized'%feature_type)
-      
-    if not os.path.exists(features_file):
-        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
-
+        
+    _feature_extractor.init_for_fitting(image_size=None, prf_models=models, dtype=np.float32)
+    
     # Choose where to save results
     path_to_save = os.path.join(path_to_load, 'LDA')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
-    if zscore_groups==True:        
-        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_zscoregroups_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
-    elif zscore_each==False:
-        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_nzscore_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
-    elif balance_downsample==False:
-        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_nobalance_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
-    else:
-        fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_%s_grid%d.npy'%(subject, feature_type, discrim_type, which_prf_grid))
-                              
-    prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
-    n_prfs = models.shape[0]
-    n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
-    prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
-    prf_inds_loaded = []
- 
-    scores_each_prf = []
-    wts_each_prf = []
-    pre_mean_each_prf = []
-    trn_acc_each_prf = []
-    trn_dprime_each_prf = []
-    val_acc_each_prf = []
-    val_dprime_each_prf = []
-    labels_pred_each_prf = []
-    labels_actual_each_prf = []
+
+    fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
     
-    if discrim_type=='indoor_outdoor':
-        # this property is defined across whole images, so loading labels outside the pRF loop.
-        coco_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
-        print('Reading labels from %s...'%coco_labels_fn)
-        coco_df = pd.read_csv(coco_labels_fn, index_col=0)
-        ims_to_use = np.sum(np.array(coco_df)==1, axis=1)==1
-        labels = np.array(coco_df['has_indoor']).astype(np.float32)
-        labels[~ims_to_use] = np.nan
-        neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] + \
-                [np.sum(np.isnan(labels))]
-        print('n outdoor/n indoor/n ambiguous:')
-        print(neach)
-        unvals = np.unique(labels[ims_to_use])                               
-        print('unique values:')
-        print(unvals)       
-   
+    trn_acc = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    val_acc = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    trn_dprime = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    val_dprime = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+
+    labels_pred_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
+    labels_actual_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
+    
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
             continue
-            
-        print('\nProcessing pRF %d of %d'%(prf_model_index, n_prfs))
-        if prf_model_index not in prf_inds_loaded:
-
-            batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
-                                     bb in range(len(prf_batch_inds))])[0][0]
-            assert(prf_model_index in prf_batch_inds[batch_to_use])
-
-            print('Loading pre-computed features for prf models [%d - %d] from %s'%\
-                  (prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1], features_file))
-            features_each_prf_batch = None
-            
-            if feature_type=='pyramid_texture_hl_pca':
-                features_each_prf_batch = \
-                    np.zeros((n_trials, n_hl_feats,len(prf_batch_inds[batch_to_use])))
-                is_defined_each_prf_hl = \
-                    np.zeros((n_hl_feats, len(prf_batch_inds[batch_to_use])),dtype=bool)
                 
-                for fi, feature_type_name in enumerate(feature_type_names_hl):
-
-                    # loading pre-computed pca features.
-                    print('Loading pre-computed %s features for models [%d - %d] from %s'%\
-                          (feature_type_name, \
-                           prf_batch_inds[batch_to_use][0],prf_batch_inds[batch_to_use][-1],\
-                           features_files_hl[fi]))
-                    t = time.time()
-                    with h5py.File(features_files_hl[fi], 'r') as data_set:
-                        values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
-                        data_set.close() 
-                    elapsed = time.time() - t
-                    print('Took %.5f seconds to load file'%elapsed)
-                    feats_to_use = values
-                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
-                                for mm in range(len(prf_batch_inds[batch_to_use]))]
-                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
-                                else max_pc_to_retain_hl[fi] for ni in nan_inds]
-                    print(nan_inds)
-                    n_feat_each_prf=np.array(nan_inds).astype('int')
-                    
-                    start_ind = int(np.sum(feature_type_dims_hl[0:fi]))
-                    print('start ind: %d'%start_ind)
-                    for mm in range(len(prf_batch_inds[batch_to_use])):        
-                        features_each_prf_batch[:,start_ind:start_ind+n_feat_each_prf[mm],mm] = \
-                                feats_to_use[:,0:n_feat_each_prf[mm],mm]
-                        is_defined_each_prf_hl[start_ind:start_ind+n_feat_each_prf[mm],mm] = True;
-                      
-            else:
-                t = time.time()
-                with h5py.File(features_file, 'r') as data_set:
-                    values = np.copy(data_set['/features'][:,:,prf_batch_inds[batch_to_use]])
-                    data_set.close() 
-                elapsed = time.time() - t
-                print('Took %.5f seconds to load file'%elapsed)
-                features_each_prf_batch = values[:,features_to_use,:].astype(np.float32)
-                values=None
-                is_defined_each_prf_hl = None
-            
-            prf_inds_loaded = prf_batch_inds[batch_to_use]
-
-                                 
-        index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
-        print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
-        features_in_prf = features_each_prf_batch[:,:,index_into_batch]
-        if is_defined_each_prf_hl is not None:
-            features_in_prf = features_in_prf[:,is_defined_each_prf_hl[:,index_into_batch]]
-            print(features_in_prf.shape)
-            print(n_features)
-            assert(features_in_prf.shape[1]<=n_features)
-        else:
-            assert(features_in_prf.shape[1]==n_features)
-        values=None
+        print('\nProcessing pRF %d of %d'%(prf_model_index, n_prfs))
+        
+        features_in_prf, feature_inds_defined = _feature_extractor(image_inds, models[prf_model_index,:], \
+                                                            prf_model_index, fitting_mode=False)
+      
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
         assert(not np.any(np.isnan(features_in_prf)))
         assert(not np.any(np.sum(features_in_prf, axis=0)==0))
         
-        # Gather semantic labels for the images, specific to this pRF position.
-        if discrim_type=='indoor_outdoor':
-            labels = labels
-            ims_to_use = ims_to_use
-        elif discrim_type=='animacy' or discrim_type=='person' or discrim_type=='food' \
-                                 or discrim_type=='vehicle' or discrim_type=='animal':
-            coco_labels_fn = os.path.join(labels_folder, \
-                                          'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
-            print('Reading labels from %s...'%coco_labels_fn)
-            coco_df = pd.read_csv(coco_labels_fn, index_col=0)
-            print('Using %s as label'%discrim_type)
-            if discrim_type=='animacy':
-                labels = np.array(coco_df['has_animate']).astype(np.float32)
-            else:
-                labels = np.array(coco_df[discrim_type]).astype(np.float32)
-            ims_to_use = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
-            labels[~ims_to_use] = np.nan
-            neach = [np.sum(labels==ll) for ll in np.unique(labels[~np.isnan(labels)])] + \
-                    [np.sum(np.isnan(labels))]
-            print('yes %s/no %s/no labels:'%(discrim_type, discrim_type))
-            print(neach)
-            unvals = np.unique(labels[ims_to_use])                               
-            print('unique values:')
-            print(unvals)       
-        elif discrim_type=='all_supcat':
-            coco_labels_fn = os.path.join(labels_folder, \
-                                          'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
-            print('Reading labels from %s...'%coco_labels_fn)
-            coco_df = pd.read_csv(coco_labels_fn, index_col=0)            
-            supcat_labels = np.array(coco_df)[:,0:12]            
-            labels = [np.where(supcat_labels[ii,:])[0] for ii in range(supcat_labels.shape[0])]
-            labels = np.array([ll[0] if len(ll)>0 else -1 for ll in labels]).astype(np.float32)
-            ims_to_use = np.sum(supcat_labels, axis=1)==1
-            labels[~ims_to_use] = np.nan
-            print('Proportion of images that have exactly one super-cat label:')
-            print(np.mean(ims_to_use))           
-            print('Unique labels:')
-            unvals, counts = np.unique(labels[ims_to_use], return_counts=True)
-            print(np.unique(labels[ims_to_use]))
-            print(counts)
-        else:
-            raise ValueError('discrimination type %s not recognized.'%discrim_type)
-        
-       
-        assert(np.all(ims_to_use==~np.isnan(labels)))
-          
-        # z-score in advance of computing lda 
-        if zscore_each:
-            trn_mean = np.mean(features_in_prf[trninds,:], axis=0, keepdims=True)
-            trn_std = np.std(features_in_prf[trninds,:], axis=0, keepdims=True)
-            features_in_prf_z = (features_in_prf - np.tile(trn_mean, [features_in_prf.shape[0],1]))/ \
-                    np.tile(trn_std, [features_in_prf.shape[0],1])
-        elif zscore_groups:
-            features_in_prf_z = np.zeros_like(features_in_prf)
-            trnz, tstz = numpy_utils.zscore_in_groups_trntest(features_in_prf[trninds,:],\
-                                                              features_in_prf[~trninds,:], zgroup_labels)
-            features_in_prf_z[trninds,:] = trnz
-            features_in_prf_z[~trninds,:] = tstz
-        else:
-            features_in_prf_z = features_in_prf
+        for aa in range(n_sem_axes):
             
-        
-        # Identify the LDA subspace, based on training data only.
-        _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \
-                                                       labels[trninds & ims_to_use], \
-                                                       verbose=True, balance_downsample=balance_downsample)
-        
-        # applying the transformation to all images. Including both train and validation here.
-        scores = clf.transform(features_in_prf_z)
-        print(scores.shape)
-        labels_pred = clf.predict(features_in_prf_z)
-        pre_mean = clf.xbar_
-        
-        val_acc = np.mean(labels_pred[valinds & ims_to_use]==labels[valinds & ims_to_use])
-        val_dprime = stats_utils.get_dprime(labels_pred[valinds & ims_to_use], \
-                                            labels[valinds & ims_to_use], un=unvals)
-        print('Validation data prediction accuracy = %.2f pct'%(val_acc*100))
-        print('Validation data dprime = %.2f'%(val_dprime))
-        print('Proportion predictions each category:')        
-        n_each_cat_pred = [np.sum(labels_pred==cc) for cc in np.unique(labels_pred)]
-        print(np.round(n_each_cat_pred/np.sum(n_each_cat_pred), 2))
-        
-        trn_acc_each_prf.append(trn_acc)
-        trn_dprime_each_prf.append(trn_dprime)
-        val_acc_each_prf.append(val_acc)
-        val_dprime_each_prf.append(val_dprime)
-        
-        scores_each_prf.append(scores)
-        wts_each_prf.append(scalings)       
-        pre_mean_each_prf.append(pre_mean)
-        
-        labels_pred_each_prf.append(labels_pred)
-        labels_actual_each_prf.append(labels)
-        
-        sys.stdout.flush()
+            labels = labels_all[:,aa,prf_model_index]
+            inds2use = ~np.isnan(labels)      
+            unique_labels_actual = np.unique(labels[inds2use & trninds])
+            
+            if prf_model_index==0:
+                print('processing axis: %s'%discrim_type_list[aa])
+                print('labels: ')
+                print(unique_labels_each[aa])
+               
+            if np.any(~np.isin(unique_labels_each[aa], unique_labels_actual)):
+                print('missing some labels for axis %d'%aa)
+                print('expected labels')
+                print(unique_labels_each[aa])
+                print('actual labels')
+                print(unique_labels_actual)
+
+            if len(unique_labels_actual)>1:
+
+                if zscore_each:
+                    # z-score in advance of computing lda 
+                    trn_mean = np.mean(features_in_prf[trninds,:], axis=0, keepdims=True)
+                    trn_std = np.std(features_in_prf[trninds,:], axis=0, keepdims=True)
+                    features_in_prf_z = (features_in_prf - np.tile(trn_mean, [features_in_prf.shape[0],1]))/ \
+                            np.tile(trn_std, [features_in_prf.shape[0],1])
+                else:
+                    features_in_prf_z = features_in_prf
+
+                # Identify the LDA subspace, based on training data only.
+                _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \
+                                                               labels[trninds & ims_to_use], \
+                                                               verbose=True, balance_downsample=balance_downsample)
+
+                # applying the transformation to all images. Including both train and validation here.
+#                 scores = clf.transform(features_in_prf_z)
+#                 print(scores.shape)
+                labels_pred = clf.predict(features_in_prf_z)
+#                 pre_mean = clf.xbar_
+
+                val_acc = np.mean(labels_pred[valinds & ims_to_use]==labels[valinds & ims_to_use])
+                val_dprime = stats_utils.get_dprime(labels_pred[valinds & ims_to_use], \
+                                                    labels[valinds & ims_to_use], un=unvals)
+                print('Validation data prediction accuracy = %.2f pct'%(val_acc*100))
+                print('Validation data dprime = %.2f'%(val_dprime))
+                print('Proportion predictions each category:')        
+                n_each_cat_pred = [np.sum(labels_pred==cc) for cc in np.unique(labels_pred)]
+                print(np.round(n_each_cat_pred/np.sum(n_each_cat_pred), 2))
+
+                trn_acc_each_prf[prf_model_index,aa] = trn_acc
+                trn_dprime_each_prf[prf_model_index,aa] = trn_dprime
+                val_acc_each_prf[prf_model_index,aa] = val_acc
+                val_dprime_each_prf[prf_model_index,aa] = val_dprime
+
+                labels_pred_each_prf[:,prf_model_index, aa] = labels_pred
+                labels_actual_each_prf[:,prf_model_index, aa] = labels
+                
+            else:
+                print('nans for model %d, axis %d - need >1 levels'\
+                          %(prf_model_index, aa))
+                trn_acc_each_prf[prf_model_index,aa] = np.nan
+                trn_dprime_each_prf[prf_model_index,aa] = np.nan
+                val_acc_each_prf[prf_model_index,aa] = np.nan
+                val_dprime_each_prf[prf_model_index,aa] = np.nan
+
+                labels_pred_each_prf[:,prf_model_index, aa] = np.nan
+                labels_actual_each_prf[:,prf_model_index, aa] = np.nan
+                
+            sys.stdout.flush()
 
     
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'scores': scores_each_prf,'wts': wts_each_prf, \
-                      'pre_mean': pre_mean_each_prf, \
-                      'trn_acc': trn_acc_each_prf, \
+    np.save(fn2save, {'trn_acc': trn_acc_each_prf, \
                       'trn_dprime': trn_dprime_each_prf, 'val_acc': val_acc_each_prf, \
                       'val_dprime': val_dprime_each_prf, \
                      'labels_actual': labels_actual_each_prf, 'labels_pred': labels_pred_each_prf})
@@ -427,16 +280,12 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--feature_type", type=str,default='sketch_tokens',
                     help="what kind of features are we using?")
-    parser.add_argument("--discrim_type", type=str,default='animacy',
-                    help="what semantic labels are we using to classify?")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which prf grid to use")
     parser.add_argument("--zscore_each", type=int,default=0,
                     help="want to zscore each column before decoding? 1 for yes, 0 for no")
-    parser.add_argument("--zscore_groups", type=int,default=0,
-                    help="want to zscore in groups of columns before decoding? 1 for yes, 0 for no")
     parser.add_argument("--balance_downsample", type=int,default=0,
                     help="want to re-sample if classes are unbalanced? 1 for yes, 0 for no")
     args = parser.parse_args()
@@ -445,7 +294,7 @@ if __name__ == '__main__':
         print('DEBUG MODE\n')
      
     find_lda_axes(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, \
-                  discrim_type=args.discrim_type, which_prf_grid=args.which_prf_grid, \
-                  zscore_each = args.zscore_each==1, zscore_groups = args.zscore_groups==1, \
+                  which_prf_grid=args.which_prf_grid, \
+                  zscore_each = args.zscore_each==1, \
                   balance_downsample = args.balance_downsample==1)
     

@@ -792,7 +792,7 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
 def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
 
     """
-    Load csv files containing binary labels for coco images.
+    Load csv files containing spatially-specific category labels for coco images.
     Makes an array [n_trials x n_discrim_types x n_prfs]
     """
 
@@ -810,7 +810,11 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
         concat_df = pd.read_csv(fn2load, index_col=0)
         labels = np.array(concat_df)
-        unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
+        if prf_model_index==0:
+            unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
+        else:
+            unique_labs_each = [np.unique(np.concatenate([np.unique(labels[~np.isnan(labels[:,ll]),ll]), \
+                                          unique_labs_each[ll]], axis=0)) for ll in range(labels.shape[1])]
         labels = labels[image_inds,:]
         discrim_type_list = list(concat_df.keys())
         

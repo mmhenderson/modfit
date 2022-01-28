@@ -4,6 +4,7 @@ import time
 import numpy as np
 import torch
 import scipy.stats
+import warnings
 
 from utils import numpy_utils, torch_utils, stats_utils
 
@@ -185,7 +186,7 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
     return corr_each_feature
 
 
-def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=False):
+def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_data_pred, debug=False):
    
     """
     Measure how well voxels' predicted responses distinguish between image patches with 
@@ -202,7 +203,7 @@ def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=Fal
         
         if debug and (vv>1):
             continue
-        print('computing semantic discriminability for voxel %d of %d\n'%(vv, n_voxels))
+        print('computing semantic discriminability for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
         
         resp = val_voxel_data_pred[:,vv,0]
         
@@ -210,25 +211,43 @@ def get_semantic_discrim(best_params, labels_all, val_voxel_data_pred, debug=Fal
             
             labels = labels_all[:,aa,best_model_inds[vv,0]]
             inds2use = ~np.isnan(labels)
-#             group_inds = [(labels==ll) & inds2use for ll in unique_labels]
-            inds1 = (labels==0) & inds2use
-            inds2 = (labels==1) & inds2use
             
-            if np.any(inds1) and np.any(inds2) and np.std(resp[inds2use])>0:
+            unique_labels_actual = np.unique(labels[inds2use])
+            if np.any(~np.isin(unique_labels_each[aa], unique_labels_actual)):
+                print('missing some labels for axis %d'%aa)
+                print('expected labels')
+                print(unique_labels_each[aa])
+                print('actual labels')
+                print(unique_labels_actual)
                 
-                # (mu1-mu2) / std       
-                discrim_each_axis[vv,aa] = (np.mean(resp[inds1]) - np.mean(resp[inds2]))/ \
-                                                    np.std(resp[inds2use]) 
+            if len(unique_labels_actual)>1:
+                
+                group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
+                groups = [resp[gi] for gi in group_inds]
+                
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('error')
+                    try:
+                        fstat = scipy.stats.f_oneway(*groups).statistic
+                    except RuntimeWarning as e:
+                        print('Warning: problem with one way anova. Means/vars/counts each group:')
+                        means = [np.mean(group) for group in groups]
+                        vrs = [np.var(group) for group in groups]
+                        counts = [len(group) for group in groups]
+                        print(means)
+                        print(vrs)
+                        print(counts)
+                        print(e)
+                        warnings.filterwarnings('ignore')
+                        fstat = scipy.stats.f_oneway(*groups).statistic
+                    
+                discrim_each_axis[vv,aa] = fstat
+                
             else:
-                
-                discrim_each_axis[vv,aa] = np.nan
-                
-                if not (np.any(inds1) and np.any(inds2)):
-                    print('nan for voxel %d, model %d, axis %d - at least one label category is missing'\
+
+                print('nan for voxel %d, model %d, axis %d - need >1 levels'\
                           %(vv,best_model_inds[vv,0], aa))
-                else:
-                    print('nan for voxel %d, model %d, axis %d - sum=%.2f, std=%.2f'\
-                          %(vv,best_model_inds[vv,0], aa, np.sum(resp[inds2use]),np.std(resp[inds2use])))
-               
+                discrim_each_axis[vv,aa] = np.nan
+
     return discrim_each_axis
 

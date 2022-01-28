@@ -809,7 +809,9 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
         fn2load = os.path.join(labels_folder, \
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
         concat_df = pd.read_csv(fn2load, index_col=0)
-        labels = np.array(concat_df)[image_inds,:]
+        labels = np.array(concat_df)
+        unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
+        labels = labels[image_inds,:]
         discrim_type_list = list(concat_df.keys())
         
         if prf_model_index==0:
@@ -824,4 +826,4 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
         labels_all[:,:,prf_model_index] = labels
     
 
-    return labels_all, discrim_type_list
+    return labels_all, discrim_type_list, unique_labs_each

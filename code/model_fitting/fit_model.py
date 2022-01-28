@@ -591,9 +591,9 @@ def fit_fwrf(fitting_types, model_name, \
             torch.cuda.empty_cache()
             print('about to start semantic discriminability analysis')
             sys.stdout.flush()
-            labels_all, discrim_type_list = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+            labels_all, discrim_type_list, unique_labs_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
                                                      image_inds=val_stim_data, models=models,verbose=False)
-            discrim_each_axis_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, \
+            discrim_each_axis_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, unique_labs_each, \
                                                           val_voxel_data_pred, debug=debug)
             if vi==0:
                 discrim_each_axis = np.zeros((n_voxels, discrim_each_axis_tmp.shape[1]), dtype=discrim_each_axis_tmp.dtype)            

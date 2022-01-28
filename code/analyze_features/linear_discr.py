@@ -21,17 +21,14 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
-
+    n_prfs = len(models)
+    
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)    
     n_trials = len(trninds)
     image_inds = np.arange(n_trials)
-    
-    labels_all, discrim_type_list, unique_labels_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
-                                                     image_inds=image_inds, models=models,verbose=False)
-    n_sem_axes = labels_all.shape[1] 
     
     # create feature extractor (just a module that will load the pre-computed features easily)
     if feature_type=='sketch_tokens':
@@ -88,7 +85,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
     else:
         raise RuntimeError('feature type %s not recognized'%feature_type)
         
-    _feature_extractor.init_for_fitting(image_size=None, prf_models=models, dtype=np.float32)
+    _feature_extractor.init_for_fitting(image_size=None, models=models, dtype=np.float32)
     
     # Choose where to save results
     path_to_save = os.path.join(path_to_load, 'LDA')
@@ -97,10 +94,14 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
     fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
     
-    trn_acc = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
-    val_acc = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
-    trn_dprime = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
-    val_dprime = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    labels_all, discrim_type_list, unique_labels_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
+                                                     image_inds=image_inds, models=models,verbose=False)
+    n_sem_axes = labels_all.shape[1] 
+    
+    trn_acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    val_acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    trn_dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    val_dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
 
     labels_pred_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
     labels_actual_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
@@ -114,7 +115,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         
         features_in_prf, feature_inds_defined = _feature_extractor(image_inds, models[prf_model_index,:], \
                                                             prf_model_index, fitting_mode=False)
-      
+        features_in_prf = features_in_prf.numpy()
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)
         assert(not np.any(np.isnan(features_in_prf)))
@@ -150,32 +151,47 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                     features_in_prf_z = features_in_prf
 
                 # Identify the LDA subspace, based on training data only.
-                _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & ims_to_use,:], \
-                                                               labels[trninds & ims_to_use], \
+                _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds & inds2use,:], \
+                                                               labels[trninds & inds2use], \
                                                                verbose=True, balance_downsample=balance_downsample)
+                if clf is not None:
 
-                # applying the transformation to all images. Including both train and validation here.
-#                 scores = clf.transform(features_in_prf_z)
-#                 print(scores.shape)
-                labels_pred = clf.predict(features_in_prf_z)
-#                 pre_mean = clf.xbar_
+                    # applying the transformation to all images. Including both train and validation here.
+    #                 scores = clf.transform(features_in_prf_z)
+    #                 print(scores.shape)
+                    labels_pred = clf.predict(features_in_prf_z)
+    #                 pre_mean = clf.xbar_
 
-                val_acc = np.mean(labels_pred[valinds & ims_to_use]==labels[valinds & ims_to_use])
-                val_dprime = stats_utils.get_dprime(labels_pred[valinds & ims_to_use], \
-                                                    labels[valinds & ims_to_use], un=unvals)
-                print('Validation data prediction accuracy = %.2f pct'%(val_acc*100))
-                print('Validation data dprime = %.2f'%(val_dprime))
-                print('Proportion predictions each category:')        
-                n_each_cat_pred = [np.sum(labels_pred==cc) for cc in np.unique(labels_pred)]
-                print(np.round(n_each_cat_pred/np.sum(n_each_cat_pred), 2))
+                    val_acc = np.mean(labels_pred[valinds & inds2use]==labels[valinds & inds2use])
+                    if np.all(np.isin(unique_labels_actual, np.unique(labels[valinds & inds2use]))):
+                        val_dprime = stats_utils.get_dprime(labels_pred[valinds & inds2use], \
+                                                        labels[valinds & inds2use], un=unique_labels_actual)
+                    else:
+                        print('Missing at least one category in validation set for model %d, axis %d'%(prf_model_index, aa))
+                        val_dprime = np.nan
+                    print('Validation data prediction accuracy = %.2f pct'%(val_acc*100))
+                    print('Validation data dprime = %.2f'%(val_dprime))
+                    print('Proportion predictions each category:')        
+                    n_each_cat_pred = [np.sum(labels_pred==cc) for cc in np.unique(labels_pred)]
+                    print(np.round(n_each_cat_pred/np.sum(n_each_cat_pred), 2))
 
-                trn_acc_each_prf[prf_model_index,aa] = trn_acc
-                trn_dprime_each_prf[prf_model_index,aa] = trn_dprime
-                val_acc_each_prf[prf_model_index,aa] = val_acc
-                val_dprime_each_prf[prf_model_index,aa] = val_dprime
+                    trn_acc_each_prf[prf_model_index,aa] = trn_acc
+                    trn_dprime_each_prf[prf_model_index,aa] = trn_dprime
+                    val_acc_each_prf[prf_model_index,aa] = val_acc
+                    val_dprime_each_prf[prf_model_index,aa] = val_dprime
 
-                labels_pred_each_prf[:,prf_model_index, aa] = labels_pred
-                labels_actual_each_prf[:,prf_model_index, aa] = labels
+                    labels_pred_each_prf[:,prf_model_index, aa] = labels_pred
+                    labels_actual_each_prf[:,prf_model_index, aa] = labels
+                    
+                else:
+                    print('Problem with LDA fit, returning nans for model %d, axis %d'%(prf_model_index, aa))
+                    trn_acc_each_prf[prf_model_index,aa] = np.nan
+                    trn_dprime_each_prf[prf_model_index,aa] = np.nan
+                    val_acc_each_prf[prf_model_index,aa] = np.nan
+                    val_dprime_each_prf[prf_model_index,aa] = np.nan
+
+                    labels_pred_each_prf[:,prf_model_index, aa] = np.nan
+                    labels_actual_each_prf[:,prf_model_index, aa] = np.nan
                 
             else:
                 print('nans for model %d, axis %d - need >1 levels'\
@@ -248,8 +264,13 @@ def do_lda(values, categ_labels, verbose=False, balance_downsample=True, rndseed
     
     X = values; y = np.squeeze(categ_labels)
     clf = LinearDiscriminantAnalysis(solver='svd')
-    clf.fit(X, y)
-
+    try:
+        clf.fit(X, y)
+    except ValueError as e:
+        print(e)
+        print('error with LDA fit, returning nans')
+        return None, None, None, None, None
+    
     elapsed = time.time() - t
     if verbose:
         print('Time elapsed: %.5f'%elapsed)

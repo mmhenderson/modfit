@@ -150,3 +150,26 @@ def von_mises_deg(xx,mu,k,a=None,b=None,normalize=True,axis_size_deg = 180):
         yy += b
 
     return yy
+
+def anova_oneway_warn(groups):
+    
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            anova_out = scipy.stats.f_oneway(*groups)
+        except RuntimeWarning as e:
+            print('Warning: problem with one way anova. Means/vars/counts each group:')
+            means = [np.mean(group) for group in groups]
+            vrs = [np.var(group) for group in groups]
+            counts = [len(group) for group in groups]
+            print(means)
+            print(vrs)
+            print(counts)
+            print(e)
+            warnings.filterwarnings('ignore')
+            anova_out = scipy.stats.f_oneway(*groups)
+    
+    if np.isnan(anova_out.statistic):
+        print('nans in anova result')
+           
+    return anova_out

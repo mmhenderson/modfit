@@ -4,7 +4,6 @@ import time
 import numpy as np
 import torch
 import scipy.stats
-import warnings
 
 from utils import numpy_utils, torch_utils, stats_utils
 
@@ -225,22 +224,8 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
                 groups = [resp[gi] for gi in group_inds]
                 
-                with warnings.catch_warnings():
-                    warnings.filterwarnings('error')
-                    try:
-                        fstat = scipy.stats.f_oneway(*groups).statistic
-                    except RuntimeWarning as e:
-                        print('Warning: problem with one way anova. Means/vars/counts each group:')
-                        means = [np.mean(group) for group in groups]
-                        vrs = [np.var(group) for group in groups]
-                        counts = [len(group) for group in groups]
-                        print(means)
-                        print(vrs)
-                        print(counts)
-                        print(e)
-                        warnings.filterwarnings('ignore')
-                        fstat = scipy.stats.f_oneway(*groups).statistic
-                    
+                fstat = stats_utils.anova_oneway_warn(groups).statistic
+               
                 discrim_each_axis[vv,aa] = fstat
                 
             else:

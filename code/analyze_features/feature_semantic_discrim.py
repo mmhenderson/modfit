@@ -19,6 +19,7 @@ def get_feature_discrim(subject, feature_type, discrim_type='animacy', which_prf
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)
+    # working only with training data here.
     labels_all, discrim_type_list, unique_labels_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
                                                      image_inds=np.where(trninds)[0], models=models,verbose=False)
     n_sem_axes = labels_all.shape[1]

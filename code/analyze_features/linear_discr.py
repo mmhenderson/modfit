@@ -60,7 +60,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
         _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
                   subject=subject, include_ll=include_ll, include_hl=include_hl, \
-                  use_pca_feats_hl = use_pca_pyr_feats_hl,\
+                  use_pca_feats_hl = use_pca_feats_hl,\
                   which_prf_grid=which_prf_grid, \
                   do_varpart = do_varpart, group_all_hl_feats = group_all_hl_feats, \
                   compute_features = compute_features, device=device)

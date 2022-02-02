@@ -10,9 +10,13 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/utils/
 
-subject=1
+# subject=1
 debug=0
 which_prf_grid=5
+concat=1
 
-python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
-
+subjects=(2 3 4 5 6 7 8)
+for subject in ${subjects[@]}
+do
+    python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid --concat $concat
+done

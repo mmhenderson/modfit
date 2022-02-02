@@ -23,9 +23,9 @@ ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
 
-do_fitting=0
-# date_str=0
-date_str=Nov-27-2021_1805_34
+do_fitting=1
+date_str=0
+# date_str=Nov-27-2021_1805_34
 
 do_val=1
 do_tuning=1

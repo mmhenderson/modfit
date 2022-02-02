@@ -789,7 +789,7 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
         
 
 
-def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False):
+def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
 
     """
     Load csv files containing spatially-specific category labels for coco images.
@@ -806,6 +806,9 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     for prf_model_index in range(n_prfs):
         
+        if debug and prf_model_index>1:
+            continue
+            
         fn2load = os.path.join(labels_folder, \
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
         concat_df = pd.read_csv(fn2load, index_col=0)

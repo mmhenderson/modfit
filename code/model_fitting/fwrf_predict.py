@@ -149,9 +149,9 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
 
                 sys.stdout.flush()
 
-    # any nans become zeros here.
-    val_cc = np.nan_to_num(val_cc)
-    val_r2 = np.nan_to_num(val_r2) 
+#     # any nans become zeros here.
+#     val_cc = np.nan_to_num(val_cc)
+#     val_r2 = np.nan_to_num(val_r2) 
     
     return val_cc, val_r2, pred_voxel_data, features_each_prf
 

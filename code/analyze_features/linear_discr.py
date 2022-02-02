@@ -39,7 +39,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         trninds_ss = np.array(subject_df['shared1000']==False)
         image_inds_ss = np.arange(len(trninds_ss))
         labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = coco_utils.load_labels_each_prf(ss, \
-                             which_prf_grid, image_inds=image_inds_ss, models=models,verbose=False)
+                             which_prf_grid, image_inds=image_inds_ss, models=models,verbose=False, debug=debug)
         if si==0:
             labels_all = labels_all_ss
             discrim_type_list = discrim_type_list_ss
@@ -116,7 +116,8 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
     else:
         raise RuntimeError('feature type %s not recognized'%feature_type)
 
-    _feature_extractor.init_for_fitting(image_size=None, models=models, dtype=np.float32)
+    for _feature_extractor in _feature_extractors:
+        _feature_extractor.init_for_fitting(image_size=None, models=models, dtype=np.float32)
 
     # Choose where to save results
     path_to_save = os.path.join(path_to_load, 'LDA')

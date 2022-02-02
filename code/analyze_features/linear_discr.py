@@ -11,25 +11,26 @@ from utils import default_paths, nsd_utils, numpy_utils, stats_utils, coco_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import texture_statistics_gabor, sketch_token_features, \
                 texture_statistics_pyramid
-    
+
 def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                   zscore_each=False, balance_downsample=False, device=None):
   
+
     if device is None:
         device = 'cpu:0'
-        
+
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
     n_prfs = len(models)
-    
+
     # training / validation data always split the same way - shared 1000 inds are validation.
     subject_df = nsd_utils.get_subj_df(subject)
     valinds = np.array(subject_df['shared1000'])
     trninds = np.array(subject_df['shared1000']==False)    
     n_trials = len(trninds)
     image_inds = np.arange(n_trials)
-    
+
     # create feature extractor (just a module that will load the pre-computed features easily)
     if feature_type=='sketch_tokens':
 
@@ -37,9 +38,9 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                          which_prf_grid=which_prf_grid, \
                          use_pca_feats = False);
-        
+
     elif 'pyramid_texture' in feature_type:
-        
+
         path_to_load = default_paths.pyramid_texture_feat_path
         # Set up the pyramid loader       
         if feature_type=='pyramid_texture_ll': 
@@ -54,7 +55,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
             include_ll=False
             include_hl=True
             use_pca_feats_hl = True
-            
+
         compute_features = False; do_varpart=False; group_all_hl_feats=True;
         n_ori = 4; n_sf = 4;
         _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
@@ -64,9 +65,9 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                   which_prf_grid=which_prf_grid, \
                   do_varpart = do_varpart, group_all_hl_feats = group_all_hl_feats, \
                   compute_features = compute_features, device=device)
-        
+
     elif feature_type=='gabor_solo':
-        
+
         path_to_load = default_paths.gabor_texture_feat_path   
         feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
         gabor_nonlin_fn=True
@@ -84,20 +85,20 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                     compute_features = compute_features, device=device)  
     else:
         raise RuntimeError('feature type %s not recognized'%feature_type)
-        
+
     _feature_extractor.init_for_fitting(image_size=None, models=models, dtype=np.float32)
-    
+
     # Choose where to save results
     path_to_save = os.path.join(path_to_load, 'LDA')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
     fn2save = os.path.join(path_to_save, 'S%d_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
-    
+
     labels_all, discrim_type_list, unique_labels_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
                                                      image_inds=image_inds, models=models,verbose=False)
     n_sem_axes = labels_all.shape[1] 
-    
+
     trn_acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
     val_acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
     trn_dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
@@ -105,14 +106,14 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
 #     labels_pred_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
 #     labels_actual_each_prf = np.zeros((n_trials, n_prfs, n_sem_axes), dtype=np.float32)
-    
+
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
             continue
-                
+
         print('\nProcessing pRF %d of %d'%(prf_model_index, n_prfs))
-        
+
         features_in_prf, feature_inds_defined = _feature_extractor(image_inds, models[prf_model_index,:], \
                                                             prf_model_index, fitting_mode=False)
         features_in_prf = features_in_prf.numpy()
@@ -120,18 +121,19 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         print(features_in_prf.shape)
         assert(not np.any(np.isnan(features_in_prf)))
         assert(not np.any(np.sum(features_in_prf, axis=0)==0))
-        
+
         for aa in range(n_sem_axes):
-            
+
             labels = labels_all[:,aa,prf_model_index]
-            inds2use = ~np.isnan(labels)      
+            inds2use = ~np.isnan(labels)     
+            any_in_val = np.any(inds2use & valinds)
             unique_labels_actual = np.unique(labels[inds2use & trninds])
-            
+
             if prf_model_index==0:
                 print('processing axis: %s'%discrim_type_list[aa])
                 print('labels: ')
                 print(unique_labels_each[aa])
-               
+
             if np.any(~np.isin(unique_labels_each[aa], unique_labels_actual)):
                 print('missing some labels for axis %d'%aa)
                 print('expected labels')
@@ -139,7 +141,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                 print('actual labels')
                 print(unique_labels_actual)
 
-            if len(unique_labels_actual)>1:
+            if (len(unique_labels_actual)>1) and any_in_val:
 
                 if zscore_each:
                     # z-score in advance of computing lda 
@@ -182,7 +184,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
 #                     labels_pred_each_prf[:,prf_model_index, aa] = labels_pred
 #                     labels_actual_each_prf[:,prf_model_index, aa] = labels
-                    
+
                 else:
                     print('Problem with LDA fit, returning nans for model %d, axis %d'%(prf_model_index, aa))
                     trn_acc_each_prf[prf_model_index,aa] = np.nan
@@ -192,9 +194,13 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
 #                     labels_pred_each_prf[:,prf_model_index, aa] = np.nan
 #                     labels_actual_each_prf[:,prf_model_index, aa] = np.nan
-                
+
             else:
-                print('nans for model %d, axis %d - need >1 levels'\
+                if any_in_val:
+                    print('nans for model %d, axis %d - need >1 levels'\
+                          %(prf_model_index, aa))
+                else:
+                    print('nans for model %d, axis %d - no labeled trials in validation set'\
                           %(prf_model_index, aa))
                 trn_acc_each_prf[prf_model_index,aa] = np.nan
                 trn_dprime_each_prf[prf_model_index,aa] = np.nan
@@ -203,15 +209,16 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
 #                 labels_pred_each_prf[:,prf_model_index, aa] = np.nan
 #                 labels_actual_each_prf[:,prf_model_index, aa] = np.nan
-                
+
             sys.stdout.flush()
 
-    
+
     print('saving to %s'%fn2save)
     np.save(fn2save, {'trn_acc': trn_acc_each_prf, \
                       'trn_dprime': trn_dprime_each_prf, 'val_acc': val_acc_each_prf, \
                       'val_dprime': val_dprime_each_prf})
-
+            
+    
 
 def do_lda(values, categ_labels, verbose=False, balance_downsample=True, rndseed=None):
     """

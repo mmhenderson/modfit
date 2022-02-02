@@ -179,9 +179,11 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
         feat_act = features_each_prf[:,:,best_model_inds[vv,0]]
         
         for ff in range(n_features):
-
-            corr_each_feature[vv,ff] = stats_utils.numpy_corrcoef_warn(resp, feat_act[:,ff])[0,1]
-
+            if np.var(feat_act[:,ff])>0:
+                corr_each_feature[vv,ff] = stats_utils.numpy_corrcoef_warn(resp, feat_act[:,ff])[0,1]
+            else:
+                corr_each_feature[vv,ff] = np.nan
+                
     return corr_each_feature
 
 
@@ -212,15 +214,9 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             inds2use = ~np.isnan(labels)
             
             unique_labels_actual = np.unique(labels[inds2use])
-            if np.any(~np.isin(unique_labels_each[aa], unique_labels_actual)):
-                print('missing some labels for axis %d'%aa)
-                print('expected labels')
-                print(unique_labels_each[aa])
-                print('actual labels')
-                print(unique_labels_actual)
-                
-            if len(unique_labels_actual)>1:
-                
+            
+            if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
+
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
                 groups = [resp[gi] for gi in group_inds]
                 
@@ -229,9 +225,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
                 discrim_each_axis[vv,aa] = fstat
                 
             else:
-
-                print('nan for voxel %d, model %d, axis %d - need >1 levels'\
-                          %(vv,best_model_inds[vv,0], aa))
+                
                 discrim_each_axis[vv,aa] = np.nan
 
     return discrim_each_axis

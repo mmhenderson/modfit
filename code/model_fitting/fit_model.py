@@ -113,7 +113,8 @@ def fit_fwrf(fitting_types, model_name, \
             })
         if do_sem_disc:
             dict2save.update({
-            'discrim_each_axis': discrim_each_axis,
+            'sem_discrim_each_axis': sem_discrim_each_axis,
+            'sem_corr_each_axis': sem_corr_each_axis,
             'discrim_type_list': discrim_type_list,
             })
         if save_pred_data:
@@ -200,7 +201,8 @@ def fit_fwrf(fitting_types, model_name, \
     if do_tuning:
         corr_each_feature = None
     if do_sem_disc:
-        discrim_each_axis = None
+        sem_discrim_each_axis = None
+        sem_corr_each_axis = None
         discrim_type_list = None
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
@@ -512,9 +514,10 @@ def fit_fwrf(fitting_types, model_name, \
             if 'corr_each_feature' in list(out.keys()):
                 assert(do_tuning)
                 corr_each_feature = out['corr_each_feature']
-            if 'discrim_each_axis' in list(out.keys()):
+            if 'sem_discrim_each_axis' in list(out.keys()):
                 assert(do_sem_disc)
-                discrim_each_axis = out['discrim_each_axis']
+                sem_discrim_each_axis = out['sem_discrim_each_axis']
+                sem_corr_each_axis = out['sem_corr_each_axis']              
                 discrim_type_list = out['discrim_type_list']
             if 'voxel_recs' in list(out.keys()):
                 assert(do_voxel_recons)
@@ -593,11 +596,15 @@ def fit_fwrf(fitting_types, model_name, \
             sys.stdout.flush()
             labels_all, discrim_type_list, unique_labs_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
                                                      image_inds=val_stim_data, models=models,verbose=False)
-            discrim_each_axis_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, unique_labs_each, \
+            discrim_tmp, corr_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, unique_labs_each, \
                                                           val_voxel_data_pred, debug=debug)
             if vi==0:
-                discrim_each_axis = np.zeros((n_voxels, discrim_each_axis_tmp.shape[1]), dtype=discrim_each_axis_tmp.dtype)            
-            discrim_each_axis[voxel_subset_mask,:] = discrim_each_axis_tmp
+                sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
+                                                 dtype=discrim_tmp.dtype) 
+                sem_corr_each_axis = np.zeros((n_voxels, corr_tmp.shape[1]), \
+                                                 dtype=corr_tmp.dtype) 
+            sem_discrim_each_axis[voxel_subset_mask,:] = discrim_tmp
+            sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
             
             save_all(fn2save)
 

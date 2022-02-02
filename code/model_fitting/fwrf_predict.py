@@ -198,7 +198,8 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     n_voxels = val_voxel_data_pred.shape[1]
 
     n_sem_axes = labels_all.shape[1]
-    discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
+    sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
+    sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
     
     for vv in range(n_voxels):
         
@@ -216,17 +217,20 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             unique_labels_actual = np.unique(labels[inds2use])
             
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
-
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
-                groups = [resp[gi] for gi in group_inds]
+                groups = [resp[gi] for gi in group_inds]                
+                fstat = stats_utils.anova_oneway_warn(groups).statistic               
+                sem_discrim_each_axis[vv,aa] = fstat                
+            else:                
+                sem_discrim_each_axis[vv,aa] = np.nan
                 
-                fstat = stats_utils.anova_oneway_warn(groups).statistic
-               
-                discrim_each_axis[vv,aa] = fstat
-                
+            # just for the binary categories, also getting a correlation coefficient 
+            # (includes direction/sign)   
+            if (len(unique_labels_each[aa])==2) and (len(unique_labels_actual)==2):                
+                sem_corr_each_axis[vv,aa] = stats_utils.numpy_corrcoef_warn(\
+                                        resp[inds2use],labels[inds2use])[0,1]
             else:
-                
-                discrim_each_axis[vv,aa] = np.nan
+                sem_corr_each_axis[vv,aa] = np.nan
 
-    return discrim_each_axis
+    return sem_discrim_each_axis, sem_corr_each_axis
 

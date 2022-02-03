@@ -8,11 +8,9 @@ import sys
 import os
 import time
 import numpy as np
-from tqdm import tqdm
 import gc
 import torch
 import argparse
-import skimage.transform
 
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
@@ -540,34 +538,4 @@ if __name__ == '__main__':
     
     args = arg_parser.get_args()
     fit_fwrf(args)
-    
-    
-#              \
-#              semantic_feature_set = args.semantic_feature_set, \
-#              subject=args.subject, volume_space = args.volume_space, \
-#              up_to_sess = args.up_to_sess, single_sess = args.single_sess, \
-#              n_ori_pyr = args.n_ori_pyr, n_sf_pyr = args.n_sf_pyr, \
-#              n_ori_gabor = args.n_ori_gabor, n_sf_gabor = args.n_sf_gabor, \
-#              gabor_nonlin_fn = args.gabor_nonlin_fn==1, \
-#              group_all_hl_feats = args.group_all_hl_feats, \
-#              sample_batch_size = args.sample_batch_size, voxel_batch_size = args.voxel_batch_size, \
-#              zscore_features = args.zscore_features==1, \
-#              ridge = args.ridge==1, \
-#              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
-#              random_voxel_data = args.random_voxel_data==1, \
-#              do_fitting = args.do_fitting==1, use_precomputed_prfs = args.use_precomputed_prfs==1, \
-#              do_val = args.do_val==1, \
-#              do_tuning = args.do_tuning==1, do_sem_disc = args.do_sem_disc==1, \
-#              do_varpart = args.do_varpart==1, date_str = args.date_str, \
-#              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
-#              use_pca_pyr_feats_hl = args.use_pca_pyr_feats_hl==1, \
-#              use_pca_st_feats = args.use_pca_st_feats==1, \
-#              alexnet_layer_name = args.alexnet_layer_name, \
-#              alexnet_padding_mode = args.alexnet_padding_mode, \
-#              use_pca_alexnet_feats = args.use_pca_alexnet_feats==1, \
-#              clip_layer_name = args.clip_layer_name, \
-#              clip_model_architecture = args.clip_model_architecture, \
-#              use_pca_clip_feats = args.use_pca_clip_feats==1,\
-#              which_prf_grid = args.which_prf_grid, \
-#              save_pred_data = args.save_pred_data==1)
-             
+   

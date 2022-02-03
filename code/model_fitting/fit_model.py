@@ -45,7 +45,7 @@ def fit_fwrf(fitting_types, model_name, \
              do_tuning=True, do_sem_disc=True, \
              do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
-             use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
+             use_pca_st_feats = False,\
              use_pca_pyr_feats_hl = False,\
              alexnet_layer_name='Conv5_ReLU', alexnet_padding_mode=None, \
              use_pca_alexnet_feats = False, \
@@ -114,8 +114,6 @@ def fit_fwrf(fitting_types, model_name, \
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({         
             'use_pca_st_feats': use_pca_st_feats, 
-            'use_lda_st_feats': use_lda_st_feats,
-            'lda_discrim_type': lda_discrim_type, 
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
@@ -158,11 +156,7 @@ def fit_fwrf(fitting_types, model_name, \
     if alexnet_padding_mode=='':
         alexnet_padding_mode=None
     if single_sess==0:
-        single_sess=None        
-    if use_pca_st_feats:
-        # not allowing both of these to be true
-        use_lda_st_feats = False
-        lda_discrim_type=None    
+        single_sess=None         
     if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
     if do_fitting==True and date_str is not None:
@@ -315,8 +309,7 @@ def fit_fwrf(fitting_types, model_name, \
             elif 'sketch_tokens' in ft:
                 _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=subject, device=device,\
                          which_prf_grid=which_prf_grid, \
-                         use_pca_feats = use_pca_st_feats,\
-                         use_lda_feats = use_lda_st_feats, lda_discrim_type = lda_discrim_type)
+                         use_pca_feats = use_pca_st_feats)
                 fe.append(_feature_extractor)
                 fe_names.append(ft)
           
@@ -590,8 +583,6 @@ if __name__ == '__main__':
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              use_pca_pyr_feats_hl = args.use_pca_pyr_feats_hl==1, \
              use_pca_st_feats = args.use_pca_st_feats==1, \
-             use_lda_st_feats = args.use_lda_st_feats==1, \
-             lda_discrim_type = args.lda_discrim_type, \
              alexnet_layer_name = args.alexnet_layer_name, \
              alexnet_padding_mode = args.alexnet_padding_mode, \
              use_pca_alexnet_feats = args.use_pca_alexnet_feats==1, \

@@ -95,11 +95,7 @@ def get_args():
     # Specific to sketch tokens
     parser.add_argument("--use_pca_st_feats", type=int, default=0,
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")
-    parser.add_argument("--use_lda_st_feats", type=int, default=0,
-                    help="Want to use reduced dim (LDA) version of sketch tokens features?")
-    parser.add_argument("--lda_discrim_type", type=str, default='animacy',
-                    help="What labels are used to compute LDA features?")
-                             
+                     
     # specific to alexnet
     parser.add_argument("--alexnet_layer_name", type=str, default='', 
                        help="What layer of alexnet to use?")

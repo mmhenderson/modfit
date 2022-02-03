@@ -23,7 +23,7 @@ class alexnet_feature_extractor(nn.Module):
         self.layer_name = layer_name
         self.which_prf_grid = which_prf_grid
         self.padding_mode = padding_mode 
-        if padding_mode is None:
+        if (padding_mode is None) or padding_mode=='':
             padding_str = ''
         else:
             padding_str = padding_mode+'_'

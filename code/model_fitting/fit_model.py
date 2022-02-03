@@ -23,7 +23,7 @@ from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
 import arg_parser as arg_parser
-import merge_features, fwrf_fit, fwrf_predict, reconstruct
+import merge_features, fwrf_fit, fwrf_predict
 
 fpX = np.float32
 device = initialize_fitting.init_cuda()
@@ -42,8 +42,8 @@ def fit_fwrf(fitting_types, model_name, \
              zscore_features = True, ridge = True, \
              shuffle_images = False, random_images = False, random_voxel_data = False, \
              do_fitting = True, use_precomputed_prfs = False, do_val = True, \
-             do_stack=False, do_tuning=True, do_sem_disc=True, \
-             do_varpart = True, do_roi_recons=False, do_voxel_recons=False, date_str = 0, \
+             do_tuning=True, do_sem_disc=True, \
+             do_varpart = True, date_str = 0, \
              shuff_rnd_seed = 0, debug = False, \
              use_pca_st_feats = False, use_lda_st_feats = False, lda_discrim_type = None, \
              use_pca_pyr_feats_hl = False,\
@@ -91,22 +91,6 @@ def fit_fwrf(fitting_types, model_name, \
         'saved_best_layer_fn': saved_best_layer_fn,
         }
         # Might be some more things to save, depending what kind of fitting this is
-        if do_stack:
-            dict2save.update({
-            'stack_result': stack_result,
-            'stack_result_lo': stack_result_lo,
-            'partial_models_used_for_stack': partial_models_used_for_stack,
-            'train_r2': train_r2, 
-            'train_cc': train_cc,
-            })
-        if do_roi_recons:
-            dict2save.update({
-            'pop_recs': pop_recs
-            })
-        if do_voxel_recons:
-            dict2save.update({
-            'voxel_recs': voxel_recs
-            })
         if do_tuning:
             dict2save.update({
             'corr_each_feature': corr_each_feature
@@ -182,22 +166,9 @@ def fit_fwrf(fitting_types, model_name, \
     if do_fitting==False and date_str is None:
         raise ValueError('if you want to start midway through the process (--do_fitting=False), then specify the date when training result was saved (--date_str).')
     if do_fitting==True and date_str is not None:
-        raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')       
-    if not do_fitting and do_stack:
-        raise ValueError('to do stacking analysis, need to start from scratch (--do_fitting=True)')  
+        raise ValueError('if you want to do fitting from scratch (--do_fitting=True), specify --date_str=None (rather than entering a date)')        
     if (do_sem_disc or do_tuning) and not do_val:
-        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')    
-    if do_stack:
-        stack_result = None
-        stack_result_lo = None
-        partial_models_used_for_stack = None
-        train_r2 = None
-        train_cc = None
-        model_name += '_stacked'       
-    if do_voxel_recons:
-        voxel_recs = None
-    if do_roi_recons:
-        pop_recs = None
+        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')       
     if do_tuning:
         corr_each_feature = None
     if do_sem_disc:
@@ -242,8 +213,7 @@ def fit_fwrf(fitting_types, model_name, \
     if dnn_model is not None and (alexnet_layer_name=='best_layer' or clip_layer_name=='best_layer'):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
-        assert(do_fitting==True)
-        assert(do_stack==False and do_roi_recons==False and do_voxel_recons==False)       
+        assert(do_fitting==True)      
         best_layer_each_voxel, saved_best_layer_fn = \
                   initialize_fitting.load_best_model_layers(subject, dnn_model)
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
@@ -519,19 +489,6 @@ def fit_fwrf(fitting_types, model_name, \
                 sem_discrim_each_axis = out['sem_discrim_each_axis']
                 sem_corr_each_axis = out['sem_corr_each_axis']              
                 discrim_type_list = out['discrim_type_list']
-            if 'voxel_recs' in list(out.keys()):
-                assert(do_voxel_recons)
-                voxel_recs = out['voxel_recs']
-            if 'pop_recs' in list(out.keys()):
-                assert(do_roi_recons)
-                pop_recs = out['pop_recs']
-            if 'stack_result' in list(out.keys()):
-                assert(do_stack)
-                stack_result = out['stack_result']
-                stack_result_lo = out['stack_result_lo']
-                partial_models_used_for_stack = out['partial_models_used_for_stack']
-                train_r2 = out['train_r2']
-                train_cc = out['train_cc']
 
             shuff_rnd_seed=out['shuff_rnd_seed']
 
@@ -608,57 +565,6 @@ def fit_fwrf(fitting_types, model_name, \
             
             save_all(fn2save)
 
-        ######### COMPUTE STACKING WEIGHTS AND PERFORMANCE OF STACKED MODELS ###########
-        sys.stdout.flush()
-        if do_stack: 
-
-            if len(partial_version_names)>1:
-                gc.collect()
-                torch.cuda.empty_cache()
-                print('about to start stacking analysis')
-                sys.stdout.flush()
-
-                trn_holdout_voxel_data = trn_voxel_data_use[holdout_trial_order,:]
-                stack_result, stack_result_lo, partial_models_used_for_stack, train_r2, train_cc  = \
-                    fwrf_predict.run_stacking(_feature_extractor, trn_holdout_voxel_data, val_voxel_data_use, \
-                                              trn_holdout_voxel_data_pred, val_voxel_data_pred, debug=debug)
-
-                save_all(fn2save)
-            else:
-                print('Skipping stacking analysis because you only have one set of features.')
-
-        ######### INVERTED ENCODING MODEL #############################
-        sys.stdout.flush()
-        if do_roi_recons: 
-
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('about to start ROI reconstruction analysis')
-            sys.stdout.flush()
-
-            roi_def = roi_utils.get_combined_rois(subject, volume_space=volume_space, \
-                                          include_all=True, include_body=True, verbose=False)
-            pop_recs = \
-                reconstruct.get_population_recons(best_params_tmp, models, val_voxel_data_use, roi_def, \
-                      val_stim_data, _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-            save_all(fn2save)
-
-        sys.stdout.flush()
-        if do_voxel_recons: 
-
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('about to start voxelwise reconstruction analysis')
-            sys.stdout.flush()
-
-            voxel_recs = \
-                reconstruct.get_single_voxel_recons(best_params_tmp, models, val_voxel_data_use, val_stim_data, \
-                                          _feature_extractor, zscore=zscore_features, debug=debug, dtype=fpX)
-            save_all(fn2save)
-
-           
-            
-            
     ########## SUPPORT FUNCTIONS HERE ###############
 
 if __name__ == '__main__':
@@ -684,10 +590,9 @@ if __name__ == '__main__':
              shuffle_images = args.shuffle_images==1, random_images = args.random_images==1, \
              random_voxel_data = args.random_voxel_data==1, \
              do_fitting = args.do_fitting==1, use_precomputed_prfs = args.use_precomputed_prfs==1, \
-             do_val = args.do_val==1, do_stack = args.do_stack==1, \
+             do_val = args.do_val==1, \
              do_tuning = args.do_tuning==1, do_sem_disc = args.do_sem_disc==1, \
-             do_varpart = args.do_varpart==1, do_roi_recons = args.do_roi_recons==1, \
-             do_voxel_recons = args.do_voxel_recons==1, date_str = args.date_str, \
+             do_varpart = args.do_varpart==1, date_str = args.date_str, \
              shuff_rnd_seed = args.shuff_rnd_seed, debug = args.debug, \
              use_pca_pyr_feats_hl = args.use_pca_pyr_feats_hl==1, \
              use_pca_st_feats = args.use_pca_st_feats==1, \

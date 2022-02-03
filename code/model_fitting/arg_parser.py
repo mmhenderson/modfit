@@ -53,18 +53,12 @@ def get_args():
                     help="want to use prf estimates that were already computed? 1 for yes, 0 for no")
     parser.add_argument("--do_val", type=int,default=1,
                     help="want to do model validation? 1 for yes, 0 for no")
-    parser.add_argument("--do_stack", type=int,default=0,
-                    help="want to do stacking analysis? 1 for yes, 0 for no")
     parser.add_argument("--do_varpart", type=int,default=1,
                     help="want to do variance partition? 1 for yes, 0 for no")
     parser.add_argument("--do_tuning", type=int,default=1,
                     help="want to estimate tuning based on correlations? 1 for yes, 0 for no")
     parser.add_argument("--do_sem_disc", type=int,default=1,
                     help="want to estimate semantic discriminability? 1 for yes, 0 for no")
-    parser.add_argument("--do_roi_recons", type=int,default=0,
-                    help="want to do population level recons? 1 for yes, 0 for no")
-    parser.add_argument("--do_voxel_recons", type=int,default=0,
-                    help="want to do single voxel recons? 1 for yes, 0 for no")
     parser.add_argument("--date_str", type=str,default='',
                     help="what date was the model fitting done (only if you're starting from validation step.)")
     

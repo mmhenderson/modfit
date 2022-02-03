@@ -5,7 +5,6 @@ import time
 import h5py
 import pandas as pd
 import torch.nn as nn
-from sklearn import decomposition
 
 from utils import prf_utils, torch_utils, texture_utils, default_paths
 sketch_token_feat_path = default_paths.sketch_token_feat_path
@@ -13,36 +12,19 @@ sketch_token_feat_path = default_paths.sketch_token_feat_path
 class sketch_token_feature_extractor(nn.Module):
     
     def __init__(self, subject, device, which_prf_grid=1, \
-                 use_pca_feats = False, \
-                 use_lda_feats = False, lda_discrim_type = None):
+                 use_pca_feats = False):
         
         super(sketch_token_feature_extractor, self).__init__()
         
         self.subject = subject
         
-        self.use_pca_feats = use_pca_feats
-        self.use_lda_feats = use_lda_feats
-        self.lda_discrim_type = lda_discrim_type        
+        self.use_pca_feats = use_pca_feats        
         self.which_prf_grid = which_prf_grid
         
         if self.use_pca_feats:
             self.n_features = 151
-            self.use_lda_feats = False # only allow one of these to be true
             self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
                                           'S%d_PCA_grid%d.h5py'%(self.subject, self.which_prf_grid))     
-        elif self.use_lda_feats:
-            self.use_pca_feats = False
-            self.features_file = os.path.join(sketch_token_feat_path, 'LDA', \
-                  'S%d_LDA_%s_grid%d.npy'%(self.subject, self.lda_discrim_type, self.which_prf_grid))
-            if self.lda_discrim_type=='all_supcat':
-                self.n_features = 11                      
-            elif self.lda_discrim_type=='animacy' or self.lda_discrim_type=='indoor_outdoor' or \
-                    self.lda_discrim_type=='animal' or self.lda_discrim_type=='vehicle' or \
-                    self.lda_discrim_type=='food' or self.lda_discrim_type=='person':
-                self.n_features = 1   
-            else:
-                print(lda_discrim_type)
-                raise ValueError('--lda_discrim_type was not recognized')
         else:
             self.n_features = 150 # 151
             self.features_file = os.path.join(sketch_token_feat_path, \
@@ -129,18 +111,6 @@ class sketch_token_feature_extractor(nn.Module):
                 print('Length of features list this batch: %d'%len(self.features_each_prf_batch))
                 print('Size of features array for first prf model with this image set is:')
                 print(self.features_each_prf_batch[0].shape)
-
-            elif self.use_lda_feats:
-
-                # loading pre-computed linear discriminant analysis features
-                lda_result = np.load(self.features_file, allow_pickle=True).item()
-                scores_each_prf = [lda_result['scores'][mm] for mm in self.prf_batch_inds[batch_to_use]]
-                lda_result = None
-                self.features_each_prf_batch = np.moveaxis(np.array([scores_each_prf[mm][image_inds,:] \
-                              for mm in range(len(scores_each_prf))]), [0,1,2], [2,0,1])
-                assert(self.features_each_prf_batch.shape[1]==self.max_features)
-                print('Size of features array for this image set is:')
-                print(self.features_each_prf_batch.shape)
 
             else:
 

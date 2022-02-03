@@ -41,7 +41,8 @@ use_pca_clip_feats=1
 
 cd $ROOT/code/model_fitting
 
-subjects=(5 6)
+subjects=(7 8)
+
 # subjects=(3 4 5 6 7 8)
 for subj in ${subjects[@]}
 do

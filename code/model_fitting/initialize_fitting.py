@@ -119,33 +119,32 @@ def get_full_save_name(args):
     return model_name, fitting_types
 
 
-def get_save_path(subject, volume_space, model_name, shuffle_images, random_images, random_voxel_data, debug, date_str=None):
+def get_save_path(model_name, args):
     
     # choose where to save results of fitting - always making a new file w current timestamp.
-    
     # add these suffixes to the file name if it's one of the control analyses
-    if shuffle_images==True:
+    if args.shuffle_images==True:
         model_name = model_name + '_SHUFFLEIMAGES'
-    if random_images==True:
+    if args.random_images==True:
         model_name = model_name + '_RANDOMIMAGES'
-    if random_voxel_data==True:
+    if args.random_voxel_data==True:
         model_name = model_name + '_RANDOMVOXELDATA'
     
-    if date_str is None:
+    if (args.date_str=='') or (args.date_str=='0'):
         timestamp = time.strftime('%b-%d-%Y_%H%M_%S', time.localtime())
         make_new_folder = True
     else:
         # if you specified an existing timestamp, then won't try to make new folder, need to find existing one.
-        timestamp = date_str
+        timestamp = args.date_str
         make_new_folder = False
         
     print ("Time Stamp: %s" % timestamp)  
     save_fits_path = default_paths.save_fits_path
-    if volume_space:
-        subject_dir = os.path.join(save_fits_path, 'S%02d'%subject)
+    if args.volume_space:
+        subject_dir = os.path.join(save_fits_path, 'S%02d'%args.subject)
     else:
-        subject_dir = os.path.join(save_fits_path,'S%02d_surface'%subject)
-    if debug==True:
+        subject_dir = os.path.join(save_fits_path,'S%02d_surface'%args.subject)
+    if args.debug==True:
         output_dir = os.path.join(subject_dir,model_name,'%s_DEBUG/'%timestamp)
     else:
         output_dir = os.path.join(subject_dir,model_name,'%s'%timestamp)

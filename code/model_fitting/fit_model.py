@@ -105,7 +105,7 @@ def fit_fwrf(fitting_types, model_name, \
             dict2save.update({
             'val_voxel_data': val_voxel_data,
             'val_voxel_data_pred': val_voxel_data_pred,
-            'val_stim_data': val_stim_data,
+            'val_image_order': val_image_order,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -199,17 +199,17 @@ def fit_fwrf(fitting_types, model_name, \
     else:
         sessions = np.arange(0,up_to_sess)
     zscore_betas_within_sess = True
-    image_inds_only = True
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
-            image_order, image_order_trn, image_order_val = nsd_utils.get_data_splits(subject, \
-                                      sessions=sessions, image_inds_only = image_inds_only, \
+            image_order, trn_image_order, val_image_order = nsd_utils.get_data_splits(subject, \
+                                      sessions=sessions, image_inds_only = True, \
                                       voxel_mask=voxel_mask, volume_space=volume_space, \
                                       zscore_betas_within_sess=zscore_betas_within_sess, \
                                   shuffle_images=shuffle_images, random_images=random_images, \
                                     random_voxel_data=random_voxel_data)
 
     n_voxels = trn_voxel_data.shape[1]
+    
     if dnn_model is not None and (alexnet_layer_name=='best_layer' or clip_layer_name=='best_layer'):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
@@ -223,13 +223,7 @@ def fit_fwrf(fitting_types, model_name, \
         voxel_subset_masks = [np.ones((n_voxels,), dtype=bool)]
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;
-    
-    if image_inds_only==True:
-        # The features are pre-computed, so we will just load them rather than passing in images.
-        # Going to pass the image indices (into 10,000 dim array) instead of images to fitting and val functions, 
-        # which will tell which rows of feature matrices to use. 
-        trn_stim_data = image_order_trn
-        val_stim_data = image_order_val
+  
    
     ########## DEFINE PARAMETERS #############################################################################
     lambdas = initialize_fitting.get_lambdas(zscore_features=zscore_features, ridge=ridge)
@@ -405,12 +399,12 @@ def fit_fwrf(fitting_types, model_name, \
             # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
             # always using true.
             shuffle=True 
-            print(len(trn_stim_data))
+            print(len(trn_image_order))
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
                 best_prf_models_tmp, features_mean, features_std, \
                 best_train_holdout_preds, holdout_trial_order = \
-                                fwrf_fit.fit_fwrf_model(trn_stim_data, trn_voxel_data_use, \
+                                fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
                                        _feature_extractor, models, \
                                        lambdas, best_model_each_voxel = best_model_each_voxel_use, \
                                        zscore=zscore_features, add_bias=add_bias, \
@@ -509,7 +503,7 @@ def fit_fwrf(fitting_types, model_name, \
             sys.stdout.flush()
     
             val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
-                fwrf_predict.validate_fwrf_model(best_params_tmp, models, val_voxel_data_use, val_stim_data, \
+                fwrf_predict.validate_fwrf_model(best_params_tmp, models, val_voxel_data_use, val_image_order, \
                          _feature_extractor, zscore=zscore_features, sample_batch_size=sample_batch_size, \
                                              voxel_batch_size=voxel_batch_size, debug=debug, dtype=fpX)
             if vi==0:
@@ -552,7 +546,7 @@ def fit_fwrf(fitting_types, model_name, \
             print('about to start semantic discriminability analysis')
             sys.stdout.flush()
             labels_all, discrim_type_list, unique_labs_each = coco_utils.load_labels_each_prf(subject, which_prf_grid, \
-                                                     image_inds=val_stim_data, models=models,verbose=False)
+                                                     image_inds=val_image_order, models=models,verbose=False)
             discrim_tmp, corr_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, unique_labs_each, \
                                                           val_voxel_data_pred, debug=debug)
             if vi==0:

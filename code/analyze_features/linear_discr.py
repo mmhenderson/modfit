@@ -9,11 +9,10 @@ codepath = '/user_data/mmhender/imStat/code'
 sys.path.append(codepath)
 from utils import default_paths, nsd_utils, numpy_utils, stats_utils, coco_utils
 from model_fitting import initialize_fitting 
-from feature_extraction import texture_statistics_gabor, sketch_token_features, \
-                texture_statistics_pyramid
+from feature_extraction import fwrf_features
 
 def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
-                  zscore_each=False, balance_downsample=False, device=None):
+                  zscore_each=False, balance_downsample=False, device=None, layer_name=None):
   
 
     if device is None:
@@ -61,18 +60,15 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
     n_trials = labels_all.shape[0]
     n_sem_axes = labels_all.shape[1] 
 
-    # create feature extractor (just a module that will load the pre-computed features easily)
-    if feature_type=='sketch_tokens':
-
-        path_to_load = default_paths.sketch_token_feat_path
-        _feature_extractors = [sketch_token_features.sketch_token_feature_extractor(subject=ss, device=device,\
-                         which_prf_grid=which_prf_grid, \
-                         use_pca_feats = False) for ss in subjects];
-
+    # make feature loaders to get visual features
+    if feature_type=='gabor_solo':
+        path_to_load = default_paths.gabor_texture_feat_path
+        feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                                        which_prf_grid=which_prf_grid,\
+                                                        feature_type='gabor_solo', \
+                                                        n_ori=12, n_sf=8, nonlin=True) for ss in subjects]
     elif 'pyramid_texture' in feature_type:
-
         path_to_load = default_paths.pyramid_texture_feat_path
-        # Set up the pyramid loader       
         if feature_type=='pyramid_texture_ll': 
             include_ll=True
             include_hl=False
@@ -85,42 +81,50 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
             include_ll=False
             include_hl=True
             use_pca_feats_hl = True
+        feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                                        which_prf_grid=which_prf_grid, \
+                                                        feature_type='pyramid_texture',\
+                                                        n_ori=4, n_sf=4,\
+                                                        include_ll=include_ll, include_hl=include_hl,\
+                                                        use_pca_feats_hl = use_pca_feats_hl) for ss in subjects]       
 
-        compute_features = False; do_varpart=False; group_all_hl_feats=True;
-        n_ori = 4; n_sf = 4;
-        _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
-        _feature_extractors = [texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                  subject=ss, include_ll=include_ll, include_hl=include_hl, \
-                  use_pca_feats_hl = use_pca_feats_hl,\
-                  which_prf_grid=which_prf_grid, \
-                  do_varpart = do_varpart, group_all_hl_feats = group_all_hl_feats, \
-                  compute_features = compute_features, device=device) for ss in subjects]
+    elif feature_type=='sketch_tokens':
+        path_to_load = default_paths.sketch_token_feat_path
+        feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                                        which_prf_grid=which_prf_grid, \
+                                                        feature_type='sketch_tokens',\
+                                                        use_pca_feats = False) for ss in subjects]
 
-    elif feature_type=='gabor_solo':
+    elif feature_type=='alexnet':
+        assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
+        path_to_load = default_paths.alexnet_feat_path
+        if layer_name is None or layer_name=='':
+            raise ValueError('need to specify layer_name for alexnet')
+        feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                                        which_prf_grid=which_prf_grid, \
+                                                        feature_type='alexnet',layer_name=layer_name,\
+                                                        use_pca_feats = True, padding_mode = 'reflect') \
+                                                        for ss in subjects]
 
-        path_to_load = default_paths.gabor_texture_feat_path   
-        feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
-        gabor_nonlin_fn=True
-        n_ori=12; n_sf=8; autocorr_output_pix=5
-        _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                    initialize_fitting.get_gabor_feature_map_fn(n_ori, n_sf,device=device,\
-                    nonlin_fn=gabor_nonlin_fn);    
-        compute_features = False; do_varpart=False; group_all_hl_feats_gabor = False;
-        _feature_extractors = [texture_statistics_gabor.texture_feature_extractor(\
-                    _fmaps_fn_complex,_fmaps_fn_simple,\
-                    subject=ss, which_prf_grid=which_prf_grid,\
-                    autocorr_output_pix=autocorr_output_pix, \
-                    feature_types_exclude=feature_types_exclude, do_varpart=do_varpart, \
-                    group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=gabor_nonlin_fn, \
-                    compute_features = compute_features, device=device) for ss in subjects]
+    elif feature_type=='clip':
+        assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
+        path_to_load = default_paths.clip_feat_path
+        if layer_name is None or layer_name=='':
+            raise ValueError('need to specify layer_name for clip')
+        feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                                        which_prf_grid=which_prf_grid, \
+                                                        feature_type='clip',layer_name=layer_name,\
+                                                        model_architecture='RN50',use_pca_feats=True) \
+                                                        for ss in subjects]
+
     else:
         raise RuntimeError('feature type %s not recognized'%feature_type)
-
-    for _feature_extractor in _feature_extractors:
-        _feature_extractor.init_for_fitting(image_size=None, models=models, dtype=np.float32)
-
+        
     # Choose where to save results
-    path_to_save = os.path.join(path_to_load, 'LDA')
+    if debug:
+        path_to_save = os.path.join(path_to_load, 'LDA_DEBUG')
+    else:
+        path_to_save = os.path.join(path_to_load, 'LDA')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
@@ -142,10 +146,8 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
 
         print('\nProcessing pRF %d of %d'%(prf_model_index, n_prfs))
 
-        for si, _feature_extractor in enumerate(_feature_extractors):
-            features_in_prf_ss, feature_inds_defined = _feature_extractor(image_inds_ss, models[prf_model_index,:], \
-                                                            prf_model_index, fitting_mode=False)
-            features_in_prf_ss = features_in_prf_ss.numpy()
+        for si, feat_loader in enumerate(feat_loaders):
+            features_in_prf_ss, _ = feat_loader.load(image_inds_ss, prf_model_index)
             if si==0:
                 features_in_prf = features_in_prf_ss
             else:
@@ -336,6 +338,9 @@ if __name__ == '__main__':
                     help="want to zscore each column before decoding? 1 for yes, 0 for no")
     parser.add_argument("--balance_downsample", type=int,default=0,
                     help="want to re-sample if classes are unbalanced? 1 for yes, 0 for no")
+    parser.add_argument("--layer_name", type=str,default='',
+                    help="which DNN layer to use (if clip or alexnet)")
+   
     args = parser.parse_args()
 
     if args.debug:
@@ -344,5 +349,6 @@ if __name__ == '__main__':
     find_lda_axes(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, \
                   which_prf_grid=args.which_prf_grid, \
                   zscore_each = args.zscore_each==1, \
-                  balance_downsample = args.balance_downsample==1)
+                  balance_downsample = args.balance_downsample==1, \
+                  layer_name=args.layer_name)
     

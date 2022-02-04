@@ -15,7 +15,7 @@ class semantic_feature_loader:
         self.shuff_rnd_seed = kwargs['shuff_rnd_seed'] if 'shuff_rnd_seed' in kwargs.keys() else 0
         self.holdout_size = kwargs['holdout_size'] if 'holdout_size' in kwargs.keys() else 100
         
-        self.get_trn_val_inds(sessions, shuff_rnd_seed, holdout_size)
+        self.get_trn_val_inds(self.sessions, self.shuff_rnd_seed, self.holdout_size)
         
         if self.feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
@@ -49,6 +49,8 @@ class semantic_feature_loader:
                                       'S%d_cocolabs_binary_prf0.csv'%(self.subject))
                 self.n_features = 2
     
+        self.max_features = self.n_features
+        
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 

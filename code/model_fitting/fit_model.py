@@ -15,8 +15,7 @@ import argparse
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from feature_extraction import texture_statistics_gabor, sketch_token_features, \
-                texture_statistics_pyramid, alexnet_features, semantic_features, clip_features
+from feature_extraction import fwrf_features, semantic_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
@@ -245,122 +244,112 @@ def fit_fwrf(args):
         fe_names = []
         for ft in fitting_types:   
 
-            if 'pyramid' in ft:
-                # Set up the pyramid
-                compute_features = False
-                include_ll=True
-                include_hl=True
-                _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = args.n_sf_pyr, n_ori = args.n_ori_pyr)
-                # Initialize the "texture" model which builds on first level feature maps
-                _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,\
-                          subject=args.subject, include_ll=include_ll, include_hl=include_hl, \
-                          which_prf_grid=args.which_prf_grid, \
-                          do_varpart = args.do_varpart,\
-                          group_all_hl_feats = args.group_all_hl_feats, \
-                          compute_features = compute_features, \
-                          use_pca_feats_hl = args.use_pca_pyr_feats_hl, \
-                          device=device)
-                fe.append(_feature_extractor)
+             if 'gabor_solo' in ft:
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid,\
+                                                                feature_type='gabor_solo',\
+                                                                n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
+                                                                nonlin_fn=args.gabor_nonlin_fn)
+        
+                fe.append(feat_loader)
                 fe_names.append(ft)
-                pyramid_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
-
-            elif 'gabor' in ft:
-                if 'solo' in ft:
-                    feature_types_exclude = ['pixel', 'simple_feature_means', 'autocorrs', 'crosscorrs']
-                    group_all_hl_feats_gabor = False
-                elif 'texture' in ft:
-                    feature_types_exclude = []
-                    group_all_hl_feats_gabor = args.group_all_hl_feats
-                # Set up the Gabor filtering modules
-                _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple = \
-                            initialize_fitting.get_gabor_feature_map_fn(args.n_ori_gabor, args.n_sf_gabor,device=device,\
-                            nonlin_fn=args.gabor_nonlin_fn);    
-                # Initialize the "texture" model which builds on first level feature maps
-                autocorr_output_pix=5
-                compute_features = False
-                _feature_extractor = texture_statistics_gabor.texture_feature_extractor(_fmaps_fn_complex, _fmaps_fn_simple, \
-                            subject=args.subject, which_prf_grid=args.which_prf_grid, \
-                            autocorr_output_pix=autocorr_output_pix, \
-                            feature_types_exclude=feature_types_exclude, do_varpart=args.do_varpart, \
-                            group_all_hl_feats=group_all_hl_feats_gabor, nonlin_fn=args.gabor_nonlin_fn, \
-                            compute_features = compute_features, device=device)      
-                fe.append(_feature_extractor)
+            elif 'pyramid' in ft:
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='pyramid_texture',\
+                                                                n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
+                                                                include_ll=True, include_hl=True,\
+                                                                use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
+                                                                do_varpart=args.do_varpart,\
+                                                                group_all_hl_feats=args.group_all_hl_feats)       
+                fe.append(feat_loader)
                 fe_names.append(ft)
-                gabor_feature_info = [_feature_extractor.feature_column_labels, _feature_extractor.feature_types_include]
+                pyramid_feature_info = [feat_loader.feature_column_labels, feat_loader.feature_types_include]
 
             elif 'sketch_tokens' in ft:
-                _feature_extractor = sketch_token_features.sketch_token_feature_extractor(subject=args.subject, device=device,\
-                         which_prf_grid=args.which_prf_grid, \
-                         use_pca_feats = args.use_pca_st_feats)
-                fe.append(_feature_extractor)
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='sketch_tokens',\
+                                                                use_pca_feats = args.use_pca_st_feats)
+                fe.append(feat_loader)
                 fe_names.append(ft)
           
             elif 'alexnet' in ft:
                 if args.alexnet_layer_name=='all_conv':
                     names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
                     for ll in range(n_dnn_layers):
-                        _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=args.subject, \
-                                     layer_name=names[ll], device=device, which_prf_grid=args.which_prf_grid, \
-                                     padding_mode = args.alexnet_padding_mode, use_pca_feats=args.use_pca_alexnet_feats)
-                        fe.append(_feature_extractor)   
+                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='alexnet',layer_name=names[ll],\
+                                                                use_pca_feats = args.use_pca_alexnet_feats,\
+                                                                padding_mode = args.alexnet_padding_mode)
+                        fe.append(feat_loader)   
                         fe_names.append('alexnet_%s'%names[ll])
                 elif args.alexnet_layer_name=='best_layer':
                     this_layer_name = 'Conv%d_ReLU'%(vi+1)
                     print(this_layer_name)
-                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=args.subject, \
-                                     layer_name=this_layer_name, device=device, \
-                                     which_prf_grid=args.which_prf_grid, padding_mode = args.alexnet_padding_mode, \
-                                     use_pca_feats=args.use_pca_alexnet_feats)
-                    fe.append(_feature_extractor)
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='alexnet',layer_name=this_layer_name,\
+                                                                use_pca_feats = args.use_pca_alexnet_feats,\
+                                                                padding_mode = args.alexnet_padding_mode)
+                    fe.append(feat_loader)   
                     fe_names.append(ft)
                 else:
-                    _feature_extractor = alexnet_features.alexnet_feature_extractor(subject=args.subject, \
-                                     layer_name=args.alexnet_layer_name, device=device, \
-                                     which_prf_grid=args.which_prf_grid, padding_mode = args.alexnet_padding_mode, \
-                                     use_pca_feats=args.use_pca_alexnet_feats)
-                    fe.append(_feature_extractor)
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='alexnet',layer_name=args.alexnet_layer_name,\
+                                                                use_pca_feats = args.use_pca_alexnet_feats,\
+                                                                padding_mode = args.alexnet_padding_mode)
+                    fe.append(feat_loader)
                     fe_names.append(ft)
           
             elif 'clip' in ft:
                 if args.clip_layer_name=='all_resblocks':
                     names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
                     for ll in range(n_dnn_layers):
-                        _feature_extractor = clip_features.clip_feature_extractor(subject=args.subject, \
-                                     layer_name=names[ll], device=device, which_prf_grid=args.which_prf_grid, \
-                                     model_architecture=args.clip_model_architecture,\
-                                     use_pca_feats=args.use_pca_clip_feats);
-                        fe.append(_feature_extractor)   
+                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='clip',layer_name=names[ll],\
+                                                                model_architecture=args.clip_model_architecture,\
+                                                                use_pca_feats=args.use_pca_clip_feats)
+                        fe.append(feat_loader)   
                         fe_names.append('clip_%s'%names[ll])
                 elif args.clip_layer_name=='best_layer':
                     this_layer_name = 'block%d'%(vi)
                     print(this_layer_name)
-                    _feature_extractor = clip_features.clip_feature_extractor(subject=args.subject, \
-                                     layer_name=this_layer_name, device=device, which_prf_grid=args.which_prf_grid, \
-                                     model_architecture=args.clip_model_architecture,\
-                                     use_pca_feats=args.use_pca_clip_feats);
-                    fe.append(_feature_extractor)
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='clip',layer_name=this_layer_name,\
+                                                                model_architecture=args.clip_model_architecture,\
+                                                                use_pca_feats=args.use_pca_clip_feats)
+                    fe.append(feat_loader)
                     fe_names.append(ft) 
                 else:
-                    _feature_extractor = clip_features.clip_feature_extractor(subject=args.subject, \
-                                     layer_name=args.clip_layer_name, device=device, which_prf_grid=args.which_prf_grid, \
-                                     model_architecture=args.clip_model_architecture,\
-                                     use_pca_feats=args.use_pca_clip_feats);
-                    fe.append(_feature_extractor)
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_type='clip',layer_name=args.clip_layer_name,\
+                                                                model_architecture=args.clip_model_architecture,\
+                                                                use_pca_feats=args.use_pca_clip_feats)
+                    fe.append(feat_loader)
                     fe_names.append(ft)   
           
             elif 'semantic' in ft:
                 this_feature_set = ft.split('semantic_')[1]
-                _feature_extractor = semantic_features.semantic_feature_extractor(subject=args.subject, \
-                        feature_set=this_feature_set, sessions=sessions, shuff_rnd_seed = shuff_rnd_seed, \
-                                      holdout_size = holdout_size, device=device, which_prf_grid=args.which_prf_grid)
-                fe.append(_feature_extractor)
+                feat_loader = semantic_features.semantic_feature_loader(subject=args.subject, device=device,\
+                                                                which_prf_grid=args.which_prf_grid, \
+                                                                feature_set=this_feature_set,\
+                                                                sessions=sessions, \
+                                                                shuff_rnd_seed = shuff_rnd_seed, \
+                                                                holdout_size = holdout_size)
+                fe.append(feat_loader)
                 fe_names.append(ft)
           
         # Now combine subsets of features into a single module
         if len(fe)>1:
-            _feature_extractor = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = args.do_varpart)
+            feat_loader_full = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = args.do_varpart)
         else:
-            _feature_extractor = fe[0]
+            feat_loader_full = fe[0]
 
         #### FIT ENCODING MODEL ###################################################################################
 
@@ -380,7 +369,7 @@ def fit_fwrf(args):
                 best_prf_models_tmp, features_mean, features_std, \
                 best_train_holdout_preds, holdout_trial_order = \
                                 fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
-                                       _feature_extractor, prf_models, \
+                                       feat_loader_full, prf_models, \
                                        lambdas, best_model_each_voxel = best_model_each_voxel_use, \
                                        zscore=args.zscore_features, add_bias=add_bias, \
                                        voxel_batch_size=args.voxel_batch_size, holdout_size=holdout_size, \
@@ -389,7 +378,7 @@ def fit_fwrf(args):
             trn_holdout_voxel_data_pred = best_train_holdout_preds
           
             # getting info about how variance partition was set up
-            partial_masks_tmp, partial_version_names = _feature_extractor.get_partial_versions()
+            partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()
 
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
             if vi==0:               
@@ -404,7 +393,7 @@ def fit_fwrf(args):
             
             best_losses[voxel_subset_mask,:] = best_losses_tmp
             best_lambdas[voxel_subset_mask,:] = best_lambdas_tmp
-            max_features = _feature_extractor.max_features
+            max_features = feat_loader_full.max_features
             if best_weights.shape[1]<max_features:
                 n2pad = max_features - best_weights.shape[1]
                 print('padding by %d elements'%n2pad)
@@ -465,8 +454,8 @@ def fit_fwrf(args):
             assert(out['which_prf_grid']==args.which_prf_grid)
 
             image_size = None
-            _feature_extractor.init_for_fitting(image_size=image_size, models=prf_models, dtype=fpX)
-            partial_masks, partial_version_names = _feature_extractor.get_partial_versions()
+            feat_loader_full.init_for_fitting()
+            partial_masks, partial_version_names = feat_loader_full.get_partial_versions()
 
 
         ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
@@ -479,7 +468,7 @@ def fit_fwrf(args):
     
             val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
                 fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, val_voxel_data_use, val_image_order, \
-                         _feature_extractor, zscore=args.zscore_features, sample_batch_size=args.sample_batch_size, \
+                         feat_loader_full, zscore=args.zscore_features, sample_batch_size=args.sample_batch_size, \
                                              voxel_batch_size=args.voxel_batch_size, debug=args.debug, dtype=fpX)
             if vi==0:
                 val_cc = np.zeros((n_voxels, val_cc_tmp.shape[1]), dtype=val_cc_tmp.dtype)
@@ -501,7 +490,7 @@ def fit_fwrf(args):
                                                                     val_voxel_data_pred, debug=args.debug)
             if vi==0:
                 corr_each_feature = np.zeros((n_voxels, corr_each_feature_tmp.shape[1]), dtype=corr_each_feature_tmp.dtype)  
-            max_features = _feature_extractor.max_features
+            max_features = feat_loader_full.max_features
             if corr_each_feature.shape[1]<max_features:
                 n2pad = max_features - corr_each_feature.shape[1]
                 print('padding by %d elements'%n2pad)

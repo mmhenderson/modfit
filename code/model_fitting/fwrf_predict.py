@@ -8,15 +8,23 @@ import scipy.stats
 from utils import numpy_utils, torch_utils, stats_utils
 
 
-def validate_fwrf_model(best_params, prf_models, voxel_data, images, feature_loader, zscore=False,\
-                       sample_batch_size=100, voxel_batch_size=100, debug=False, dtype=np.float32):
+def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
+                        feature_loader, zscore=False, sample_batch_size=100, \
+                        voxel_batch_size=100, debug=False, \
+                        dtype=np.float32, device=None):
     
     """ 
-    Evaluate trained model, leaving out a subset of features at a time.
+    Evaluate trained FWRF model, using best fit pRF params and feature weights.
+    Returns the trial-by-trial predictions of the encoding model for the voxels in 
+    voxel_data, which can be used for further analyses (get_feature_tuning etc.),
+    and computes overall val_cc and val_r2 (prediction accuracy of model).
+    Also performs variance partition analysis, by evaluating the model with different 
+    held out sets of features at a time.
     """
     
     params = best_params
-    device = feature_loader.device
+    if device is None:
+        device=torch.device('cpu:0')
     
     n_trials, n_voxels = len(images), len(params[0])
     n_prfs = prf_models.shape[0]
@@ -56,10 +64,10 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, feature_loa
         for mm in range(n_prfs):
             if mm>1 and debug:
                 break
-            print('Getting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(mm, prf_models[mm,0],  prf_models[mm,1],  prf_models[mm,2] ))
-            # all_feat_concat is size [ntrials x nfeatures]
-            # nfeatures may be less than n_features_max, because n_features_max is the largest number possible for any pRF.
-            # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
+            print('Getting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%\
+                  (mm, prf_models[mm,0],  prf_models[mm,1],  prf_models[mm,2] ))
+            # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
+            # feature_inds_defined is [max_features]
             all_feat_concat, feature_inds_defined = feature_loader.load(images, mm, fitting_mode=False)
             
             if zscore:
@@ -190,7 +198,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
    
     """
     Measure how well voxels' predicted responses distinguish between image patches with 
-    different semantic content (compute an F-statistic).
+    different semantic content.
     """
     
     best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
@@ -218,7 +226,8 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
                 groups = [resp[gi] for gi in group_inds]                
-                fstat = stats_utils.anova_oneway_warn(groups).statistic               
+                fstat = stats_utils.anova_oneway_warn(groups).statistic      
+                # the f-statistic is our measure of discriminability
                 sem_discrim_each_axis[vv,aa] = fstat                
             else:                
                 sem_discrim_each_axis[vv,aa] = np.nan

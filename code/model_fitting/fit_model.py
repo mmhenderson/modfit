@@ -22,7 +22,6 @@ import initialize_fitting as initialize_fitting
 import arg_parser as arg_parser
 import merge_features, fwrf_fit, fwrf_predict
 
-fpX = np.float32
 device = initialize_fitting.init_cuda()
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
@@ -105,16 +104,8 @@ def fit_fwrf(args):
             })            
         if np.any(['gabor' in ft for ft in fitting_types]):
             dict2save.update({
-            'feature_table_simple': _gabor_ext_simple.feature_table,
-            'filter_pars_simple': _gabor_ext_simple.gabor_filter_pars,
-            'orient_filters_simple': _gabor_ext_simple.filter_stack,  
-            'feature_table_complex': _gabor_ext_complex.feature_table,
-            'filter_pars_complex': _gabor_ext_complex.gabor_filter_pars,
-            'orient_filters_complex': _gabor_ext_complex.filter_stack, 
-            'feature_types_exclude': feature_types_exclude,
-            'gabor_feature_info':gabor_feature_info,
-            'autocorr_output_pix': autocorr_output_pix,
-            'group_all_hl_feats': args.group_all_hl_feats,
+            'n_ori_gabor': args.n_ori_gabor,
+            'n_sf_gabor': args.n_sf_gabor,
             'gabor_nonlin_fn': args.gabor_nonlin_fn,
             })
         if np.any(['alexnet' in ft for ft in fitting_types]):
@@ -164,8 +155,9 @@ def fit_fwrf(args):
     
     ########## LOADING THE DATA #############################################################################
     # decide what voxels to use  
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(args.subject, \
-                                                            args.volume_space, include_all=True, include_body=True)
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                                roi_utils.get_voxel_roi_info(args.subject, \
+                                args.volume_space, include_all=True, include_body=True)
 
     if (args.single_sess is not None) and (args.single_sess!=0):
         sessions = np.array([args.single_sess])
@@ -173,12 +165,13 @@ def fit_fwrf(args):
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
     trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
-            image_order, trn_image_order, val_image_order = nsd_utils.get_data_splits(args.subject, \
-                                      sessions=sessions, image_inds_only = True, \
-                                      voxel_mask=voxel_mask, volume_space=args.volume_space, \
-                                      zscore_betas_within_sess=True, \
-                                  shuffle_images=args.shuffle_images, random_images=args.random_images, \
-                                    random_voxel_data=args.random_voxel_data)
+    image_order, trn_image_order, val_image_order = \
+                                nsd_utils.get_data_splits(args.subject, \
+                                sessions=sessions, image_inds_only = True, \
+                                voxel_mask=voxel_mask, volume_space=args.volume_space, \
+                                zscore_betas_within_sess=True, \
+                                shuffle_images=args.shuffle_images, random_images=args.random_images, \
+                                random_voxel_data=args.random_voxel_data)
     n_voxels = trn_voxel_data.shape[1]   
     
     ########## DEFINE PARAMETERS #############################################################################
@@ -205,14 +198,14 @@ def fit_fwrf(args):
         saved_prfs_fn = None
 
     ########### LOOPING OVER VOXEL SUBSETS ############################################################
-    # used for clip/alexnet when layer_name is "best_layer"  
+    # used for clip/alexnet when layer_name is "best_layer", diff voxels get fit w different features
     # otherwise this loop only goes once and voxel_subset_mask is all ones.
     
     # define voxel subsets (if using)      
     if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.clip_layer_name=='best_layer'):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
-        assert(args.do_fitting==True)      
+        assert(args.do_fitting==True)   # haven't implemented the mid-way resuming in this case
         best_layer_each_voxel, saved_best_layer_fn = \
                   initialize_fitting.load_best_model_layers(args.subject, dnn_model)
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
@@ -237,15 +230,15 @@ def fit_fwrf(args):
             print('no voxels, continuing loop')
             continue
             
-        ########## CREATE FEATURE EXTRACTOR MODULES ###################################################################
-        # all these modules do is load sets of pre-computed features in organized way.
+        ########## CREATE FEATURE LOADERS ###################################################################
+        # these help to load sets of pre-computed features in an organized way.
         # first making a list of all the modules of interest (different feature spaces)
         fe = []
         fe_names = []
         for ft in fitting_types:   
 
-             if 'gabor_solo' in ft:
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+            if 'gabor_solo' in ft:
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid,\
                                                                 feature_type='gabor_solo',\
                                                                 n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
@@ -254,7 +247,7 @@ def fit_fwrf(args):
                 fe.append(feat_loader)
                 fe_names.append(ft)
             elif 'pyramid' in ft:
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='pyramid_texture',\
                                                                 n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
@@ -267,7 +260,7 @@ def fit_fwrf(args):
                 pyramid_feature_info = [feat_loader.feature_column_labels, feat_loader.feature_types_include]
 
             elif 'sketch_tokens' in ft:
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='sketch_tokens',\
                                                                 use_pca_feats = args.use_pca_st_feats)
@@ -278,7 +271,7 @@ def fit_fwrf(args):
                 if args.alexnet_layer_name=='all_conv':
                     names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
                     for ll in range(n_dnn_layers):
-                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='alexnet',layer_name=names[ll],\
                                                                 use_pca_feats = args.use_pca_alexnet_feats,\
@@ -288,7 +281,7 @@ def fit_fwrf(args):
                 elif args.alexnet_layer_name=='best_layer':
                     this_layer_name = 'Conv%d_ReLU'%(vi+1)
                     print(this_layer_name)
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='alexnet',layer_name=this_layer_name,\
                                                                 use_pca_feats = args.use_pca_alexnet_feats,\
@@ -296,7 +289,7 @@ def fit_fwrf(args):
                     fe.append(feat_loader)   
                     fe_names.append(ft)
                 else:
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='alexnet',layer_name=args.alexnet_layer_name,\
                                                                 use_pca_feats = args.use_pca_alexnet_feats,\
@@ -308,7 +301,7 @@ def fit_fwrf(args):
                 if args.clip_layer_name=='all_resblocks':
                     names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
                     for ll in range(n_dnn_layers):
-                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                        feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='clip',layer_name=names[ll],\
                                                                 model_architecture=args.clip_model_architecture,\
@@ -318,7 +311,7 @@ def fit_fwrf(args):
                 elif args.clip_layer_name=='best_layer':
                     this_layer_name = 'block%d'%(vi)
                     print(this_layer_name)
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='clip',layer_name=this_layer_name,\
                                                                 model_architecture=args.clip_model_architecture,\
@@ -326,7 +319,7 @@ def fit_fwrf(args):
                     fe.append(feat_loader)
                     fe_names.append(ft) 
                 else:
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject, device=device,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='clip',layer_name=args.clip_layer_name,\
                                                                 model_architecture=args.clip_model_architecture,\
@@ -336,7 +329,7 @@ def fit_fwrf(args):
           
             elif 'semantic' in ft:
                 this_feature_set = ft.split('semantic_')[1]
-                feat_loader = semantic_features.semantic_feature_loader(subject=args.subject, device=device,\
+                feat_loader = semantic_features.semantic_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_set=this_feature_set,\
                                                                 sessions=sessions, \
@@ -357,26 +350,22 @@ def fit_fwrf(args):
             gc.collect()
             torch.cuda.empty_cache()
             print('\nStarting training...\n')
-            
-            # add an intercept
-            add_bias=True
-            # determines whether to shuffle before separating the nested heldout data for lambda and param selection. 
-            # always using true.
-            shuffle=True 
             print(len(trn_image_order))
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
                 best_prf_models_tmp, features_mean, features_std, \
                 best_train_holdout_preds, holdout_trial_order = \
                                 fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
-                                       feat_loader_full, prf_models, \
-                                       lambdas, best_model_each_voxel = best_model_each_voxel_use, \
-                                       zscore=args.zscore_features, add_bias=add_bias, \
-                                       voxel_batch_size=args.voxel_batch_size, holdout_size=holdout_size, \
-                                       shuffle=shuffle, shuff_rnd_seed=shuff_rnd_seed, device=device, \
-                                       dtype=fpX, debug=args.debug)
-            trn_holdout_voxel_data_pred = best_train_holdout_preds
-          
+                                                        feat_loader_full, prf_models, lambdas, \
+                                                        best_model_each_voxel = best_model_each_voxel_use, \
+                                                        zscore=args.zscore_features, \
+                                                        add_bias=True, \
+                                                        voxel_batch_size=args.voxel_batch_size, \
+                                                        holdout_size=holdout_size, \
+                                                        shuffle=True, shuff_rnd_seed=shuff_rnd_seed, \
+                                                        device=device, \
+                                                        dtype=np.float32, debug=args.debug)
+            
             # getting info about how variance partition was set up
             partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()
 
@@ -467,9 +456,13 @@ def fit_fwrf(args):
             sys.stdout.flush()
     
             val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
-                fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, val_voxel_data_use, val_image_order, \
-                         feat_loader_full, zscore=args.zscore_features, sample_batch_size=args.sample_batch_size, \
-                                             voxel_batch_size=args.voxel_batch_size, debug=args.debug, dtype=fpX)
+                fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
+                                                 val_voxel_data_use, val_image_order, \
+                                                 feat_loader_full, zscore=args.zscore_features, \
+                                                 sample_batch_size=args.sample_batch_size, \
+                                                 voxel_batch_size=args.voxel_batch_size, \
+                                                 debug=args.debug, \
+                                                 dtype=np.float32, device=device)
             if vi==0:
                 val_cc = np.zeros((n_voxels, val_cc_tmp.shape[1]), dtype=val_cc_tmp.dtype)
                 val_r2 = np.zeros((n_voxels, val_r2_tmp.shape[1]), dtype=val_r2_tmp.dtype)               
@@ -478,7 +471,7 @@ def fit_fwrf(args):
                 
             save_all(fn2save)
 
-        ### ESTIMATE VOXELS' FEATURE TUNING BASED ON CORRELATION WITH EACH FEATURE ######
+        ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
         sys.stdout.flush()
         if args.do_tuning:
 
@@ -501,7 +494,7 @@ def fit_fwrf(args):
             
             save_all(fn2save)
 
-        ### ESTIMATE SEMANTIC DISCRIMINABILITY OF EACH VOXEL'S PREDICTED RESPONSES ######
+        ### ESTIMATE SEMANTIC DISCRIMINABILITY #########################################################################
         sys.stdout.flush()
         if args.do_sem_disc:
 
@@ -509,10 +502,16 @@ def fit_fwrf(args):
             torch.cuda.empty_cache()
             print('about to start semantic discriminability analysis')
             sys.stdout.flush()
-            labels_all, discrim_type_list, unique_labs_each = coco_utils.load_labels_each_prf(args.subject, args.which_prf_grid, \
-                                                     image_inds=val_image_order, models=prf_models,verbose=False, debug=args.debug)
-            discrim_tmp, corr_tmp = fwrf_predict.get_semantic_discrim(best_params_tmp, labels_all, unique_labs_each, \
-                                                          val_voxel_data_pred, debug=args.debug)
+            labels_all, discrim_type_list, unique_labs_each = \
+                    coco_utils.load_labels_each_prf(args.subject, args.which_prf_grid,\
+                                                    image_inds=val_image_order, \
+                                                    models=prf_models,verbose=False, \
+                                                    debug=args.debug)
+            discrim_tmp, corr_tmp = \
+                    fwrf_predict.get_semantic_discrim(best_params_tmp, \
+                                                      labels_all, unique_labs_each, \
+                                                      val_voxel_data_pred,\
+                                                      debug=args.debug)
             if vi==0:
                 sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
                                                  dtype=discrim_tmp.dtype) 
@@ -522,6 +521,8 @@ def fit_fwrf(args):
             sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
             
             save_all(fn2save)
+            
+        # Done!
 
 if __name__ == '__main__':
     

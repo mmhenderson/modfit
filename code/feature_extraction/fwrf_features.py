@@ -403,6 +403,7 @@ class fwrf_feature_loader:
         print(features_in_prf.shape)
         if hasattr(self,'is_defined_each_prf_batch'):
             feature_inds_defined = self.is_defined_each_prf_batch[:,index_into_batch]
+            features_in_prf = features_in_prf[:,feature_inds_defined]
         else:
             feature_inds_defined = np.zeros((self.max_features,), dtype=bool)
             feature_inds_defined[0:features_in_prf.shape[1]] = 1

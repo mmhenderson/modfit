@@ -15,12 +15,12 @@ import argparse
 # import custom modules
 code_dir = '/user_data/mmhender/imStat/code/'
 sys.path.append(code_dir)
-from feature_extraction import fwrf_features, semantic_features
+from feature_extraction import fwrf_features, semantic_features, merge_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting
 import arg_parser as arg_parser
-import merge_features, fwrf_fit, fwrf_predict
+import fwrf_fit, fwrf_predict
 
 device = initialize_fitting.init_cuda()
 
@@ -340,7 +340,7 @@ def fit_fwrf(args):
           
         # Now combine subsets of features into a single module
         if len(fe)>1:
-            feat_loader_full = merge_features.combined_feature_extractor(fe, fe_names, do_varpart = args.do_varpart)
+            feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart)
         else:
             feat_loader_full = fe[0]
 

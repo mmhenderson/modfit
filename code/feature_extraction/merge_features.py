@@ -1,29 +1,19 @@
-import torch
 import numpy as np
 
 """
-Module class that can merge other smaller modules (useful for variance partitioning)
+Feature loader class that can merge other smaller modules (useful for variance partitioning)
 """
 
-class combined_feature_extractor(torch.nn.Module):
+class combined_feature_loader:
     
     def __init__(self, modules, module_names, do_varpart=False):
         
         super(combined_feature_extractor, self).__init__()
         self.modules = modules
-        self.device = modules[0].device
         self.module_names = module_names
         self.do_varpart = do_varpart
-        
-    def init_for_fitting(self, image_size, models, dtype):
-        
-        max_features = 0
-        for module in self.modules:            
-            module.init_for_fitting(image_size, models, dtype)
-            max_features += module.max_features
-            
-        self.max_features = max_features
-        
+        self.max_features = np.sum(np.array([module.max_features for module in self.modules]))
+    
     def clear_big_features(self):
         
         for module in self.modules:
@@ -31,9 +21,6 @@ class combined_feature_extractor(torch.nn.Module):
             
     def get_partial_versions(self):
         
-        if not hasattr(self, 'max_features'):
-            raise RuntimeError('need to run init_for_fitting first')
-
         n_total_feat = self.max_features
         masks = np.ones((1,n_total_feat), dtype=int)
         names = ['full_combined_model']
@@ -80,17 +67,20 @@ class combined_feature_extractor(torch.nn.Module):
 
         return masks, names
         
-    def forward(self, images, prf_params, prf_model_ind, fitting_mode = True):
+    def load(self, images, prf_model_ind, fitting_mode = True):
 
         for mi, module in enumerate(self.modules):
             
-            features, inds = module(images, prf_params, prf_model_ind, fitting_mode)
+            features, inds = module.load(images, prf_model_ind, fitting_mode)
             
             if mi==0:
                 all_features_concat = features
                 feature_inds_defined = inds
             else:
-                all_features_concat = torch.cat((all_features_concat, features), axis=1)
+                all_features_concat = np.concatenate((all_features_concat, features), axis=1)
                 feature_inds_defined = np.concatenate((feature_inds_defined, inds), axis=0)
-  
+        
+        print('Final shape of concatenated features:')
+        print(all_features_concat.shape)
+
         return all_features_concat, feature_inds_defined

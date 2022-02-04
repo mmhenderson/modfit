@@ -8,7 +8,7 @@ class combined_feature_loader:
     
     def __init__(self, modules, module_names, do_varpart=False):
         
-        super(combined_feature_extractor, self).__init__()
+        super(combined_feature_loader, self).__init__()
         self.modules = modules
         self.module_names = module_names
         self.do_varpart = do_varpart

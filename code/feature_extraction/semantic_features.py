@@ -1,24 +1,24 @@
 import numpy as np
 import sys, os
-import torch
 import pandas as pd
-import torch.nn as nn
 
 from utils import torch_utils, default_paths, nsd_utils
 
-class semantic_feature_extractor(nn.Module):
+class semantic_feature_loader:
     
-    def __init__(self, subject, feature_set, device, sessions=None, which_prf_grid=1, shuff_rnd_seed=0, holdout_size=100):
-        
-        super(semantic_feature_extractor, self).__init__()
-        
+    def __init__(self, subject, which_prf_grid, feature_set, **kwargs)
+    
         self.subject = subject
         self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
-
+        self.device = kwargs['device'] if 'device' in kwargs.keys() else 'cpu:0' 
+        self.sessions = kwargs['sessions'] if 'sessions' in kwargs.keys() else None
+        self.shuff_rnd_seed = kwargs['shuff_rnd_seed'] if 'shuff_rnd_seed' in kwargs.keys() else 0
+        self.holdout_size = kwargs['holdout_size'] if 'holdout_size' in kwargs.keys() else 100
+        
         self.get_trn_val_inds(sessions, shuff_rnd_seed, holdout_size)
         
-        if feature_set=='indoor_outdoor':
+        if self.feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
@@ -49,7 +49,7 @@ class semantic_feature_extractor(nn.Module):
                 self.features_file = os.path.join(self.labels_folder, \
                                       'S%d_cocolabs_binary_prf0.csv'%(self.subject))
                 self.n_features = 2
-
+    
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
@@ -89,23 +89,19 @@ class semantic_feature_extractor(nn.Module):
         print(len(self.image_order_trn))
         print(self.image_order_trn[0:20])
         
-    def init_for_fitting(self, image_size, models, dtype):
+    def init_for_fitting(self):
 
-        """
-        Additional initialization operations.
-        """
-        
-        print('Initializing for fitting')
-        self.max_features = self.n_features       
         self.clear_big_features()
         
+    def clear_big_features(self):
+        
+        print('Clearing features from memory')
+        self.features_in_prf = None 
+
     def get_partial_versions(self):
 
-        if not hasattr(self, 'max_features'):
-            raise RuntimeError('need to run init_for_fitting first')
-           
         partial_version_names = ['full_model']
-        masks = np.ones([1,self.max_features])
+        masks = np.ones([1,self.n_features])
 
         return masks, partial_version_names
 
@@ -198,12 +194,8 @@ class semantic_feature_extractor(nn.Module):
         print('Size of features array for this image set is:')
         print(self.features_in_prf.shape)
         
-    def clear_big_features(self):
-        
-        print('Clearing features from memory')
-        self.features_in_prf = None 
-       
-    def forward(self, image_inds, prf_params, prf_model_index, fitting_mode = True):
+    
+    def load(self, image_inds, prf_model_index, fitting_mode = True):
 
         if fitting_mode:
             assert(np.all(image_inds[0:self.trn_size]==self.image_order_trn))
@@ -213,7 +205,7 @@ class semantic_feature_extractor(nn.Module):
         
         features = self.features_in_prf
         feature_inds_defined = self.is_defined_in_prf
-        assert(len(feature_inds_defined)==self.max_features)
+        assert(len(feature_inds_defined)==self.n_features)
         
         assert(features.shape[0]==len(image_inds))
         print('Final size of feature matrix is:')

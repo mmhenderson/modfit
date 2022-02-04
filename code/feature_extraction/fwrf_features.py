@@ -1,8 +1,7 @@
 import numpy as np
-import sys, os
+import os
 import time
 import h5py
-import gc
 
 from utils import default_paths
 from feature_extraction import extract_alexnet_features, extract_clip_features, texture_statistics_pyramid
@@ -10,15 +9,14 @@ from model_fitting import initialize_fitting
 
 """
 Code to load pre-computed features from various models (gabor, alexnet, semantic, etc.)
-Features have been computed within each pRF in a spatial grid.
+Features have been computed at various spatial locations in a grid (pRF positions/sizes)
 """
           
 class fwrf_feature_loader:
     
     def __init__(self, subject, which_prf_grid, feature_type, **kwargs):
         
-        self.subject = subject      
-        self.device = kwargs['device'] if 'device' in kwargs.keys() else 'cpu:0'        
+        self.subject = subject            
         self.which_prf_grid = which_prf_grid
         self.init_prf_batches(kwargs)        
         self.feature_type = feature_type
@@ -71,14 +69,15 @@ class fwrf_feature_loader:
             raise ValueError('cannot exclude both low and high level texture features.')
         if not self.include_hl:
             self.use_pca_feats_hl = False
-            
+        
+        # sort out all the different sub-types of features in the texture model
         self.feature_types_all = np.array(texture_statistics_pyramid.feature_types_all)
         self.feature_type_dims_all = np.array(texture_statistics_pyramid.feature_type_dims_all)
         self.feature_is_ll = np.arange(14)<5
         self.n_ll_feats = np.sum(self.feature_type_dims_all[self.feature_is_ll])
         self.n_hl_feats = np.sum(self.feature_type_dims_all[~self.feature_is_ll])
 
-        # Now decide which of these features to include now (usually including all of them)
+        # Decide which of these features to include now (usually including all of them)
         if self.include_ll and self.include_hl:
             inds_include = np.ones(np.shape(self.feature_is_ll))==1          
         elif self.include_ll:
@@ -88,8 +87,7 @@ class fwrf_feature_loader:
             
         self.feature_types_include = self.feature_types_all[inds_include]
         self.feature_type_dims_include = self.feature_type_dims_all[inds_include]
-        self.feature_is_ll = self.feature_is_ll[inds_include]
-        
+        self.feature_is_ll = self.feature_is_ll[inds_include]       
         
         if self.use_pca_feats_hl:
             # get filenames/dims of the higher-level feature groups, after PCA.
@@ -249,16 +247,11 @@ class fwrf_feature_loader:
         self.features_each_prf_batch = None
         self.prf_inds_loaded = []
         
-    def init_for_fitting(self):
-
-        self.clear_big_features()
-        
     def clear_big_features(self):
         
         print('Clearing features from memory')
         self.features_each_prf_batch = None 
         self.prf_inds_loaded = []
-        gc.collect() 
         
     def get_partial_versions(self):
 

@@ -1,17 +1,16 @@
 import numpy as np
-import sys, os
+import os
 import pandas as pd
 
 from utils import default_paths, nsd_utils
 
 class semantic_feature_loader:
     
-    def __init__(self, subject, which_prf_grid, feature_set, **kwargs)
+    def __init__(self, subject, which_prf_grid, feature_set, **kwargs):
     
         self.subject = subject
         self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
-        self.device = kwargs['device'] if 'device' in kwargs.keys() else 'cpu:0' 
         self.sessions = kwargs['sessions'] if 'sessions' in kwargs.keys() else None
         self.shuff_rnd_seed = kwargs['shuff_rnd_seed'] if 'shuff_rnd_seed' in kwargs.keys() else 0
         self.holdout_size = kwargs['holdout_size'] if 'holdout_size' in kwargs.keys() else 100
@@ -53,7 +52,6 @@ class semantic_feature_loader:
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
-        self.device = device
         self.features_in_prf = None
         
     def get_trn_val_inds(self, sessions, shuff_rnd_seed, holdout_size):
@@ -88,10 +86,6 @@ class semantic_feature_loader:
         print('Training image index list:')
         print(len(self.image_order_trn))
         print(self.image_order_trn[0:20])
-        
-    def init_for_fitting(self):
-
-        self.clear_big_features()
         
     def clear_big_features(self):
         

@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.nn.init as I
 import torch.nn.functional as F
-import torch.optim as optim
 
 from utils import numpy_utils, torch_utils, texture_utils
 
@@ -21,7 +20,7 @@ https://github.com/styvesg/nsd
 It was modified by MH to work for this project.
 """
 
-def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, best_model_each_voxel=None,\
+def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best_model_each_voxel=None,\
                    zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
                        shuffle=True, shuff_rnd_seed=0, device=None, dtype=np.float32, debug=False):
     
@@ -31,7 +30,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         images: the training images, [n_trials x 1 x height x width]
             OR for models where features were pre-computed, this is a list of indices [n_trials,] into the 10,000 long feature array.
         voxel_data: the training voxel data, [n_trials x n_voxels]
-        _feature_extractor_fn: module that maps from images to model features
+        feature_loader: module that maps from images to model features
         prf_models: the list of possible pRFs to test, columns are [x, y, sigma]
         lambdas: ridge lambda parameters to test
         zscore: want to zscore each column of feature matrix before fitting?
@@ -96,12 +95,12 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
         image_size = images.shape[2:4]
     else:
         image_size = None
-    _feature_extractor.init_for_fitting(image_size, prf_models, dtype)
-    max_features = _feature_extractor.max_features
+    feature_loader.init_for_fitting()
+    max_features = feature_loader.max_features
 
     # Decide whether to do any "partial" versions of the models (leaving out subsets of features)
     # Purpose is for variance partition
-    masks, partial_version_names = _feature_extractor.get_partial_versions()
+    masks, partial_version_names = feature_loader.get_partial_versions()
     n_partial_versions = len(partial_version_names) # will be one if skipping varpart
     if add_bias:
         masks = np.concatenate([masks, np.ones([masks.shape[0],1])], axis=1) # always include intercept 
@@ -153,9 +152,8 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
             # nfeatures may be less than max_features, because max_features is the largest number possible for any pRF.
             # feature_inds_defined is length max_features, and tells which of the features in max_features 
             # are included in features.
-            features, feature_inds_defined = _feature_extractor(images, (x,y,sigma), m, fitting_mode=True)
-            features = features.detach().cpu().numpy() 
-            
+            features, feature_inds_defined = feature_loader.load(images, m, fitting_mode=True)
+           
             elapsed = time.time() - t
 
             n_features_actual = features.shape[1]
@@ -322,7 +320,7 @@ def fit_fwrf_model(images, voxel_data, _feature_extractor, prf_models, lambdas, 
     print ('setup throughput = %fs/model' % (inv_time / n_prfs))
     
     # This step clears the big feature maps for training data from feature extractor (no longer needed)
-    _feature_extractor.clear_big_features()
+    feature_loader.clear_big_features()
 
     sys.stdout.flush()
 

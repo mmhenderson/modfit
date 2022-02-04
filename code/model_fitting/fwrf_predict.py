@@ -8,7 +8,7 @@ import scipy.stats
 from utils import numpy_utils, torch_utils, stats_utils
 
 
-def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_extractor, zscore=False,\
+def validate_fwrf_model(best_params, prf_models, voxel_data, images, feature_loader, zscore=False,\
                        sample_batch_size=100, voxel_batch_size=100, debug=False, dtype=np.float32):
     
     """ 
@@ -16,7 +16,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     """
     
     params = best_params
-    device = _feature_extractor.device
+    device = feature_loader.device
     
     n_trials, n_voxels = len(images), len(params[0])
     n_prfs = prf_models.shape[0]
@@ -24,9 +24,9 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
     n_voxels = np.shape(voxel_data)[1]
 
     best_models, weights, bias, features_mt, features_st, best_model_inds = params
-    masks, partial_version_names = _feature_extractor.get_partial_versions()
+    masks, partial_version_names = feature_loader.get_partial_versions()
     masks = np.transpose(masks)    
-    n_features_max = _feature_extractor.max_features
+    n_features_max = feature_loader.max_features
     n_partial_versions = len(partial_version_names)
     
     if zscore:       
@@ -51,7 +51,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
         # First gather features for all pRFs. There are fewer pRFs than voxels, so it is faster
         # to loop over pRFs first, then voxels.
         
-        _feature_extractor.clear_big_features()
+        feature_loader.clear_big_features()
         
         for mm in range(n_prfs):
             if mm>1 and debug:
@@ -60,9 +60,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             # all_feat_concat is size [ntrials x nfeatures]
             # nfeatures may be less than n_features_max, because n_features_max is the largest number possible for any pRF.
             # feature_inds_defined is length max_features, and tells which of the features in max_features are includes in features.
-            all_feat_concat, feature_inds_defined = _feature_extractor(images, prf_models[mm,:], mm, fitting_mode=False)
+            all_feat_concat, feature_inds_defined = feature_loader.load(images, mm, fitting_mode=False)
             
-            all_feat_concat = torch_utils.get_value(all_feat_concat)
             if zscore:
                 # using mean and std that were computed on training set during fitting - keeping 
                 # these pars constant here seems to improve fits. 
@@ -78,7 +77,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, _feature_ex
             features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined
             
-        _feature_extractor.clear_big_features()
+        feature_loader.clear_big_features()
         
         # Next looping over all voxels in batches.
         

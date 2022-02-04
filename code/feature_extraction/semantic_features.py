@@ -2,7 +2,7 @@ import numpy as np
 import sys, os
 import pandas as pd
 
-from utils import torch_utils, default_paths, nsd_utils
+from utils import default_paths, nsd_utils
 
 class semantic_feature_loader:
     
@@ -210,8 +210,6 @@ class semantic_feature_loader:
         assert(features.shape[0]==len(image_inds))
         print('Final size of feature matrix is:')
         print(features.shape)
-        
-        features = torch_utils._to_torch(features, self.device)
           
         return features, feature_inds_defined
      

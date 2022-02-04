@@ -1,8 +1,7 @@
 import sys, os
 import numpy as np
 import time, h5py
-codepath = '/user_data/mmhender/imStat/code'
-sys.path.append(codepath)
+
 from utils import default_paths, numpy_utils, nsd_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import texture_statistics_pyramid

@@ -3,8 +3,6 @@ import numpy as np
 import h5py
 import time
 
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import default_paths
 
 def change_h5py_dtype(h5py_fn, dtype=np.float32, fieldname='features'):

@@ -7,8 +7,6 @@ import h5py
 import torch.nn
 
 #import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import torch_utils,  default_paths
 from utils import nsd_utils
 from model_fitting import initialize_fitting

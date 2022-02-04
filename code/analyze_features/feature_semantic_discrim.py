@@ -2,8 +2,6 @@ import sys, os
 import numpy as np
 import time, h5py
 import scipy.stats
-codepath = '/user_data/mmhender/imStat/code'
-sys.path.append(codepath)
 from utils import default_paths, nsd_utils, coco_utils, stats_utils
 from feature_extraction import fwrf_features
 from model_fitting import initialize_fitting 

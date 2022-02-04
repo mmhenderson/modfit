@@ -1,6 +1,4 @@
 import sys
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import nsd_utils
 
 if __name__ == '__main__':

@@ -1,6 +1,4 @@
 import sys
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import coco_utils
 import numpy as np
 import argparse

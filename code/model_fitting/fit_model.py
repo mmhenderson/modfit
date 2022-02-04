@@ -11,8 +11,6 @@ import numpy as np
 import argparse
 
 # import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from feature_extraction import fwrf_features, semantic_features, merge_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 

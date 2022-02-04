@@ -5,8 +5,6 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
 
-codepath = '/user_data/mmhender/imStat/code'
-sys.path.append(codepath)
 from utils import default_paths, nsd_utils, numpy_utils, stats_utils, coco_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import fwrf_features

@@ -15,8 +15,6 @@ import torch
 import argparse
 
 # import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
 import initialize_fitting as initialize_fitting

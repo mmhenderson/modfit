@@ -15,8 +15,6 @@ import argparse
 import skimage.transform
 
 # import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import nsd_utils
 from model_fitting import initialize_fitting
 

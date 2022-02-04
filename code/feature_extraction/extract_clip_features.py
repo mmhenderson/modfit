@@ -9,8 +9,6 @@ import copy
 import torch.nn as nn
 
 #import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils
 from model_fitting import initialize_fitting
 from feature_extraction import pca_feats

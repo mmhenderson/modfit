@@ -8,8 +8,6 @@ import torch.nn as nn
 from sklearn import decomposition
 
 #import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import prf_utils, torch_utils, texture_utils, default_paths
 from model_fitting import initialize_fitting
 from feature_extraction import sketch_token_features

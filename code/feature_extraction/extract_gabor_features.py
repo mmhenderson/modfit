@@ -6,8 +6,6 @@ import time
 import h5py
 
 #import custom modules
-code_dir = '/user_data/mmhender/imStat/code/'
-sys.path.append(code_dir)
 from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths
 from model_fitting import initialize_fitting
 from feature_extraction import gabor_feature_extractor

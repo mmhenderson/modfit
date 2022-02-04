@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 import os
-import torch
+from utils import default_paths
 
 """
 General use functions for loading/getting basic properties of encoding model fit results.
@@ -9,14 +9,15 @@ Input to most of these functions is 'out', which is a dictionary containing
 fit results. Created by the model fitting code in model_fitting/fit_model.py
 """
 
-def load_fit_results(subject, volume_space, fitting_type, n_from_end, root, verbose=True):
+
+def load_fit_results(subject, fitting_type, volume_space=True, n_from_end=0, verbose=True, root=None):
        
     if root is None:
-        root = os.path.dirname(os.path.dirname(os.getcwd()))
+        root = default_paths.save_fits_path
     if volume_space:
-        folder2load = os.path.join(root, 'model_fits','S%02d'%subject, fitting_type)
+        folder2load = os.path.join(root,'S%02d'%(subject), fitting_type)
     else:
-        folder2load = os.path.join(root, 'model_fits','S%02d_surface'%subject, fitting_type)
+        folder2load = os.path.join(root,'S%02d_surface'%(subject), fitting_type)
         
     # within this folder, assuming we want the most recent version that was saved
     files_in_dir = os.listdir(folder2load)
@@ -30,20 +31,17 @@ def load_fit_results(subject, volume_space, fitting_type, n_from_end, root, verb
     most_recent_date = my_dates[-1-n_from_end]
 
     subfolder2load = os.path.join(folder2load, most_recent_date)
-    file2load = os.listdir(subfolder2load)[0]
-    fullfile2load = os.path.join(subfolder2load, file2load)
-
+    file2load = os.path.join(subfolder2load, 'all_fit_params.npy')
+   
     if verbose:
-        print('loading from %s\n'%fullfile2load)
+        print('loading from %s\n'%file2load)
 
-    out = torch.load(fullfile2load)
+    out = np.load(file2load, allow_pickle=True).item()
     
     if verbose:
         print(out.keys())
-        
-    fig_save_folder = os.path.join(root,'figures','S%02d'%subject, fitting_type, most_recent_date)
-    
-    return out, fig_save_folder
+ 
+    return out
 
 def print_output_summary(out):
     """

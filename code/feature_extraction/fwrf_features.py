@@ -299,6 +299,7 @@ class fwrf_feature_loader:
 
         if self.feature_type=='pyramid_texture':
 
+            # just for this particular set of features, there are multiple sub-sets that need to be dealt with specially
             self.is_defined_each_prf_batch = None
             # take out just the lower-level features from here
             features_each_prf_ll = values[image_inds,0:self.n_ll_feats,:]
@@ -382,9 +383,13 @@ class fwrf_feature_loader:
     
     def load(self, image_inds, prf_model_index, fitting_mode = True):
          
+        if image_inds.dtype=='bool' or np.all(np.isin(np.unique(image_inds),[0,1])):
+            print('\nWARNING: image_inds (len %d) looks like a boolean array'%len(image_inds))
+            print('you might need to do np.where(image_inds) first\n')
+            
         if prf_model_index not in self.prf_inds_loaded:            
             self.load_features_prf_batch(image_inds, prf_model_index)
-
+        
         # get features for the current pRF from the loaded batch 
         index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
         print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
@@ -392,6 +397,7 @@ class fwrf_feature_loader:
             features_in_prf = self.features_each_prf_batch[:,:,index_into_batch]            
         else:
             features_in_prf = self.features_each_prf_batch[index_into_batch]
+       
         assert(features_in_prf.shape[0]==len(image_inds))
         print('Size of features array for this image set and prf is:')
         print(features_in_prf.shape)

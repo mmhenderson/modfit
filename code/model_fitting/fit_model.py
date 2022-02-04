@@ -8,8 +8,6 @@ import sys
 import os
 import time
 import numpy as np
-import gc
-import torch
 import argparse
 
 # import custom modules
@@ -18,9 +16,7 @@ sys.path.append(code_dir)
 from feature_extraction import fwrf_features, semantic_features, merge_features
 from utils import nsd_utils, roi_utils, default_paths, coco_utils
 
-import initialize_fitting as initialize_fitting
-import arg_parser as arg_parser
-import fwrf_fit, fwrf_predict
+import initialize_fitting, arg_parser, fwrf_fit, fwrf_predict
 
 device = initialize_fitting.init_cuda()
 
@@ -70,6 +66,8 @@ def fit_fwrf(args):
         'saved_prfs_fn': saved_prfs_fn,
         'best_layer_each_voxel': best_layer_each_voxel,
         'saved_best_layer_fn': saved_best_layer_fn,
+        'voxel_subset_is_done_trn': voxel_subset_is_done_trn,
+        'voxel_subset_is_done_val': voxel_subset_is_done_val,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if args.do_tuning:
@@ -122,25 +120,29 @@ def fit_fwrf(args):
             })
 
         print('\nSaving to %s\n'%fn2save)
-        torch.save(dict2save, fn2save, pickle_protocol=4)
+        np.save(fn2save, dict2save, allow_pickle=True)
 
-    if (args.do_fitting==False) and (args.date_str==0 or args.date_str=='0' or args.date_str==''):
-        raise ValueError('if --do_fitting=False, must specify the date when training result was saved (--date_str).')
-    elif (args.do_fitting) and not (args.date_str==0 or args.date_str=='0' or args.date_str==''):
-        raise ValueError('if --do_fitting=True, should specify --date_str=0 (rather than entering a date)')    
+    if (args.from_scratch==False) and (args.date_str==0 or args.date_str=='0' or args.date_str==''):
+        raise ValueError('if --from_scratch=False, must specify the date when training result was saved (--date_str).')
+    elif (args.from_scratch) and not (args.date_str==0 or args.date_str=='0' or args.date_str==''):
+        raise ValueError('if --from_scratch=True, should specify --date_str=0 (rather than entering a date)')    
     if (args.do_sem_disc or args.do_tuning) and not args.do_val:
-        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation again (--do_val=True)')       
+        raise ValueError('to do tuning analysis or semantic discriminability, need to run validation (--do_val=True)')       
     if args.shuff_rnd_seed==0:
         shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))       
     else:
         shuff_rnd_seed = args.shuff_rnd_seed
         
+    val_r2 = None; 
+    val_cc = None;
+    val_voxel_data_pred = None;
     if args.do_tuning:
         corr_each_feature = None
     if args.do_sem_disc:
         sem_discrim_each_axis = None
         sem_corr_each_axis = None
         discrim_type_list = None
+        
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
         n_dnn_layers = 5;
@@ -180,7 +182,8 @@ def fit_fwrf(args):
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))   
     lambdas = initialize_fitting.get_lambdas(zscore_features=args.zscore_features, ridge=args.ridge)
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid) 
-
+    n_prfs = prf_models.shape[0]
+    
     sys.stdout.flush()
    
     ########## LOAD PRECOMPUTED PRFS ##########################################################################
@@ -189,8 +192,6 @@ def fit_fwrf(args):
         # If we already computed pRFs for this subject on some model, can load those now and use them during 
         # fitting. Faster than fitting pRFs each time.
         best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
-        print(trn_voxel_data.shape)
-        print(len(best_model_each_voxel))
         assert(len(best_model_each_voxel)==trn_voxel_data.shape[1])
     else:
         # otherwise fitting all params from scratch.
@@ -205,16 +206,57 @@ def fit_fwrf(args):
     if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.clip_layer_name=='best_layer'):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
-        assert(args.do_fitting==True)   # haven't implemented the mid-way resuming in this case
         best_layer_each_voxel, saved_best_layer_fn = \
                   initialize_fitting.load_best_model_layers(args.subject, dnn_model)
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
+        
     else:
         # going to fit all voxels w same model
         voxel_subset_masks = [np.ones((n_voxels,), dtype=bool)]
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;
+
+    if not args.from_scratch:
+        
+        # stuff that needs to happen if we are resuming from some intermediate point
+        print('\nLoading the results of training from %s\n'%fn2save)
+        last_saved = np.load(fn2save).item()
+        # make sure that training was actually done, otherwise should start over 
+        assert(np.any(last_saved['voxel_subset_is_done_trn']))
+        assert(last_saved['up_to_sess']==args.up_to_sess)
+        assert(last_saved['debug']==args.debug)
+        assert(last_saved['which_prf_grid']==args.which_prf_grid)
+        assert(np.all(last_saved['lambdas']==lambdas))
+        assert(last_saved['saved_prfs_fn']==saved_prfs_fn)
+        assert(last_saved['saved_best_layer_fn']==saved_best_layer_fn)
+
+        voxel_subset_is_done_trn = last_saved['voxel_subset_is_done_trn']
+        voxel_subset_is_done_val = last_saved['voxel_subset_is_done_val']
+        best_losses = last_saved['best_losses']
+        best_lambdas = last_saved['best_lambdas']
+        best_params = last_saved['best_params'] 
+        best_prf_model_pars, best_weights, best_biases, \
+                           features_mean, features_std, best_prf_models = best_params
+        val_cc = last_saved['val_cc']
+        val_r2 = last_saved['val_r2']
+        shuff_rnd_seed=last_saved['shuff_rnd_seed']
+
+        if 'val_voxel_data_pred' in list(last_saved.keys()):
+            assert(args.save_pred_data)
+            val_voxel_data_pred = last_saved['val_voxel_data_pred']
+        if 'corr_each_feature' in list(last_saved.keys()):
+            assert(args.do_tuning)
+            corr_each_feature = last_saved['corr_each_feature']
+        if 'sem_discrim_each_axis' in list(last_saved.keys()):
+            assert(args.do_sem_disc)
+            sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
+            sem_corr_each_axis = last_saved['sem_corr_each_axis']              
+            discrim_type_list = last_saved['discrim_type_list']
+
+    else:
+        voxel_subset_is_done_trn = np.zeros((len(voxel_subset_masks),),dtype=bool)
+        voxel_subset_is_done_val = np.zeros((len(voxel_subset_masks),),dtype=bool)
         
     # Start the loop
     for vi, voxel_subset_mask in enumerate(voxel_subset_masks):
@@ -225,11 +267,12 @@ def fit_fwrf(args):
             best_model_each_voxel_use = best_model_each_voxel[voxel_subset_mask]
         else:
             best_model_each_voxel_use = None
-        print('voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_subset_masks), trn_voxel_data_use.shape[1]))
+        print('\nStarting fitting for voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_subset_masks), trn_voxel_data_use.shape[1]))
         if trn_voxel_data_use.shape[1]==0:
             print('no voxels, continuing loop')
+            voxel_subset_is_done_trn = True
             continue
-            
+        
         ########## CREATE FEATURE LOADERS ###################################################################
         # these help to load sets of pre-computed features in an organized way.
         # first making a list of all the modules of interest (different feature spaces)
@@ -343,17 +386,52 @@ def fit_fwrf(args):
             feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart)
         else:
             feat_loader_full = fe[0]
-
+        max_features = feat_loader_full.max_features 
+        
+        # getting info about how variance partition will be set up
+        partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()       
+        if vi==0:
+            n_partial_versions = len(partial_version_names)
+            partial_masks = [[] for ii in range(len(voxel_subset_masks))] 
+        partial_masks[vi] = partial_masks_tmp
+        assert(len(partial_version_names)==n_partial_versions)
+        
+        if (vi==0) and args.from_scratch:
+            # preallocate some arrays for params over all voxels
+            best_losses = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
+            best_lambdas = np.zeros((n_voxels, n_partial_versions), dtype=int)
+            best_weights = np.zeros((n_voxels, max_features, n_partial_versions), dtype=np.float32)
+            best_biases = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
+            best_prf_models = np.zeros((n_voxels, n_partial_versions), dtype=int)
+            features_mean = np.zeros((n_prfs, max_features,len(voxel_subset_masks)), dtype=np.float32)
+            features_std = np.zeros((n_prfs, max_features,len(voxel_subset_masks)), dtype=np.float32)
+            val_cc = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
+            val_r2 = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)     
+                
+        # if this current feature set has more features than the first one, 
+        # might need to pad the weights array to make it fit.                 
+        if best_weights.shape[1]<max_features:
+            n2pad = max_features - best_weights.shape[1]
+            print('padding by %d elements'%n2pad)
+            print(np.shape(best_weights))
+            print(np.shape(features_mean))
+            print(np.shape(features_std))
+            best_weights = np.pad(best_weights, [[0,0], [0, n2pad], [0,0]])            
+            features_mean = np.pad(features_mean, [[0,0], [0, n2pad], [0,0]])
+            features_std = np.pad(features_std, [[0,0], [0, n2pad], [0,0]])
+            print(np.shape(best_weights))
+            print(np.shape(features_mean))
+            print(np.shape(features_std))
+            
         #### FIT ENCODING MODEL ###################################################################################
 
-        if args.do_fitting:
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('\nStarting training...\n')
+        if not voxel_subset_is_done_trn[vi]:
+   
+            print('\nStarting training (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
             print(len(trn_image_order))
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
-                best_prf_models_tmp, features_mean, features_std, \
+                best_prf_models_tmp, features_mean_tmp, features_std_tmp, \
                 best_train_holdout_preds, holdout_trial_order = \
                                 fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
                                                         feat_loader_full, prf_models, lambdas, \
@@ -366,93 +444,40 @@ def fit_fwrf(args):
                                                         device=device, \
                                                         dtype=np.float32, debug=args.debug)
             
-            # getting info about how variance partition was set up
-            partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()
-
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
-            if vi==0:               
-                best_losses = np.zeros((n_voxels, best_losses_tmp.shape[1]), dtype=best_losses_tmp.dtype)
-                best_lambdas = np.zeros((n_voxels, best_lambdas_tmp.shape[1]), dtype=best_lambdas_tmp.dtype)
-                best_weights = np.zeros((n_voxels, best_weights_tmp.shape[1], \
-                                         best_weights_tmp.shape[2]), dtype=best_weights_tmp.dtype)
-                best_biases = np.zeros((n_voxels, best_biases_tmp.shape[1]), dtype=best_biases_tmp.dtype)
-                best_prf_models = np.zeros((n_voxels, best_prf_models_tmp.shape[1]), \
-                                           dtype=best_prf_models_tmp.dtype)
-                partial_masks = [[] for ii in range(len(voxel_subset_masks))]        
-            
             best_losses[voxel_subset_mask,:] = best_losses_tmp
-            best_lambdas[voxel_subset_mask,:] = best_lambdas_tmp
-            max_features = feat_loader_full.max_features
-            if best_weights.shape[1]<max_features:
-                n2pad = max_features - best_weights.shape[1]
-                print('padding by %d elements'%n2pad)
-                print(np.shape(best_weights))
-                best_weights = np.pad(best_weights, [[0,0], [0, n2pad], [0,0]])
-                print(np.shape(best_weights))
+            best_lambdas[voxel_subset_mask,:] = best_lambdas_tmp            
             best_weights[voxel_subset_mask,0:max_features,:] = best_weights_tmp
+            features_mean[:,0:max_features,vi] = features_mean_tmp
+            features_std[:,0:max_features,vi] = features_std_tmp
             best_biases[voxel_subset_mask,:] = best_biases_tmp
             best_prf_models[voxel_subset_mask,:] = best_prf_models_tmp
-            partial_masks[vi] = partial_masks_tmp
-            print(partial_masks[vi].shape)
-            # "best_params_tmp" will be passed to validation functions (just these voxels)
-            # "best_params" will be saved (all voxels)
-            best_params_tmp = [prf_models[best_prf_models_tmp,:], best_weights_tmp, best_biases_tmp, \
-                               features_mean, features_std, best_prf_models_tmp]
-            best_params = [prf_models[best_prf_models,:], best_weights, best_biases, \
-                               features_mean, features_std, best_prf_models]
             
-            sys.stdout.flush()
-            if vi==0:
-                val_cc=None
-                val_r2=None
-                if args.save_pred_data:
-                    val_voxel_data_pred=None
-
-            save_all(fn2save)   
-            print('\nSaved training results\n')        
-            sys.stdout.flush()
-
+            voxel_subset_is_done_trn[vi] = True
+   
         else:
-
-            # stuff that needs to happen if we are resuming this code after the "fit" step but before validation
-            print('\nLoading the results of training from %s\n'%fn2save)
-            out = torch.load(fn2save)
-            best_losses = out['best_losses']
-            best_lambdas = out['best_lambdas']
-            best_params = out['best_params']
-            best_params_tmp = best_params
+            best_losses_tmp = best_losses[voxel_subset_mask,:]
+            best_lambdas_tmp = best_lambdas[voxel_subset_mask,:]
+            best_weights_tmp = best_weights[voxel_subset_mask,0:max_features,:]
+            best_biases_tmp = best_biases[voxel_subset_mask,:]
+            best_prf_models_tmp = best_prf_models[voxel_subset_mask,:]
+            features_mean_tmp = features_mean[:,0:max_features,vi]
+            features_std_tmp = features_mean[:,0:max_features,vi]
             
-            val_cc = out['val_cc']
-            val_r2 = out['val_r2']
-
-            if 'val_voxel_data_pred' in list(out.keys()):
-                assert(args.save_pred_data)
-                val_voxel_data_pred = out['val_voxel_data_pred']
-            if 'corr_each_feature' in list(out.keys()):
-                assert(args.do_tuning)
-                corr_each_feature = out['corr_each_feature']
-            if 'sem_discrim_each_axis' in list(out.keys()):
-                assert(args.do_sem_disc)
-                sem_discrim_each_axis = out['sem_discrim_each_axis']
-                sem_corr_each_axis = out['sem_corr_each_axis']              
-                discrim_type_list = out['discrim_type_list']
-
-            shuff_rnd_seed=out['shuff_rnd_seed']
-
-            assert(out['up_to_sess']==args.up_to_sess)
-            assert(out['which_prf_grid']==args.which_prf_grid)
-
-            image_size = None
-            feat_loader_full.init_for_fitting()
-            partial_masks, partial_version_names = feat_loader_full.get_partial_versions()
-
-
+        # "best_params_tmp" will be passed to validation functions (just these voxels)
+        # "best_params" will be saved (all voxels)
+        best_params_tmp = [prf_models[best_prf_models_tmp,:], best_weights_tmp, best_biases_tmp, \
+                           features_mean_tmp, features_std_tmp, best_prf_models_tmp]
+        best_params = [prf_models[best_prf_models,:], best_weights, best_biases, \
+                           features_mean, features_std, best_prf_models]
+        sys.stdout.flush()
+        save_all(fn2save)   
+            
         ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
         sys.stdout.flush()
-        if args.do_val: 
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('about to start validation')
+        if not voxel_subset_is_done_val[vi]: 
+            
+            print('Starting validation (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
             sys.stdout.flush()
     
             val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
@@ -463,64 +488,60 @@ def fit_fwrf(args):
                                                  voxel_batch_size=args.voxel_batch_size, \
                                                  debug=args.debug, \
                                                  dtype=np.float32, device=device)
-            if vi==0:
-                val_cc = np.zeros((n_voxels, val_cc_tmp.shape[1]), dtype=val_cc_tmp.dtype)
-                val_r2 = np.zeros((n_voxels, val_r2_tmp.shape[1]), dtype=val_r2_tmp.dtype)               
+                     
             val_cc[voxel_subset_mask,:] = val_cc_tmp
             val_r2[voxel_subset_mask,:] = val_r2_tmp
+            if (not args.do_tuning) and (not args.do_sem_disc):
+                voxel_subset_is_done_val[vi] = True
+            save_all(fn2save) 
+
+            ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
+            sys.stdout.flush()
+            if args.do_tuning:
+
+                print('\nStarting feature tuning analysis (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+                sys.stdout.flush()
+                corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
+                                                                        val_voxel_data_pred, debug=args.debug)
+                if vi==0:
+                    corr_each_feature = np.zeros((n_voxels, corr_each_feature_tmp.shape[1]), dtype=corr_each_feature_tmp.dtype)  
+                max_features = feat_loader_full.max_features
+                if corr_each_feature.shape[1]<max_features:
+                    n2pad = max_features - corr_each_feature.shape[1]
+                    print('padding by %d elements'%n2pad)
+                    print(np.shape(corr_each_feature))
+                    corr_each_feature = np.pad(corr_each_feature, [[0,0], [0, n2pad]])
+                    print(np.shape(corr_each_feature))
+                corr_each_feature[voxel_subset_mask,0:max_features] = corr_each_feature_tmp                
+                if not args.do_sem_disc:
+                    voxel_subset_is_done_val[vi] = True
+                save_all(fn2save)
+
+            ### ESTIMATE SEMANTIC DISCRIMINABILITY #########################################################################
+            sys.stdout.flush()
+            if args.do_sem_disc:
                 
-            save_all(fn2save)
-
-        ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
-        sys.stdout.flush()
-        if args.do_tuning:
-
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('about to start feature tuning analysis')
-            sys.stdout.flush()
-            corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
-                                                                    val_voxel_data_pred, debug=args.debug)
-            if vi==0:
-                corr_each_feature = np.zeros((n_voxels, corr_each_feature_tmp.shape[1]), dtype=corr_each_feature_tmp.dtype)  
-            max_features = feat_loader_full.max_features
-            if corr_each_feature.shape[1]<max_features:
-                n2pad = max_features - corr_each_feature.shape[1]
-                print('padding by %d elements'%n2pad)
-                print(np.shape(corr_each_feature))
-                corr_each_feature = np.pad(corr_each_feature, [[0,0], [0, n2pad]])
-                print(np.shape(corr_each_feature))
-            corr_each_feature[voxel_subset_mask,0:max_features] = corr_each_feature_tmp
-            
-            save_all(fn2save)
-
-        ### ESTIMATE SEMANTIC DISCRIMINABILITY #########################################################################
-        sys.stdout.flush()
-        if args.do_sem_disc:
-
-            gc.collect()
-            torch.cuda.empty_cache()
-            print('about to start semantic discriminability analysis')
-            sys.stdout.flush()
-            labels_all, discrim_type_list, unique_labs_each = \
-                    coco_utils.load_labels_each_prf(args.subject, args.which_prf_grid,\
-                                                    image_inds=val_image_order, \
-                                                    models=prf_models,verbose=False, \
-                                                    debug=args.debug)
-            discrim_tmp, corr_tmp = \
-                    fwrf_predict.get_semantic_discrim(best_params_tmp, \
-                                                      labels_all, unique_labs_each, \
-                                                      val_voxel_data_pred,\
-                                                      debug=args.debug)
-            if vi==0:
-                sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
-                                                 dtype=discrim_tmp.dtype) 
-                sem_corr_each_axis = np.zeros((n_voxels, corr_tmp.shape[1]), \
-                                                 dtype=corr_tmp.dtype) 
-            sem_discrim_each_axis[voxel_subset_mask,:] = discrim_tmp
-            sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
-            
-            save_all(fn2save)
+                print('\nStarting semantic discriminability analysis (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+                sys.stdout.flush()
+                labels_all, discrim_type_list, unique_labs_each = \
+                        coco_utils.load_labels_each_prf(args.subject, args.which_prf_grid,\
+                                                        image_inds=val_image_order, \
+                                                        models=prf_models,verbose=False, \
+                                                        debug=args.debug)
+                discrim_tmp, corr_tmp = \
+                        fwrf_predict.get_semantic_discrim(best_params_tmp, \
+                                                          labels_all, unique_labs_each, \
+                                                          val_voxel_data_pred,\
+                                                          debug=args.debug)
+                if vi==0:
+                    sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
+                                                     dtype=discrim_tmp.dtype) 
+                    sem_corr_each_axis = np.zeros((n_voxels, corr_tmp.shape[1]), \
+                                                     dtype=corr_tmp.dtype) 
+                sem_discrim_each_axis[voxel_subset_mask,:] = discrim_tmp
+                sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
+                voxel_subset_is_done_val[vi] = True
+                save_all(fn2save)
             
         # Done!
 

@@ -51,8 +51,8 @@ def get_args():
                     help="want to save trialwise predictions for validation set? 1 for yes, 0 for no")
     
     
-    parser.add_argument("--do_fitting", type=nice_str2bool,default=True,
-                    help="want to do model training? 1 for yes, 0 for no")
+    parser.add_argument("--from_scratch", type=nice_str2bool,default=True,
+                    help="want to do model training from the start? 1 for yes, 0 for no")
     parser.add_argument("--use_precomputed_prfs", type=nice_str2bool,default=False,
                     help="want to use prf estimates that were already computed? 1 for yes, 0 for no")
     parser.add_argument("--do_val", type=nice_str2bool,default=True, 

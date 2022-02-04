@@ -23,7 +23,14 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
         pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path_localnode
     else:
         pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
-               
+          
+    if debug:
+        fn2save = os.path.join(pyramid_texture_feat_path, \
+                       'S%d_features_each_prf_%dori_%dsf_grid%d_DEBUG.h5py'%(subject, n_ori, n_sf, which_prf_grid))
+    else:
+        fn2save = os.path.join(pyramid_texture_feat_path, \
+                       'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
+            
     # Load and prepare the image set to work with (all images for the current subject, 10,000 ims)
     stim_root = default_paths.stim_root
     image_data = nsd_utils.get_image_data(subject)  
@@ -32,21 +39,13 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 
-    # Set up the pyramid
-    include_ll = True
-    include_hl = True
+    # Set up the pyramid    
     n_prf_sd_out = 2
-    do_varpart=False # this doesn't do anything here
-    group_all_hl_feats = False # this doesn't do anything here
-
-    compute_features = True
+    aperture=1.0
     _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
     _feature_extractor = \
         texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn,sample_batch_size=batch_size, \
-                                include_ll=include_ll, include_hl=include_hl, \
-                                n_prf_sd_out=n_prf_sd_out, aperture=1.0, do_varpart = do_varpart, \
-                                compute_features=compute_features, \
-                                group_all_hl_feats = group_all_hl_feats, device=device)
+                                n_prf_sd_out=n_prf_sd_out, aperture=aperture,device=device)
 
     n_features = _feature_extractor.n_features_total
     n_images = image_data.shape[0]
@@ -79,7 +78,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
             print('Getting features for pRF [x,y,sigma]:')
             print([x,y,sigma])
 
-            features_batch, _ = _feature_extractor(image_batch, models[mm],mm)
+            features_batch = _feature_extractor(image_batch, models[mm],mm)
 
             print('model %d, min/max of features in batch: [%s, %s]'%(mm, torch.min(features_batch), torch.max(features_batch))) 
 
@@ -87,9 +86,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
 
             sys.stdout.flush()
 
-    fn2save = os.path.join(pyramid_texture_feat_path, \
-                       'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
-
+    
     print('Writing prf features to %s\n'%fn2save)
     
     t = time.time()

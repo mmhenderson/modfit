@@ -12,12 +12,15 @@ import argparse
 
 # import custom modules
 from feature_extraction import fwrf_features, semantic_features, merge_features
-from utils import nsd_utils, roi_utils, default_paths, coco_utils
+from utils import nsd_utils, roi_utils, default_paths
 
 import initialize_fitting, arg_parser, fwrf_fit, fwrf_predict
 
-device = initialize_fitting.init_cuda()
-
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
+    
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 #################################################################################################
@@ -425,7 +428,7 @@ def fit_fwrf(args):
 
         if not voxel_subset_is_done_trn[vi]:
    
-            print('\nStarting training (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+            print('\nStarting training (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
             print(len(trn_image_order))
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
@@ -475,7 +478,7 @@ def fit_fwrf(args):
         sys.stdout.flush()
         if not voxel_subset_is_done_val[vi]: 
             
-            print('Starting validation (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+            print('Starting validation (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
             sys.stdout.flush()
     
             val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
@@ -497,7 +500,7 @@ def fit_fwrf(args):
             sys.stdout.flush()
             if args.do_tuning:
 
-                print('\nStarting feature tuning analysis (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+                print('\nStarting feature tuning analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
                 sys.stdout.flush()
                 corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
                                                                         val_voxel_data_pred, debug=args.debug)
@@ -519,10 +522,10 @@ def fit_fwrf(args):
             sys.stdout.flush()
             if args.do_sem_disc:
                 
-                print('\nStarting semantic discriminability analysis (voxel subset %d of %d)...\n'(vi, len(voxel_subset_masks)))
+                print('\nStarting semantic discriminability analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
                 sys.stdout.flush()
                 labels_all, discrim_type_list, unique_labs_each = \
-                        coco_utils.load_labels_each_prf(args.subject, args.which_prf_grid,\
+                        initialize_fitting.load_labels_each_prf(args.subject, args.which_prf_grid,\
                                                         image_inds=val_image_order, \
                                                         models=prf_models,verbose=False, \
                                                         debug=args.debug)

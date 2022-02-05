@@ -2,7 +2,7 @@ import sys, os
 import numpy as np
 import time, h5py
 import scipy.stats
-from utils import default_paths, nsd_utils, coco_utils, stats_utils
+from utils import default_paths, nsd_utils, stats_utils
 from feature_extraction import fwrf_features
 from model_fitting import initialize_fitting 
 import argparse
@@ -30,7 +30,7 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         trninds = np.array(subject_df['shared1000']==False)
         trninds_list.append(trninds)
         # working only with training data here.
-        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = coco_utils.load_labels_each_prf(ss, \
+        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = initialize_fitting.load_labels_each_prf(ss, \
                              which_prf_grid, image_inds=np.where(trninds)[0], models=models,verbose=False, debug=debug)
         if si==0:
             labels_all = labels_all_ss

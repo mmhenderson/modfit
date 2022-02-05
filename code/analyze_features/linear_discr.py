@@ -5,7 +5,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
 
-from utils import default_paths, nsd_utils, numpy_utils, stats_utils, coco_utils
+from utils import default_paths, nsd_utils, numpy_utils, stats_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import fwrf_features
 
@@ -35,7 +35,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         valinds_ss = np.array(subject_df['shared1000'])
         trninds_ss = np.array(subject_df['shared1000']==False)
         image_inds_ss = np.arange(len(trninds_ss))
-        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = coco_utils.load_labels_each_prf(ss, \
+        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = initialize_fitting.load_labels_each_prf(ss, \
                              which_prf_grid, image_inds=image_inds_ss, models=models,verbose=False, debug=debug)
         if si==0:
             labels_all = labels_all_ss

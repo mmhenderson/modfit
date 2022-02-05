@@ -327,32 +327,49 @@ def load_best_model_layers(subject, model):
 
     return best_layer_each_voxel, saved_best_layer_fn
 
-def get_gabor_feature_map_fn(n_ori, n_sf, device, padding_mode='circular', nonlin_fn=False):
+
+def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
+
+    """
+    Load csv files containing spatially-specific category labels for coco images.
+    Makes an array [n_trials x n_discrim_types x n_prfs]
+    """
+
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
     
-    """
-    Creating first-level feature extractor modules for the Gabor models.
-    If using 'gabor_solo' mode, then only the mean activations for 'complex' module here is actually used.
-    """
-    if nonlin_fn:
-        # adding a nonlinearity to the filter activations
-        print('\nAdding log(1+sqrt(x)) as nonlinearity fn...')
-        nonlin = lambda x: torch.log(1+torch.sqrt(x))
-    else:
-        nonlin = None
+    print('loading labels from folders at %s (will be slow...)'%(labels_folder))
+  
+    n_trials = image_inds.shape[0]
+    n_prfs = models.shape[0]
+
+    for prf_model_index in range(n_prfs):
         
-    _gabor_ext_complex = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, \
-                             sf_range_cyc_per_stim = (3, 72), log_spacing = True, \
-                             pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, \
-                             complex_cell=True, padding_mode = padding_mode, nonlin_fn=nonlin, \
-                             RGB=False, device = device)
+        if debug and prf_model_index>1:
+            continue
+            
+        fn2load = os.path.join(labels_folder, \
+                                  'S%d_concat_prf%d.csv'%(subject, prf_model_index))
+        concat_df = pd.read_csv(fn2load, index_col=0)
+        labels = np.array(concat_df)
+        if prf_model_index==0:
+            unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
+        else:
+            unique_labs_each = [np.unique(np.concatenate([np.unique(labels[~np.isnan(labels[:,ll]),ll]), \
+                                          unique_labs_each[ll]], axis=0)) for ll in range(labels.shape[1])]
+        labels = labels[image_inds,:]
+        discrim_type_list = list(concat_df.keys())
+        
+        if prf_model_index==0:
+            print(discrim_type_list)
+            print('num nans each column (out of %d trials):'%n_trials)
+            print(np.sum(np.isnan(labels), axis=0))
+            n_sem_axes = len(discrim_type_list)
+            labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
 
-    _gabor_ext_simple = gabor_feature_extractor.gabor_extractor_multi_scale(n_ori=n_ori, n_sf=n_sf, \
-                             sf_range_cyc_per_stim = (3, 72), log_spacing = True, \
-                             pix_per_cycle=4.13, cycles_per_radius=0.7, radii_per_filter=4, \
-                             complex_cell=False, padding_mode = padding_mode, nonlin_fn=nonlin, \
-                             RGB=False, device = device)
+        # put into big array
+        
+        labels_all[:,:,prf_model_index] = labels
+    
 
-    _fmaps_fn_complex = _gabor_ext_complex
-    _fmaps_fn_simple = _gabor_ext_simple
-
-    return  _gabor_ext_complex, _gabor_ext_simple, _fmaps_fn_complex, _fmaps_fn_simple
+    return labels_all, discrim_type_list, unique_labs_each

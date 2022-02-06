@@ -70,6 +70,8 @@ def get_full_save_name(args):
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
             if args.use_pca_pyr_feats_hl:
                 model_name += '_pca_HL' 
+            if not args.group_all_hl_feats:
+                model_name += '_allsubsets'
         elif 'gabor_solo' in ft:     
             fitting_types += [ft]
             model_name += 'gabor_solo'

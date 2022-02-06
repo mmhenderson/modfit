@@ -329,7 +329,6 @@ class fwrf_feature_loader:
                                 for mm in range(len(self.prf_batch_inds[batch_to_use]))]
                     nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
                                 else self.max_pc_to_retain_hl[fi] for ni in nan_inds]
-                    print(nan_inds)
                     n_feat_each_prf=nan_inds
 
                     start_ind = np.sum(self.feature_dims_hl[0:fi])
@@ -363,8 +362,7 @@ class fwrf_feature_loader:
                 feats_to_use = values[image_inds,:,:]
                 nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
                             for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-                nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_features for ni in nan_inds]
-                print(nan_inds)
+                nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) else self.max_features for ni in nan_inds]              
                 self.features_each_prf_batch = [feats_to_use[:,0:nan_inds[mm],mm] \
                             for mm in range(len(self.prf_batch_inds[batch_to_use]))]
                 values=None

@@ -7,6 +7,7 @@ import torch
 import time
 import os
 import numpy as np
+import pandas as pd
 
 # import custom modules
 from feature_extraction import gabor_feature_extractor
@@ -69,14 +70,6 @@ def get_full_save_name(args):
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
             if args.use_pca_pyr_feats_hl:
                 model_name += '_pca_HL' 
-        elif 'gabor_texture' in ft:     
-            fitting_types += [ft]
-            model_name += 'texture_gabor'
-            if args.ridge==True:   
-                model_name += '_ridge'
-            else:
-                model_name += '_OLS'
-            model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
         elif 'gabor_solo' in ft:     
             fitting_types += [ft]
             model_name += 'gabor_solo'
@@ -89,8 +82,6 @@ def get_full_save_name(args):
             fitting_types += [ft]
             if args.use_pca_st_feats==True:       
                 model_name += 'sketch_tokens_pca'
-            elif args.use_lda_st_feats==True:
-                model_name += 'sketch_tokens_lda_%s'%args.lda_discrim_type
             else:        
                 model_name += 'sketch_tokens'
         elif 'alexnet' in ft:
@@ -154,7 +145,7 @@ def get_save_path(model_name, args):
         else:
             raise ValueError('the path at %s does not exist yet!!'%output_dir)
         
-    fn2save = os.path.join(output_dir,'all_fit_params')
+    fn2save = os.path.join(output_dir,'all_fit_params.npy')
     print('\nWill save final output file to %s\n'%output_dir)
     
     return output_dir, fn2save

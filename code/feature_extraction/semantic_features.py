@@ -66,8 +66,6 @@ class semantic_feature_loader:
             self.sessions = np.arange(0,nsd_utils.max_sess_each_subj[self.subject-1]);
         else:
             self.sessions = np.array(sessions)
-        print('working with these sessions for subject %d:'%self.subject)
-        print(self.sessions)
         image_order = nsd_utils.get_master_image_order()
         session_inds = nsd_utils.get_session_inds_full()
         inds2use = np.isin(session_inds, self.sessions)
@@ -80,15 +78,12 @@ class semantic_feature_loader:
         if shuff_rnd_seed==0:
             print('Computing a new random seed')
             shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
-        print('Seeding random number generator: seed is %d'%shuff_rnd_seed)
+            print(shuff_rnd_seed)
         np.random.seed(shuff_rnd_seed)
         np.random.shuffle(order)
         
         self.image_order_trn = image_order_trn[order[0:self.trn_size]]
-        print('Training image index list:')
-        print(len(self.image_order_trn))
-        print(self.image_order_trn[0:20])
-        
+
     def clear_big_features(self):
         
         print('Clearing features from memory')

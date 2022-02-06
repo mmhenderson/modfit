@@ -47,9 +47,6 @@ def get_args():
     
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
-    parser.add_argument("--save_pred_data", type=nice_str2bool,default=False,
-                    help="want to save trialwise predictions for validation set? 1 for yes, 0 for no")
-    
     
     parser.add_argument("--from_scratch", type=nice_str2bool,default=True,
                     help="want to do model training from the start? 1 for yes, 0 for no")

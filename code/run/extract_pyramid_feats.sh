@@ -1,17 +1,18 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
 #SBATCH --gres=gpu:1
-#SBATCH --mem=100G
+#SBATCH --exclude=mind-1-23
+#SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=30-00:00:00
 
-debug=0
+debug=1
 use_node_storage=0
 n_ori=4
 n_sf=4
-batch_size=500
+batch_size=50
 which_prf_grid=5
 
 source ~/myenv/bin/activate
@@ -21,7 +22,7 @@ cd ../
 ROOT=$(pwd)
 cd $ROOT/feature_extraction
 
-sublist=(4 5 6 7 8)
+sublist=(8)
 for subj in ${sublist[@]}
 do
 

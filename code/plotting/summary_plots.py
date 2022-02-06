@@ -161,7 +161,7 @@ def plot_fit_summary_volume_space(subject, fitting_type, out, roi_def=None, scre
         plt.savefig(os.path.join(fig_save_folder,'fit_summary_volumespace.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'fit_summary_volumespace.png'))
         
-def plot_noise_ceilings(subject, fitting_type,out, fig_save_folder):
+def plot_noise_ceilings(subject, fitting_type,out, fig_save_folder=None):
 
     """
     Plot distribution of noise ceilings and NCSNR across all voxels.

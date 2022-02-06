@@ -76,11 +76,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
                 tiled_mean = np.tile(features_mt[mm,feature_inds_defined], [n_trials, 1])
                 tiled_std = np.tile(features_st[mm,feature_inds_defined], [n_trials, 1])
                 all_feat_concat = (all_feat_concat - tiled_mean)/tiled_std
-                # if any entries in std are zero or nan, this gives bad result - fix these now.
-                # these bad entries will also be zero in weights, so doesn't matter. 
-                # just want to avoid nans.
-                all_feat_concat[np.isnan(all_feat_concat)] = 0.0 
-                all_feat_concat[np.isinf(all_feat_concat)] = 0.0 
+                assert(not np.any(np.isnan(all_feat_concat)) and not np.any(np.isinf(all_feat_concat)))
                         
             features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined

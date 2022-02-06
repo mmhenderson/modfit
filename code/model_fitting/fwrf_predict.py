@@ -66,6 +66,9 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
                 break
             print('Getting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%\
                   (mm, prf_models[mm,0],  prf_models[mm,1],  prf_models[mm,2] ))
+            if not np.any(best_model_inds==mm):
+                print('No voxels have this pRF as their best model, skipping it.')
+                continue
             # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
             # feature_inds_defined is [max_features]
             all_feat_concat, feature_inds_defined = feature_loader.load(images, mm, fitting_mode=False)

@@ -81,12 +81,6 @@ def fit_fwrf(args):
             'sem_corr_each_axis': sem_corr_each_axis,
             'discrim_type_list': discrim_type_list,
             })
-        if args.save_pred_data:
-            dict2save.update({
-            'val_voxel_data': val_voxel_data,
-            'val_voxel_data_pred': val_voxel_data_pred,
-            'val_image_order': val_image_order,
-            })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
             'semantic_feature_set': args.semantic_feature_set,
@@ -136,13 +130,11 @@ def fit_fwrf(args):
         
     val_r2 = None; 
     val_cc = None;
-    val_voxel_data_pred = None;
-    if args.do_tuning:
-        corr_each_feature = None
-    if args.do_sem_disc:
-        sem_discrim_each_axis = None
-        sem_corr_each_axis = None
-        discrim_type_list = None
+    
+    corr_each_feature = None
+    sem_discrim_each_axis = None
+    sem_corr_each_axis = None
+    discrim_type_list = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
@@ -222,7 +214,7 @@ def fit_fwrf(args):
         
         # stuff that needs to happen if we are resuming from some intermediate point
         print('\nLoading the results of training from %s\n'%fn2save)
-        last_saved = np.load(fn2save).item()
+        last_saved = np.load(fn2save, allow_pickle=True).item()
         # make sure that training was actually done, otherwise should start over 
         assert(np.any(last_saved['voxel_subset_is_done_trn']))
         assert(last_saved['up_to_sess']==args.up_to_sess)
@@ -234,6 +226,29 @@ def fit_fwrf(args):
 
         voxel_subset_is_done_trn = last_saved['voxel_subset_is_done_trn']
         voxel_subset_is_done_val = last_saved['voxel_subset_is_done_val']
+        
+        if args.do_tuning:
+            if 'corr_each_feature' in last_saved.keys() and last_saved['corr_each_feature'] is not None:
+                corr_each_feature = last_saved['corr_each_feature']
+            else:
+                voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
+        else:
+            assert('corr_each_feature' not in last_saved.keys() or last_saved['corr_each_feature'] is None)
+            
+        if args.do_sem_disc:
+            if 'sem_discrim_each_axis' in last_saved.keys() and last_saved['sem_discrim_each_axis'] is not None:
+                sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
+                sem_corr_each_axis = last_saved['sem_corr_each_axis']
+            else:
+                voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
+        else:
+            assert('sem_discrim_each_axis' not in last_saved.keys() or last_saved['sem_discrim_each_axis'] is None)
+                
+
+        print('training done for subsets:')
+        print(voxel_subset_is_done_trn)
+        print('validation done for subsets:')
+        print(voxel_subset_is_done_val)
         best_losses = last_saved['best_losses']
         best_lambdas = last_saved['best_lambdas']
         best_params = last_saved['best_params'] 
@@ -242,26 +257,14 @@ def fit_fwrf(args):
         val_cc = last_saved['val_cc']
         val_r2 = last_saved['val_r2']
         shuff_rnd_seed=last_saved['shuff_rnd_seed']
-
-        if 'val_voxel_data_pred' in list(last_saved.keys()):
-            assert(args.save_pred_data)
-            val_voxel_data_pred = last_saved['val_voxel_data_pred']
-        if 'corr_each_feature' in list(last_saved.keys()):
-            assert(args.do_tuning)
-            corr_each_feature = last_saved['corr_each_feature']
-        if 'sem_discrim_each_axis' in list(last_saved.keys()):
-            assert(args.do_sem_disc)
-            sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
-            sem_corr_each_axis = last_saved['sem_corr_each_axis']              
-            discrim_type_list = last_saved['discrim_type_list']
-
+        
     else:
         voxel_subset_is_done_trn = np.zeros((len(voxel_subset_masks),),dtype=bool)
         voxel_subset_is_done_val = np.zeros((len(voxel_subset_masks),),dtype=bool)
         
     # Start the loop
     for vi, voxel_subset_mask in enumerate(voxel_subset_masks):
-
+        
         trn_voxel_data_use = trn_voxel_data[:,voxel_subset_mask]
         val_voxel_data_use = val_voxel_data[:,voxel_subset_mask]
         if best_model_each_voxel is not None:
@@ -407,8 +410,8 @@ def fit_fwrf(args):
             features_mean = np.zeros((n_prfs, max_features,len(voxel_subset_masks)), dtype=np.float32)
             features_std = np.zeros((n_prfs, max_features,len(voxel_subset_masks)), dtype=np.float32)
             val_cc = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
-            val_r2 = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)     
-                
+            val_r2 = np.zeros((n_voxels, n_partial_versions), dtype=np.float32) 
+            
         # if this current feature set has more features than the first one, 
         # might need to pad the weights array to make it fit.                 
         if best_weights.shape[1]<max_features:
@@ -476,7 +479,7 @@ def fit_fwrf(args):
             
         ######### VALIDATE MODEL ON HELD-OUT TEST SET ##############################################
         sys.stdout.flush()
-        if not voxel_subset_is_done_val[vi]: 
+        if args.do_val and not voxel_subset_is_done_val[vi]: 
             
             print('Starting validation (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
             sys.stdout.flush()

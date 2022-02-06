@@ -409,6 +409,10 @@ class fwrf_feature_loader:
         features = features_in_prf
         
         assert(features.shape[0]==len(image_inds))
+        assert(not np.any(np.isnan(features)))
+        if np.any(np.sum(features, axis=0)==0):
+            print('Warning: there are columns of all zeros in features matrix, columns:')
+            print(np.where(np.sum(features, axis=0)==0))
         print('Final size of feature matrix is:')
         print(features.shape)
         

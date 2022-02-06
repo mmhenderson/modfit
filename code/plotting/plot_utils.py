@@ -1,9 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm
-import seaborn as sns
 import numpy as np
 import copy
-import sys
 import cortex
 from utils import roi_utils
 
@@ -16,14 +14,6 @@ def set_all_font_sizes(fs):
     plt.rc('ytick', labelsize=fs)    # fontsize of the tick labels
     plt.rc('legend', fontsize=fs)    # legend fontsize
     plt.rc('figure', titlesize=fs)  # fontsize of the figure title
-
-
-def set_plotting_defaults():
-    sns.axes_style()
-    sns.set_style("white")
-    sns.set_context("notebook", rc={'axes.labelsize': 14.0, 'axes.titlesize': 16.0, 'legend.fontsize': 14.0, 'xtick.labelsize': 14.0, 'ytick.labelsize': 14.0})
-    sns.set_palette("deep")
-    plt.rcParams['image.cmap'] = 'viridis'
 
 def get_full_surface(values, voxel_mask):
     """

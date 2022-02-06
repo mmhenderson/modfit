@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:0
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
@@ -9,17 +9,18 @@
 
 source ~/myenv/bin/activate
 
-CWD=$(pwd)
-cd ../../
-ROOT=$(pwd)
+cd /user_data/mmhender/imStat/code/model_fitting/
 
 debug=0
 up_to_sess=40
-single_sess=0
+
 subj=1
-volume_space=1
 which_prf_grid=5
 
-cd $ROOT/code/model_fitting
+use_all_data=0
 
-python3 semantic_discrim_raw.py --subject $subj --volume_space $volume_space --up_to_sess $up_to_sess --single_sess $single_sess --debug $debug --which_prf_grid $which_prf_grid 
+python3 semantic_discrim_raw.py --subject $subj --up_to_sess $up_to_sess --debug $debug --which_prf_grid $which_prf_grid --use_all_data $use_all_data
+
+use_all_data=1
+
+python3 semantic_discrim_raw.py --subject $subj --up_to_sess $up_to_sess --debug $debug --which_prf_grid $which_prf_grid --use_all_data $use_all_data

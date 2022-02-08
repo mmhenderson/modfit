@@ -50,7 +50,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
             valinds_full = np.concatenate([valinds_full, np.zeros(np.shape(valinds_ss), dtype=bool)], axis=0)
             # check that columns are same for all subs
             assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
-            assert(np.all[np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) for ii in range(len(unique_labels_each))])
+            assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) for ii in range(len(unique_labels_each))]))
     print('Number of images using: %d'%labels_all.shape[0])
      
     n_trials = labels_all.shape[0]
@@ -96,7 +96,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
         path_to_load = default_paths.alexnet_feat_path
         if layer_name is None or layer_name=='':
-            raise ValueError('need to specify layer_name for alexnet')
+            layer_name='Conv5_ReLU'
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='alexnet',layer_name=layer_name,\
@@ -107,7 +107,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
         assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
         path_to_load = default_paths.clip_feat_path
         if layer_name is None or layer_name=='':
-            raise ValueError('need to specify layer_name for clip')
+            layer_name='block15'
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='clip',layer_name=layer_name,\

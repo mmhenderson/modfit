@@ -237,7 +237,9 @@ def fit_fwrf(args):
             assert('corr_each_feature' not in last_saved.keys() or last_saved['corr_each_feature'] is None)
             
         if args.do_sem_disc:
-            if 'sem_discrim_each_axis' in last_saved.keys() and last_saved['sem_discrim_each_axis'] is not None:
+            if (not args.overwrite_sem_disc) \
+               and 'sem_discrim_each_axis' in last_saved.keys() \
+               and last_saved['sem_discrim_each_axis'] is not None:
                 sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
                 sem_corr_each_axis = last_saved['sem_corr_each_axis']
             else:

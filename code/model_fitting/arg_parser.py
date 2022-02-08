@@ -60,6 +60,8 @@ def get_args():
                     help="want to estimate tuning based on correlations? 1 for yes, 0 for no")
     parser.add_argument("--do_sem_disc", type=nice_str2bool,default=True,
                     help="want to estimate semantic discriminability? 1 for yes, 0 for no")
+    parser.add_argument("--overwrite_sem_disc", type=nice_str2bool,default=False,
+                    help="want to re-do (overwrite) semantic discriminability? 1 for yes, 0 for no")
     parser.add_argument("--date_str", type=str,default='',
                     help="what date was the model fitting done (only if you're starting from validation step.)")
     

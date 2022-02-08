@@ -378,10 +378,8 @@ def fit_fwrf(args):
                 this_feature_set = ft.split('semantic_')[1]
                 feat_loader = semantic_features.semantic_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
-                                                                feature_set=this_feature_set,\
-                                                                sessions=sessions, \
-                                                                shuff_rnd_seed = shuff_rnd_seed, \
-                                                                holdout_size = holdout_size)
+                                                                feature_set=this_feature_set, \
+                                                                remove_missing=False)
                 fe.append(feat_loader)
                 fe_names.append(ft)
           

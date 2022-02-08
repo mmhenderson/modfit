@@ -18,6 +18,8 @@ if __name__ == '__main__':
    
     args = parser.parse_args()
 
+    print(args.subject, args.concat)
+    sys.stdout.flush()
     if args.debug:
         print('DEBUG MODE\n')
     
@@ -31,4 +33,5 @@ if __name__ == '__main__':
         coco_utils.write_natural_humanmade_csv(subject=args.subject, which_prf_grid=args.which_prf_grid)
         
     elif args.concat==1:
+        print('concat labels')
         coco_utils.concat_labels_each_prf(subject=args.subject, which_prf_grid=args.which_prf_grid, verbose=True)

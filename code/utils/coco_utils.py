@@ -618,111 +618,169 @@ def write_natural_humanmade_csv(subject, which_prf_grid):
 
     return
 
-def count_labels_each_prf(which_prf_grid, debug=False):
+# def count_labels_each_prf(which_prf_grid, debug=False):
     
-    """
-    Load concatenated labels for each subject, count how many of each unique 
-    label value exist in the set. Counting for each subject's set of
-    10000 coco images, and separately for the trialwise sequence of viewed images 
-    (i.e. including repeats in the count)
-    """
+#     """
+#     Load concatenated labels for each subject, count how many of each unique 
+#     label value exist in the set. Counting for each subject's set of
+#     10000 coco images, and separately for the trialwise sequence of viewed images 
+#     (i.e. including repeats in the count)
+#     """
     
-    labels_folder = os.path.join(default_paths.stim_labels_root)
-    fn2save = os.path.join(labels_folder, 'Coco_label_counts_all.npy')   
+#     labels_folder = os.path.join(default_paths.stim_labels_root)
+#     fn2save = os.path.join(labels_folder, 'Coco_label_counts_all.npy')   
 
-    models = initialize_fitting.get_prf_models(which_grid=5)
-    n_prfs = len(models)
+#     groups = np.load(os.path.join(default_paths.stim_labels_root,\
+#                                   'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
+#     col_names = groups['col_names_all']
+#     unique_labs_each = [np.arange(len(cn)) for cn in colnames]
+    
+#     models = initialize_fitting.get_prf_models(which_grid=5)
+#     n_prfs = len(models)
 
-    counts_all_dict = {}; counts_val_dict={}; counts_trn_dict = {}
-    counts_trn_dict_trialwise = {}; counts_val_dict_trialwise = {}
+#     counts_all_dict = {}; counts_val_dict={}; counts_trn_dict = {}
+#     counts_trn_dict_trialwise = {}; counts_val_dict_trialwise = {}
    
-    # list of the 10000 unique images that were assigned to the subject
-    image_inds_all = np.arange(10000)
-    image_inds_val = image_inds_all<1000
-    image_inds_trn = image_inds_all>=1000
+#     # list of the 10000 unique images that were assigned to the subject
+#     image_inds_all = np.arange(10000)
+#     image_inds_val = image_inds_all<1000
+#     image_inds_trn = image_inds_all>=1000
         
-    # now looping over subjects and counting everything
-    n_subj=8;
-    labels_all_list=[]
-    for si, ss in enumerate(np.arange(1, n_subj+1)):
+#     # now looping over subjects and counting everything
+#     n_subj=8;
+#     labels_all_list=[]
+#     for si, ss in enumerate(np.arange(1, n_subj+1)):
 
-        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = \
-        initialize_fitting.load_labels_each_prf(ss, \
-            which_prf_grid, image_inds=image_inds_all, models=models,verbose=False, debug=debug)
+#         labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = \
+#         initialize_fitting.load_labels_each_prf(ss, \
+#             which_prf_grid, image_inds=image_inds_all, models=models,verbose=False, debug=debug)
 
-        labels_all_list.append(labels_all_ss)
+# #         labels_all_list.append(labels_all_ss)
         
-        if si==0:
-            n_sem_axes = labels_all_ss.shape[1]
-            unique_labs_each = unique_labels_each_ss
-        else:
-            assert(labels_all_ss.shape[1]==n_sem_axes)
-            unique_labs_each = [np.unique(np.concatenate([unique_labs_each[aa], unique_labels_each_ss[aa]], axis=0))\
-                               for aa in range(len(unique_labs_each))]
+# #         if si==0:
+# #             n_sem_axes = labels_all_ss.shape[1]
+# #             unique_labs_each = unique_labels_each_ss
+# #         else:
+# #             assert(labels_all_ss.shape[1]==n_sem_axes)
+# #             unique_labs_each = [np.unique(np.concatenate([unique_labs_each[aa], unique_labels_each_ss[aa]], axis=0))\
+# #                                for aa in range(len(unique_labs_each))]
     
     
-    for si, ss in enumerate(np.arange(1, n_subj+1)):
+# #     for si, ss in enumerate(np.arange(1, n_subj+1)):
             
-        # now get actual trial sequence for the this subject
-        trial_order = nsd_utils.get_master_image_order()
-        session_inds = nsd_utils.get_session_inds_full()  
-        # remove any trials that weren't actually shown to this subject
-        sessions = np.arange(0, np.min([40, nsd_utils.max_sess_each_subj[si]]))
-        print('subject %d has sessions up to %d'%(ss,nsd_utils.max_sess_each_subj[si]))
-        trial_order = trial_order[np.isin(session_inds, sessions)]
-        assert(len(trial_order)/nsd_utils.trials_per_sess==nsd_utils.max_sess_each_subj[si])
-        trial_order_val = trial_order[trial_order<1000]
-        trial_order_trn = trial_order[trial_order>=1000]
-        print('num training/val/total images actually shown: %d/%d/%d'\
-              %(len(trial_order_trn), len(trial_order_val), len(trial_order)))
+#         # now get actual trial sequence for the this subject
+#         trial_order = nsd_utils.get_master_image_order()
+#         session_inds = nsd_utils.get_session_inds_full()  
+#         # remove any trials that weren't actually shown to this subject
+#         sessions = np.arange(0, np.min([40, nsd_utils.max_sess_each_subj[si]]))
+#         print('subject %d has sessions up to %d'%(ss,nsd_utils.max_sess_each_subj[si]))
+#         trial_order = trial_order[np.isin(session_inds, sessions)]
+#         assert(len(trial_order)/nsd_utils.trials_per_sess==nsd_utils.max_sess_each_subj[si])
+#         trial_order_val = trial_order[trial_order<1000]
+#         trial_order_trn = trial_order[trial_order>=1000]
+#         print('num training/val/total images actually shown: %d/%d/%d'\
+#               %(len(trial_order_trn), len(trial_order_val), len(trial_order)))
    
             
+#         for prf_model_index in range(n_prfs):
+
+#             if debug and prf_model_index>1:
+#                 continue
+                
+#             for aa in range(n_sem_axes):
+
+#                 unique_labels = unique_labs_each[aa]
+
+#                 labels = labels_all_ss[:,aa,prf_model_index]
+# #                 labels = labels_all_list[si][:,aa,prf_model_index]
+
+#                 # count how many times each label occurs in the 10000 image set
+#                 counts_all = [np.sum(labels==ll) for ll in unique_labels]
+#                 counts_trn = [np.sum((labels==ll) & image_inds_trn) for ll in unique_labels]
+#                 counts_val = [np.sum((labels==ll) & image_inds_val) for ll in unique_labels]
+                
+#                 assert(np.all(np.array(counts_all)==np.array(counts_trn)+np.array(counts_val)))
+
+#                 # count how many times each label occured in the set of trials shown to the subject
+#                 # (account for repeats and any trials that were missing for this subject)
+#                 counts_trn_trialwise = [np.sum(labels[trial_order_trn]==ll) for ll in unique_labels]
+#                 counts_val_trialwise = [np.sum(labels[trial_order_val]==ll) for ll in unique_labels]
+                
+#                 if (si==0) and (prf_model_index==0):
+#                     counts_all_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
+#                     counts_trn_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
+#                     counts_val_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
+    
+#                     counts_trn_dict_trialwise[discrim_type_list_ss[aa]] = np.zeros((n_subj, \
+#                                                                                 len(unique_labels), n_prfs))
+#                     counts_val_dict_trialwise[discrim_type_list_ss[aa]] = np.zeros((n_subj, \
+#                                                                                 len(unique_labels), n_prfs))
+
+#                 counts_all_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_all
+#                 counts_trn_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_trn
+#                 counts_val_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_val
+
+#                 counts_trn_dict_trialwise[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_trn_trialwise
+#                 counts_val_dict_trialwise[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_val_trialwise
+
+#     np.save(fn2save, {'counts_all': counts_all_dict, \
+#                       'counts_trn': counts_trn_dict, \
+#                       'counts_val': counts_val_dict, \
+#                       'counts_trn_trialwise': counts_trn_dict_trialwise, \
+#                       'counts_val_trialwise': counts_val_dict_trialwise}, allow_pickle=True)
+
+
+def count_labels_each_prf(which_prf_grid=5, debug=False):
+
+    fn2save = os.path.join(default_paths.stim_labels_root, 'Coco_label_counts_all.npy')   
+    
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
+            get_coco_cat_info(coco_val)
+
+    stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
+            get_coco_cat_info(coco_stuff_val)
+
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    n_prfs = models.shape[0]
+    n_subjects=8
+    
+    n_supcat = len(supcat_names); n_cat = len(cat_names)
+    things_supcat_counts = np.zeros((n_subjects, n_prfs, n_supcat))
+    things_cat_counts = np.zeros((n_subjects, n_prfs, n_cat))
+
+    n_stuff_supcat = len(stuff_supcat_names); n_stuff_cat = len(stuff_cat_names)
+    stuff_supcat_counts = np.zeros((n_subjects, n_prfs, n_stuff_supcat))
+    stuff_cat_counts = np.zeros((n_subjects, n_prfs, n_stuff_cat))
+
+    for si, ss in enumerate(np.arange(1,9)):
+        labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d'%(ss, which_prf_grid))
+        print('loading labels from folder %s...'%labels_folder)
+        sys.stdout.flush()
         for prf_model_index in range(n_prfs):
+            coco_things_labels_fn = os.path.join(labels_folder, \
+                                      'S%d_cocolabs_binary_prf%d.csv'%(ss, prf_model_index))  
+            coco_stuff_labels_fn = os.path.join(labels_folder, \
+                                      'S%d_cocolabs_stuff_binary_prf%d.csv'%(ss, prf_model_index))  
+            coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
+            coco_stuff_df = pd.read_csv(coco_stuff_labels_fn, index_col=0)
 
-            if debug and prf_model_index>1:
-                continue
-                
-            for aa in range(n_sem_axes):
+            things_supcat_labels = np.array(coco_things_df)[:,0:12]
+            things_cat_labels = np.array(coco_things_df)[:,12:92]
+            stuff_supcat_labels = np.array(coco_stuff_df)[:,0:16]
+            stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
 
-                unique_labels = unique_labs_each[aa]
+            things_supcat_counts[si,prf_model_index,:] = np.sum(things_supcat_labels, axis=0)            
+            things_cat_counts[si,prf_model_index,:] = np.sum(things_cat_labels, axis=0)
+            stuff_supcat_counts[si,prf_model_index,:] = np.sum(stuff_supcat_labels, axis=0)
+            stuff_cat_counts[si,prf_model_index,:] = np.sum(stuff_cat_labels, axis=0)
 
-                labels = labels_all_list[si][:,aa,prf_model_index]
-
-                # count how many times each label occurs in the 10000 image set
-                counts_all = [np.sum(labels==ll) for ll in unique_labels]
-                counts_trn = [np.sum((labels==ll) & image_inds_trn) for ll in unique_labels]
-                counts_val = [np.sum((labels==ll) & image_inds_val) for ll in unique_labels]
-                
-                assert(np.all(np.array(counts_all)==np.array(counts_trn)+np.array(counts_val)))
-
-                # count how many times each label occured in the set of trials shown to the subject
-                # (account for repeats and any trials that were missing for this subject)
-                counts_trn_trialwise = [np.sum(labels[trial_order_trn]==ll) for ll in unique_labels]
-                counts_val_trialwise = [np.sum(labels[trial_order_val]==ll) for ll in unique_labels]
-                
-                if (si==0) and (prf_model_index==0):
-                    counts_all_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
-                    counts_trn_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
-                    counts_val_dict[discrim_type_list_ss[aa]] = np.zeros((n_subj, len(unique_labels), n_prfs))
+    print('Saving to %s'%fn2save)
+    np.save(fn2save, {'things_supcat_counts': things_supcat_counts,\
+                      'things_cat_counts': things_cat_counts, \
+                      'stuff_supcat_counts': stuff_supcat_counts, \
+                      'stuff_cat_counts': stuff_cat_counts}, allow_pickle=True)
     
-                    counts_trn_dict_trialwise[discrim_type_list_ss[aa]] = np.zeros((n_subj, \
-                                                                                len(unique_labels), n_prfs))
-                    counts_val_dict_trialwise[discrim_type_list_ss[aa]] = np.zeros((n_subj, \
-                                                                                len(unique_labels), n_prfs))
-
-                counts_all_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_all
-                counts_trn_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_trn
-                counts_val_dict[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_val
-
-                counts_trn_dict_trialwise[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_trn_trialwise
-                counts_val_dict_trialwise[discrim_type_list_ss[aa]][si,:,prf_model_index] = counts_val_trialwise
-
-    np.save(fn2save, {'counts_all': counts_all_dict, \
-                      'counts_trn': counts_trn_dict, \
-                      'counts_val': counts_val_dict, \
-                      'counts_trn_trialwise': counts_trn_dict_trialwise, \
-                      'counts_val_trialwise': counts_val_dict_trialwise}, allow_pickle=True)
-
 def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
 
     """
@@ -740,10 +798,13 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
 
     labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    # this file will get made once every time this method is run, it is same for all subjects/pRFs.
+    save_name_groups = os.path.join(default_paths.stim_labels_root,'All_concat_labelgroupnames.npy')
 
     print('concatenating labels from folders at %s and %s (will be slow...)'%\
           (default_paths.stim_labels_root, labels_folder))
-
+    sys.stdout.flush()
+    
     # list all the attributes we want to look at here
     discrim_type_list = ['indoor_outdoor','natural_humanmade','animacy']
 
@@ -777,7 +838,7 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
         labels_df = pd.DataFrame({})
         save_name = os.path.join(labels_folder, \
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
-
+        
         # load all the different binary label sets for this pRF
         nat_hum_labels_fn = os.path.join(labels_folder, \
                                   'S%d_natural_humanmade_prf%d.csv'%(subject, prf_model_index))
@@ -795,6 +856,7 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
         coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
         coco_stuff_df = pd.read_csv(coco_stuff_labels_fn, index_col=0)
 
+        col_names_all = []
         for dd in range(n_sem_axes):
 
             labels=None; colnames=None;
@@ -859,8 +921,9 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
                     cols_to_use = np.where(np.isin(stuff_cat_ids, stuff_ids_each_supcat[supcat_ind]))[0]
                     labels = stuff_cat_labels[:,cols_to_use].astype(np.float32)
                     colnames = np.array(coco_stuff_df.keys())[16+cols_to_use]
-
-        
+            
+            col_names_all.append(colnames)
+            
             if verbose:
                 print(discrim_type)
                 print(colnames)          
@@ -891,4 +954,9 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
             print('Saving to %s'%save_name)
 
         labels_df.to_csv(save_name, header=True)
+        
+        if prf_model_index==0:
+            print('Saving to %s'%(save_name_groups))
+            np.save(save_name_groups, {'discrim_type_list': discrim_type_list, \
+                                      'col_names_all': col_names_all}, allow_pickle=True)
         

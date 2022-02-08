@@ -173,7 +173,8 @@ def fit_fwrf(args):
     
     holdout_pct=0.10
     holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))   
-    lambdas = initialize_fitting.get_lambdas(zscore_features=args.zscore_features, ridge=args.ridge)
+    lambdas = initialize_fitting.get_lambdas(fitting_types=fitting_types, \
+                                             zscore_features=args.zscore_features, ridge=args.ridge)
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid) 
     n_prfs = prf_models.shape[0]
     

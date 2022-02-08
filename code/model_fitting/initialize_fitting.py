@@ -152,24 +152,26 @@ def get_save_path(model_name, args):
     
     return output_dir, fn2save
  
-def get_lambdas(zscore_features=True, ridge=True):
+def get_lambdas(fitting_types, zscore_features=True, ridge=True):
     
     if ridge==False:
-        # putting in two zeros because the code might break with a singleton dimension for lambdas.
-        lambdas = np.array([0.0,0.0])
-        return lambdas
-    
-    if zscore_features==True:
-        lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
-#         lambdas = np.logspace(np.log(0.01),np.log(10**7+0.01),10, dtype=np.float32, base=np.e) - 0.01
+        lambdas = np.array([0.0,0.0])        
     else:
-        # range of values are different if choosing not to z-score - note the performance of these lambdas
-        # will vary depending on actual feature value ranges, be sure to check the results carefully
-        lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
-        
+        if zscore_features==True:
+            lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, dtype=np.float32, base=np.e) - 0.01
+        else:
+            # range of feature values are different if choosing not to z-score. the performance of these lambdas
+            # will vary depending on actual feature value ranges, be sure to check the results carefully
+            lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
+
+        if np.any(['semantic' in ft for ft in fitting_types])
+            # the semantic models occasionally end up with a column of all zeros, so make sure we have a 
+            # small value for lambda rather than zero, to prevent issues with inverse.
+            lambdas[lambdas==0] = 10e-9
+
     print('\nPossible lambda values are:')
     print(lambdas)
-    
+
     return lambdas
 
 def get_prf_models(which_grid=5):

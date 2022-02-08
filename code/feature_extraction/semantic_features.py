@@ -11,9 +11,6 @@ class semantic_feature_loader:
         self.subject = subject
         self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
-        self.sessions = kwargs['sessions'] if 'sessions' in kwargs.keys() else None
-        self.shuff_rnd_seed = kwargs['shuff_rnd_seed'] if 'shuff_rnd_seed' in kwargs.keys() else 0
-        self.holdout_size = kwargs['holdout_size'] if 'holdout_size' in kwargs.keys() else 100
         self.remove_missing = kwargs['remove_missing'] if 'remove_missing' in kwargs.keys() else False
 
         self.get_categ_exclude()
@@ -155,10 +152,9 @@ class semantic_feature_loader:
             elif self.feature_set=='coco_stuff_categ':
                 labels = labels[:,~self.stuff_inds_exclude]
                 missing = self.stuff_inds_exclude
+            self.is_defined_in_prf = ~missing  
         else:
-            missing = np.zeros((self.n_features,),dtype=bool)
-        
-        self.is_defined_in_prf = ~missing   
+            self.is_defined_in_prf = np.ones((self.n_features,),dtype=bool)
 
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;

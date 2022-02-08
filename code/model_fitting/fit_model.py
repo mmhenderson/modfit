@@ -466,7 +466,7 @@ def fit_fwrf(args):
             best_biases_tmp = best_biases[voxel_subset_mask,:]
             best_prf_models_tmp = best_prf_models[voxel_subset_mask,:]
             features_mean_tmp = features_mean[:,0:max_features,vi]
-            features_std_tmp = features_mean[:,0:max_features,vi]
+            features_std_tmp = features_std[:,0:max_features,vi]
             
         # "best_params_tmp" will be passed to validation functions (just these voxels)
         # "best_params" will be saved (all voxels)

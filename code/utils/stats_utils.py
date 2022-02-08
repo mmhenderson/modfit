@@ -151,6 +151,30 @@ def von_mises_deg(xx,mu,k,a=None,b=None,normalize=True,axis_size_deg = 180):
 
     return yy
 
+def ttest_warn(a,b):
+    
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            ttest_out = scipy.stats.ttest_ind(a,b)
+        except RuntimeWarning as e:
+            print('Warning: problem with t test. Means/vars/counts each group:')
+            groups = [a,b]
+            means = [np.mean(group) for group in groups]
+            vrs = [np.var(group) for group in groups]
+            counts = [len(group) for group in groups]
+            print(means)
+            print(vrs)
+            print(counts)
+            print(e)
+            warnings.filterwarnings('ignore')
+            ttest_out = scipy.stats.ttest_ind(a,b)
+    
+    if np.isnan(ttest_out.statistic):
+        print('nans in t-test result')
+           
+    return ttest_out
+
 def anova_oneway_warn(groups):
     
     with warnings.catch_warnings():

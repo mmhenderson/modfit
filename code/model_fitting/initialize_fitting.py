@@ -289,7 +289,8 @@ def load_best_model_layers(subject, model):
                 'S06/alexnet_all_conv_pca/Jan-19-2022_1358_01/all_fit_params.npy')
     elif subject==7:
         if model=='clip':
-            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S07/clip_RN50_all_resblocks_pca/Feb-03-2022_2258_44/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params.npy')
@@ -330,6 +331,10 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    groups = np.load(os.path.join(default_paths.stim_labels_root,\
+                                  'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
+    col_names = groups['col_names_all']
+    unique_labs_each = [np.arange(len(cn)) for cn in col_names]
     
     print('loading labels from folders at %s (will be slow...)'%(labels_folder))
   
@@ -345,11 +350,11 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
         concat_df = pd.read_csv(fn2load, index_col=0)
         labels = np.array(concat_df)
-        if prf_model_index==0:
-            unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
-        else:
-            unique_labs_each = [np.unique(np.concatenate([np.unique(labels[~np.isnan(labels[:,ll]),ll]), \
-                                          unique_labs_each[ll]], axis=0)) for ll in range(labels.shape[1])]
+#         if prf_model_index==0:
+#             unique_labs_each = [np.unique(labels[~np.isnan(labels[:,ll]),ll]) for ll in range(labels.shape[1])]
+#         else:
+#             unique_labs_each = [np.unique(np.concatenate([np.unique(labels[~np.isnan(labels[:,ll]),ll]), \
+#                                           unique_labs_each[ll]], axis=0)) for ll in range(labels.shape[1])]
         labels = labels[image_inds,:]
         discrim_type_list = list(concat_df.keys())
         

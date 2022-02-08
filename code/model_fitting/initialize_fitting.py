@@ -164,7 +164,7 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
             # will vary depending on actual feature value ranges, be sure to check the results carefully
             lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
 
-        if np.any(['semantic' in ft for ft in fitting_types])
+        if np.any(['semantic' in ft for ft in fitting_types]):
             # the semantic models occasionally end up with a column of all zeros, so make sure we have a 
             # small value for lambda rather than zero, to prevent issues with inverse.
             lambdas[lambdas==0] = 10e-9

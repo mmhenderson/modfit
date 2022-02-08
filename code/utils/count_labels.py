@@ -13,3 +13,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     coco_utils.count_labels_each_prf(which_prf_grid=args.which_prf_grid, debug=args.debug)
+    coco_utils.get_top_two_subcateg(which_prf_grid=args.which_prf_grid)

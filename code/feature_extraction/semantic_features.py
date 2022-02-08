@@ -60,7 +60,7 @@ class semantic_feature_loader:
             # find any features that are missing in the training set for any subject, in any pRF.
             # will choose to exclude these columns from fitting for all subjects.
             labels_folder = os.path.join(default_paths.stim_labels_root)
-            fn2load = os.path.join(labels_folder, 'Coco_label_counts_all.npy')   
+            fn2load = os.path.join(labels_folder, 'Coco_label_counts_all_prf_grid%d.npy'%self.which_prf_grid)   
             counts = np.load(fn2load, allow_pickle=True).item()
             things_counts_trn = counts['things_cat_counts_trntrials']
             self.things_inds_exclude = np.any(np.any(things_counts_trn==0, axis=0), axis=0)

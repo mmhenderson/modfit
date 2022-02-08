@@ -207,6 +207,9 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
     sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
     
+    # all categories must be binary.
+    assert(np.all([len(un)==2 for un in unique_labels]))
+    
     for vv in range(n_voxels):
         
         if debug and (vv>1):
@@ -224,20 +227,17 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
-                groups = [resp[gi] for gi in group_inds]                
-                fstat = stats_utils.anova_oneway_warn(groups).statistic      
-                # the f-statistic is our measure of discriminability
-                sem_discrim_each_axis[vv,aa] = fstat                
-            else:                
-                sem_discrim_each_axis[vv,aa] = np.nan
-                
-            # just for the binary categories, also getting a correlation coefficient 
-            # (includes direction/sign)   
-            if (len(unique_labels_each[aa])==2) and (len(unique_labels_actual)==2):                
+                groups = [resp[gi] for gi in group_inds]
+                # use t-statistic as a measure of discriminability
+                # larger value means resp[label==1] > resp[label==0]
+                sem_discrim_each_axis[vv,aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
+                # also computing a correlation coefficient between semantic label/voxel response
+                # sign is consistent with t-statistic
                 sem_corr_each_axis[vv,aa] = stats_utils.numpy_corrcoef_warn(\
                                         resp[inds2use],labels[inds2use])[0,1]
-            else:
+            else:                
+                sem_discrim_each_axis[vv,aa] = np.nan
                 sem_corr_each_axis[vv,aa] = np.nan
-
+           
     return sem_discrim_each_axis, sem_corr_each_axis
 

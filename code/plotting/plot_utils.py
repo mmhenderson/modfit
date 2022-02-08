@@ -111,7 +111,7 @@ def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, vox2plot =
         cmaps = [cmaps[0] for ll in range(len(names))]  
     
     for ni, name in enumerate(names):
-        map_thresh = maps[ni]
+        map_thresh = copy.deepcopy(maps[ni])
         if vox2plot is not None:          
             map_thresh[~vox2plot] = np.nan
         if volume_space:
@@ -119,7 +119,7 @@ def plot_maps_pycortex(maps, names, subject, out, fitting_type, port, vox2plot =
                                                     cmap=cmaps[ni], subject=substr, vmin=mins[ni], vmax=maxes[ni],\
                                            xfmname=xfmname, mask=mask_3d)
         else:
-            dat2plot[name] = cortex.Vertex(data = get_full_surface(maps[ni], voxel_mask), \
+            dat2plot[name] = cortex.Vertex(data = get_full_surface(map_thresh, voxel_mask), \
                                                     cmap=cmaps[ni], subject=substr, vmin=mins[ni], vmax=maxes[ni])
             
     # Open the webviewer

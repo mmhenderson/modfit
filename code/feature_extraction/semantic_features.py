@@ -14,9 +14,10 @@ class semantic_feature_loader:
         self.sessions = kwargs['sessions'] if 'sessions' in kwargs.keys() else None
         self.shuff_rnd_seed = kwargs['shuff_rnd_seed'] if 'shuff_rnd_seed' in kwargs.keys() else 0
         self.holdout_size = kwargs['holdout_size'] if 'holdout_size' in kwargs.keys() else 100
-        
-        self.get_trn_val_inds(self.sessions, self.shuff_rnd_seed, self.holdout_size)
-        
+        self.remove_missing = kwargs['remove_missing'] if 'remove_missing' in kwargs.keys() else False
+
+        self.get_categ_exclude()
+      
         if self.feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
                                           'S%d_indoor_outdoor.csv'%self.subject)
@@ -56,34 +57,24 @@ class semantic_feature_loader:
 
         self.features_in_prf = None
         
-    def get_trn_val_inds(self, sessions, shuff_rnd_seed, holdout_size):
+    def get_categ_exclude(self):
         
-        # need to know which sessions we plan to work with, to see if any 
-        # of the features will be missing in training set.
-        # will then ignore those features always, no matter what trials we are 
-        # currently working with.
-        if sessions is None:
-            self.sessions = np.arange(0,nsd_utils.max_sess_each_subj[self.subject-1]);
+        if self.remove_missing:
+            # find any features that are missing in the training set for any subject, in any pRF.
+            # will choose to exclude these columns from fitting for all subjects.
+            labels_folder = os.path.join(default_paths.stim_labels_root)
+            fn2load = os.path.join(labels_folder, 'Coco_label_counts_all.npy')   
+            counts = np.load(fn2load, allow_pickle=True).item()
+            things_counts_trn = counts['things_cat_counts_trntrials']
+            self.things_inds_exclude = np.any(np.any(things_counts_trn==0, axis=0), axis=0)
+            stuff_counts_trn = counts['stuff_cat_counts_trntrials']
+            self.stuff_inds_exclude = np.any(np.any(stuff_counts_trn==0, axis=0), axis=0)
+            print('excluding %d things categories and %d stuff categories (not enough instances)'\
+                 %(np.sum(self.things_inds_exclude),np.sum(self.stuff_inds_exclude)))
         else:
-            self.sessions = np.array(sessions)
-        image_order = nsd_utils.get_master_image_order()
-        session_inds = nsd_utils.get_session_inds_full()
-        inds2use = np.isin(session_inds, self.sessions)
-        image_order = image_order[inds2use]
-        shared_1000_inds = image_order<1000  
-        image_order_trn = image_order[~shared_1000_inds]
-        
-        self.trn_size = len(image_order_trn) - holdout_size
-        order = np.arange(len(image_order_trn), dtype=int)
-        if shuff_rnd_seed==0:
-            print('Computing a new random seed')
-            shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
-            print(shuff_rnd_seed)
-        np.random.seed(shuff_rnd_seed)
-        np.random.shuffle(order)
-        
-        self.image_order_trn = image_order_trn[order[0:self.trn_size]]
-
+            self.things_inds_exclude = None
+            self.stuff_inds_exclude = None
+            
     def clear_big_features(self):
         
         print('Clearing features from memory')
@@ -156,16 +147,17 @@ class semantic_feature_loader:
         print('using feature set: %s'%self.feature_set)
         assert(labels.shape[1]==self.n_features)
         print(colnames)
+
+        if self.remove_missing:
+            if self.feature_set=='coco_things_categ':
+                labels = labels[:,~self.things_inds_exclude]
+                missing = self.things_inds_exclude
+            elif self.feature_set=='coco_stuff_categ':
+                labels = labels[:,~self.stuff_inds_exclude]
+                missing = self.stuff_inds_exclude
+        else:
+            missing = np.zeros((self.n_features,),dtype=bool)
         
-        # Check if any labels are missing in the training set
-        missing_trn = np.sum(labels[self.image_order_trn,:], axis=0)==0
-        print('%d columns are missing in training set for this pRF'%\
-              (np.sum(missing_trn)));
-        missing = missing_trn
-        print('missing columns are:')
-        print([colnames[cc] for cc in range(len(colnames)) if missing[cc]])
-        # remove these so we won't get a degenerate matrix during fitting.
-        labels = labels[:,~missing]
         self.is_defined_in_prf = ~missing   
 
         labels = labels[image_inds,:].astype(np.float32)           
@@ -187,10 +179,7 @@ class semantic_feature_loader:
         
     
     def load(self, image_inds, prf_model_index, fitting_mode = True):
-
-        if fitting_mode:
-            assert(np.all(image_inds[0:self.trn_size]==self.image_order_trn))
-            
+    
         if (not self.same_labels_all_prfs) or (self.features_in_prf is None):
             self.load_precomputed_features(image_inds, prf_model_index)
         

@@ -208,7 +208,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
     
     # all categories must be binary.
-    assert(np.all([len(un)==2 for un in unique_labels]))
+    assert(np.all([len(un)==2 for un in unique_labels_each]))
     
     for vv in range(n_voxels):
         

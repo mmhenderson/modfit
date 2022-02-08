@@ -48,11 +48,9 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
             trninds_full = np.concatenate([trninds_full, trninds_ss],axis=0)
             # validation set images (1000) are identical for all subs, so only going to grab the first 1000.
             valinds_full = np.concatenate([valinds_full, np.zeros(np.shape(valinds_ss), dtype=bool)], axis=0)
-            unique_labels_each = [np.unique(np.concatenate([unique_labels_each[ii],unique_labels_each_ss[ii]], axis=0))\
-                                 for ii in range(len(unique_labels_each))]
             # check that columns are same for all subs
             assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
-   
+            assert(np.all[np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) for ii in range(len(unique_labels_each))])
     print('Number of images using: %d'%labels_all.shape[0])
      
     n_trials = labels_all.shape[0]
@@ -76,6 +74,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
             include_hl=True
             use_pca_feats_hl = False
         elif feature_type=='pyramid_texture_hl_pca':
+            assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
             include_ll=False
             include_hl=True
             use_pca_feats_hl = True

@@ -197,3 +197,45 @@ def anova_oneway_warn(groups):
         print('nans in anova result')
            
     return anova_out
+
+def ttest_unequal(a,b):
+    
+    """
+    T-test for unequal variances.
+    Should behave like scipy.stats.ttest_ind, for equal_variance=False
+    """
+    assert((len(a.shape)==1) and (len(b.shape)==1))
+    n1=len(a); n2=len(b);    
+    
+    # first compute sample variance for each group 
+    # Bessel's correction; denominator = n-1
+    sv1 = np.var(a)*n1/(n1-1)
+    sv2 = np.var(b)*n2/(n2-1)
+    
+    denom = np.sqrt((sv1/n1 + sv2/n2))
+
+    tstat = (np.mean(a) - np.mean(b))/denom
+    
+    return tstat
+
+def ttest_equal(a,b):
+    
+    """
+    T-test for equal variances.
+    Should behave like scipy.stats.ttest_ind, for equal_variance=True
+    """
+    assert((len(a.shape)==1) and (len(b.shape)==1))
+    n1=len(a); n2=len(b);   
+    
+    # first compute sample variance for each group 
+    # Bessel's correction; denominator = n-1
+    sv1 = np.var(a)*n1/(n1-1)
+    sv2 = np.var(b)*n2/(n2-1)
+    
+    # Compute pooled sample variance
+    pooled_var = ((n1-1)*sv1 + (n2-1)*sv2) / (n1+n2-2)
+    denom = np.sqrt(pooled_var) * np.sqrt(1/n1+1/n2)
+
+    tstat = (np.mean(a) - np.mean(b))/denom
+   
+    return tstat

@@ -242,6 +242,7 @@ def fit_fwrf(args):
                and last_saved['sem_discrim_each_axis'] is not None:
                 sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
                 sem_corr_each_axis = last_saved['sem_corr_each_axis']
+                discrim_type_list = last_saved['discrim_type_list']
             else:
                 voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
         else:

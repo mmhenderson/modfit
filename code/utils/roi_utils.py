@@ -305,23 +305,96 @@ def view_data(vol_shape, idx_mask, data_vol, order='C', save_to=None):
         nib.save(nib.Nifti1Image(view_vol, affine=np.eye(4)), save_to)
     return view_vol
 
+def get_sizes(roi_def):
+    """
+    roi_def is a tuple containing output by get_combined_rois, above in this module.
+    """
+    retlabs, facelabs, placelabs, bodylabs, \
+        ret_names, face_names, place_names, body_names = roi_def
 
+    nret = len(ret_names)
+    nface = len(face_names)
+    nplace = len(place_names)
+    nbody = len(body_names)    
+    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
+    roi_names = ret_names+face_names+place_names+body_names
 
-def print_overlap(labels1_full, labels2_full, lab1, lab2):
+    is_ret = np.arange(0, n_rois)<nret
+    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
+    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
+    is_body = np.arange(0, n_rois)>=nret+nface+nplace
+    
+    n_each = np.zeros((n_rois,),dtype=int)
+    for rr in range(n_rois):
+
+        if is_ret[rr]:
+            inds_this_roi = retlabs==rr
+        elif is_face[rr]:
+            inds_this_roi = facelabs==(rr-nret)
+        elif is_place[rr]:
+            inds_this_roi = placelabs==(rr-nret-nface)
+        elif is_body[rr]:
+            inds_this_roi = bodylabs==(rr-nret-nface-nplace)
+          
+        n_total = np.sum(inds_this_roi)
+        n_each[rr] = n_total
+        
+    return n_each
+    
+def print_overlaps(roi_def):
     
     """
-    Look through all pairs of ROIs in two different label files, and print any regions that have overlapping voxels."""
+    roi_def is a tuple containing output by get_combined_rois, above in this module.
+    """
     
-    lab1_num = lab1[0]
-    lab1_text = lab1[1]
-    lab2_num = lab2[0]
-    lab2_text = lab2[1]
+    retlabs, facelabs, placelabs, bodylabs, \
+        ret_names, face_names, place_names, body_names = roi_def
 
-    for li1, lnum1 in enumerate(lab1_num):
-        has1 = (labels1_full==lnum1).flatten().astype(bool)   
-        for li2, lnum2 in enumerate(lab2_num):
-            has2 = (labels2_full==lnum2).flatten().astype(bool) 
-            if np.sum(has1 & has2)>0:
-                print('%s and %s:'%(lab1_text[li1],lab2_text[li2]))
-                print(' %d vox of overlap'%np.sum(has1 & has2))
- 
+    nret = len(ret_names)
+    nface = len(face_names)
+    nplace = len(place_names)
+    nbody = len(body_names)    
+    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
+    roi_names = ret_names+face_names+place_names+body_names
+
+    is_ret = np.arange(0, n_rois)<nret
+    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
+    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
+    is_body = np.arange(0, n_rois)>=nret+nface+nplace
+
+    for rr in range(n_rois):
+
+        if is_ret[rr]:
+            inds_this_roi = retlabs==rr
+        elif is_face[rr]:
+            inds_this_roi = facelabs==(rr-nret)
+        elif is_place[rr]:
+            inds_this_roi = placelabs==(rr-nret-nface)
+        elif is_body[rr]:
+            inds_this_roi = bodylabs==(rr-nret-nface-nplace)
+          
+        n_total = np.sum(inds_this_roi)
+        
+        print('%s: %d vox total'%(roi_names[rr], n_total))
+        
+        for rr2 in range(n_rois):
+            
+            if rr2==rr:
+                continue
+            
+            if is_ret[rr2]:
+                inds_this_roi2 = retlabs==rr2
+            elif is_face[rr2]:
+                inds_this_roi2 = facelabs==(rr2-nret)
+            elif is_place[rr2]:
+                inds_this_roi2 = placelabs==(rr2-nret-nface)
+            elif is_body[rr2]:
+                inds_this_roi2 = bodylabs==(rr2-nret-nface-nplace)
+
+            n_overlap = np.sum(inds_this_roi & inds_this_roi2)
+            
+            if n_overlap>0:
+                print('    %d vox overlap with %s'%(n_overlap, roi_names[rr2]))
+                
+                
+    

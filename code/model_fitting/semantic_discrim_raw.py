@@ -60,6 +60,7 @@ def get_discrim(args):
         'sem_discrim_each_axis': sem_discrim_each_axis,
         'sem_corr_each_axis': sem_corr_each_axis,
         'discrim_type_list': discrim_type_list,
+        'n_sem_samp_each_axis': n_sem_samp_each_axis, 
         }
         
         print('\nSaving to %s\n'%fn2save)
@@ -68,12 +69,13 @@ def get_discrim(args):
     sem_discrim_each_axis = None
     sem_corr_each_axis = None
     discrim_type_list = None
+    n_sem_samp_each_axis = None
     
     ########## LOADING THE DATA #############################################################################
     # decide what voxels to use  
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
                                 roi_utils.get_voxel_roi_info(args.subject, \
-                                args.volume_space, include_all=True, include_body=True)
+                                args.volume_space, include_all=True)
 
     if (args.single_sess is not None) and (args.single_sess!=0):
         sessions = np.array([args.single_sess])
@@ -128,7 +130,7 @@ def get_discrim(args):
     print('size of labels:')
     print(labels_all.shape)
     # Plug in the actual raw data here, not encoding model predictions.
-    sem_discrim_each_axis, sem_corr_each_axis= \
+    sem_discrim_each_axis, sem_corr_each_axis, n_sem_samp_each_axis = \
             fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                               labels_all, unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\

@@ -81,6 +81,7 @@ def fit_fwrf(args):
             'sem_discrim_each_axis': sem_discrim_each_axis,
             'sem_corr_each_axis': sem_corr_each_axis,
             'discrim_type_list': discrim_type_list,
+            'n_sem_samp_each_axis': n_sem_samp_each_axis,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -136,6 +137,7 @@ def fit_fwrf(args):
     sem_discrim_each_axis = None
     sem_corr_each_axis = None
     discrim_type_list = None
+    n_sem_samp_each_axis = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
@@ -153,7 +155,7 @@ def fit_fwrf(args):
     # decide what voxels to use  
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
                                 roi_utils.get_voxel_roi_info(args.subject, \
-                                args.volume_space, include_all=True, include_body=True)
+                                args.volume_space, include_all=True)
 
     if (args.single_sess is not None) and (args.single_sess!=0):
         sessions = np.array([args.single_sess])
@@ -244,6 +246,7 @@ def fit_fwrf(args):
                 sem_discrim_each_axis = last_saved['sem_discrim_each_axis']
                 sem_corr_each_axis = last_saved['sem_corr_each_axis']
                 discrim_type_list = last_saved['discrim_type_list']
+                n_sem_samp_each_axis = last_saved['n_sem_samp_each_axis']
             else:
                 voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
         else:
@@ -535,7 +538,7 @@ def fit_fwrf(args):
                                                         image_inds=val_image_order, \
                                                         models=prf_models,verbose=False, \
                                                         debug=args.debug)
-                discrim_tmp, corr_tmp = \
+                discrim_tmp, corr_tmp, n_samp_tmp = \
                         fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                                           labels_all, unique_labs_each, \
                                                           val_voxel_data_pred,\
@@ -544,9 +547,12 @@ def fit_fwrf(args):
                     sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
                                                      dtype=discrim_tmp.dtype) 
                     sem_corr_each_axis = np.zeros((n_voxels, corr_tmp.shape[1]), \
-                                                     dtype=corr_tmp.dtype) 
+                                                     dtype=corr_tmp.dtype)
+                    n_sem_samp_each_axis = np.zeros((n_voxels, n_samp_tmp.shape[1], n_samp_tmp.shape[2]), \
+                                                     dtype=n_samp_tmp.dtype)
                 sem_discrim_each_axis[voxel_subset_mask,:] = discrim_tmp
                 sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
+                n_sem_samp_each_axis[voxel_subset_mask,:,:] = n_samp_tmp
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
             

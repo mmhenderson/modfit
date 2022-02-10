@@ -206,6 +206,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     n_sem_axes = labels_all.shape[1]
     sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
     sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
+    n_samp_each_axis = np.zeros((n_voxels, n_sem_axes, 2),dtype=np.float32)
     
     # all categories must be binary.
     assert(np.all([len(un)==2 for un in unique_labels_each]))
@@ -235,9 +236,12 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
                 # sign is consistent with t-statistic
                 sem_corr_each_axis[vv,aa] = stats_utils.numpy_corrcoef_warn(\
                                         resp[inds2use],labels[inds2use])[0,1]
+                n_samp_each_axis[vv,aa,0] = len(groups[0])
+                n_samp_each_axis[vv,aa,1] = len(groups[1])
             else:                
                 sem_discrim_each_axis[vv,aa] = np.nan
                 sem_corr_each_axis[vv,aa] = np.nan
-           
-    return sem_discrim_each_axis, sem_corr_each_axis
+                n_samp_each_axis[vv,aa,:] = np.nan
+                
+    return sem_discrim_each_axis, sem_corr_each_axis, n_samp_each_axis
 

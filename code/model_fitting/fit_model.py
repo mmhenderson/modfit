@@ -23,6 +23,7 @@ except:
     
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
+print('numpy version: %s'%np.__version__)
 #################################################################################################
         
     

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
-#SBATCH --mem=24G
+#SBATCH --mem=48G
 #SBATCH --cpus-per-task=1
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -10,14 +10,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/utils/
 
-# subjects=1
 debug=0
 which_prf_grid=5
-concat=1
 
-subjects=(2 3 4 5 6 7 8)
-for subject in ${subjects[@]}
-do
-    echo $subject
-    python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid --concat $concat
-done
+python3 count_labels.py --debug $debug --which_prf_grid $which_prf_grid

@@ -8,14 +8,14 @@
 #SBATCH --time=8-00:00:00
 
 subj=1
-debug=1
+debug=0
 which_prf_grid=5
 
 source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/analyze_features
 
-ft=(gabor_solo)
-# ft=(gabor_solo sketch_tokens pyramid_texture_ll pyramid_texture_hl_pca)
+ft=(gabor_solo pyramid_texture_ll pyramid_texture_hl_pca sketch_tokens alexnet clip)
+# ft=(pyramid_texture_hl_pca)
 # ft=(pyramid_texture_hl_pca pyramid_texture_hl)
 
 for feature_type in ${ft[@]}

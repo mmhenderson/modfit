@@ -117,6 +117,7 @@ def fit_fwrf(args):
             })
 
         print('\nSaving to %s\n'%fn2save)
+        print(dict2save.keys())
         np.save(fn2save, dict2save, allow_pickle=True)
 
     if (args.from_scratch==False) and (args.date_str==0 or args.date_str=='0' or args.date_str==''):

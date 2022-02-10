@@ -10,47 +10,124 @@ ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[1
 from utils import default_paths
 from utils import nsd_utils
 
-def get_paths():      
-    return default_paths.nsd_root, default_paths.stim_root, default_paths.beta_root
 
-nsd_root, stim_root, beta_root = get_paths()
-
-def get_combined_rois(subject, volume_space=True, include_all=True, include_body=True, verbose=True):
+class nsd_roi_def():
     
     """
-    Get final ROI definitions and their names (combining sub-parts of ROIs together)
+    An object containing ROI definitions for a subject in NSD dataset.
+    The ROIs included here are retinotopic visual regions (defined using a combination of 
+    Kastner 2015 atlas and pRF mapping data), and category-selective (face, place, body) ROIs.
+    Definitions will be partly overlapping between different methods 
+    (for instance a voxel can be in both V3A and OPA)
     """
     
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
-        get_voxel_roi_info(subject, volume_space=volume_space, include_all=include_all, \
-                           include_body=include_body,verbose=verbose)
-   
-    assert(len(voxel_roi)==4)
-    [roi_labels_retino, roi_labels_face, roi_labels_place, roi_labels_body] = copy.deepcopy(voxel_roi)
-    roi_labels_retino = roi_labels_retino[voxel_index]
-    facelabs = roi_labels_face[voxel_index] - 1 
-    # make these zero-indexed, where 0 is first ROI and -1 is not in any ROI
-    facelabs[facelabs==-2] = -1
-    placelabs = roi_labels_place[voxel_index] - 1
-    placelabs[placelabs==-2] = -1
-    bodylabs = roi_labels_body[voxel_index] - 1
-    bodylabs[bodylabs==-2] = -1
+    def __init__(self, subject, volume_space=True, include_all=True, verbose=True):
+        
+        self.subject=subject
+        self.volume_space=volume_space
+        self.include_all=include_all
+      
+        self.init_names(verbose)
+        self.init_labels(verbose)
+        
+    def init_names(self, verbose):
+        
+        ret, face, place, body = load_roi_label_mapping(self.subject, verbose=verbose)
+        self.face_names = face[1]
+        self.place_names = place[1]
+        self.body_names = body[1]
+        self.ret_names = ret_group_names
+        
+        self.nret = len(self.ret_names)
+        self.nface = len(self.face_names)
+        self.nplace = len(self.place_names)
+        self.nbody = len(self.body_names)    
+        
+        self.n_rois = len(self.ret_names) + len(self.face_names) \
+                        + len(self.place_names) + len(self.body_names)
+        self.roi_names = self.ret_names+self.face_names+self.place_names+self.body_names
+
+        self.is_ret = np.arange(0, self.n_rois)<self.nret
+        self.is_face = (np.arange(0, self.n_rois)>=self.nret) & \
+                        (np.arange(0, self.n_rois)<self.nret+self.nface)
+        self.is_place = (np.arange(0, self.n_rois)>=self.nret+self.nface) & \
+                        (np.arange(0, self.n_rois)<self.nret+self.nface+self.nplace)
+        self.is_body = np.arange(0, self.n_rois)>=self.nret+self.nface+self.nplace
+        
+    def init_labels(self, verbose):
+        
+        voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                    get_voxel_roi_info(self.subject, \
+                               volume_space=self.volume_space, \
+                               include_all=self.include_all, \
+                               verbose=verbose)
+        
+        [roi_labels_retino, roi_labels_face, roi_labels_place, roi_labels_body] = \
+                    copy.deepcopy(voxel_roi)
+        
+        # make these zero-indexed, where 0 is first ROI and -1 is not in any ROI
+        self.facelabs = roi_labels_face[voxel_index] - 1        
+        self.facelabs[self.facelabs==-2] = -1
+        self.placelabs = roi_labels_place[voxel_index] - 1
+        self.placelabs[self.placelabs==-2] = -1
+        self.bodylabs = roi_labels_body[voxel_index] - 1
+        self.bodylabs[self.bodylabs==-2] = -1
+
+        roi_labels_retino = roi_labels_retino[voxel_index]
+        self.retlabs = (-1)*np.ones(np.shape(roi_labels_retino))
+
+        for rr in range(len(ret_group_names)):   
+            inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
+            self.retlabs[inds_this_roi] = rr
+
+    def get_indices_from_name(self, roi_name):
+        
+        if np.any([name==roi_name for name in self.roi_names]):
+            rr = np.where([name==roi_name for name in self.roi_names])[0][0]
+            return self.get_indices(rr)
+        else:
+            raise ValueError('%s not in list of ROIs, see self.roi_names for options.'%roi_name)
+        
+    def get_indices(self, rr):
+        
+        # rr is an index into self.roi_names, in range 0-self.n_rois
+        if (rr<0) or (rr>(self.n_rois-1)):
+            raise ValueError('rr needs to be between 0-%d'%self.n_rois)
+        
+        if self.is_ret[rr]:
+            inds_this_roi = self.retlabs==rr
+        elif self.is_face[rr]:
+            inds_this_roi = self.facelabs==(rr-self.nret)
+        elif self.is_place[rr]:
+            inds_this_roi = self.placelabs==(rr-self.nret-self.nface)
+        elif self.is_body[rr]:
+            inds_this_roi = self.bodylabs==(rr-self.nret-self.nface-self.nplace)
+
+        return inds_this_roi
     
-    ret, face, place, body = load_roi_label_mapping(subject, verbose=verbose)
-    face_names = face[1]
-    place_names = place[1]
-    body_names = body[1]
+    def get_sizes(self):
 
-    n_rois_ret = len(ret_group_names)
+        n_each = np.zeros((self.n_rois,),dtype=int)
+        for rr in range(self.n_rois):
+            inds_this_roi = self.get_indices(rr)           
+            n_total = np.sum(inds_this_roi)
+            n_each[rr] = n_total
 
-    retlabs = (-1)*np.ones(np.shape(roi_labels_retino))
+        return n_each
 
-    for rr in range(n_rois_ret):   
-        inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
-        retlabs[inds_this_roi] = rr
+    def print_overlap(self):
 
-    return retlabs, facelabs, placelabs, bodylabs, ret_group_names, face_names, place_names, body_names
-
+        for rr in range(self.n_rois):
+            inds_this_roi = self.get_indices(rr)         
+            n_total = np.sum(inds_this_roi)
+            print('%s: %d vox total'%(self.roi_names[rr], n_total))
+            for rr2 in range(self.n_rois):                
+                if rr2==rr:
+                    continue                   
+                inds_this_roi2 = self.get_indices(rr2)
+                n_overlap = np.sum(inds_this_roi & inds_this_roi2)
+                if n_overlap>0:
+                    print('    %d vox overlap with %s'%(n_overlap, self.roi_names[rr2]))
 
 
 def load_roi_label_mapping(subject, verbose=False):
@@ -59,7 +136,8 @@ def load_roi_label_mapping(subject, verbose=False):
     These correspond to the mask definitions of each type of ROI (either nii or mgz files).
     """
     
-    filename_prf = os.path.join(nsd_root,'nsddata','freesurfer','subj%02d'%subject, 'label', 'prf-visualrois.mgz.ctab')
+    filename_prf = os.path.join(default_paths.nsd_root,'nsddata','freesurfer',\
+                                'subj%02d'%subject, 'label', 'prf-visualrois.mgz.ctab')
     names = np.array(pd.read_csv(filename_prf))
     names = [str(name) for name in names]
     prf_num_labels = [int(name[2:np.char.find(name,' ')]) for name in names]
@@ -73,7 +151,8 @@ def load_roi_label_mapping(subject, verbose=False):
         print(prf_num_labels)
         print(prf_text_labels)
 
-    filename_ret = os.path.join(nsd_root,'nsddata','freesurfer','subj%02d'%subject, 'label', 'Kastner2015.mgz.ctab')
+    filename_ret = os.path.join(default_paths.nsd_root,'nsddata','freesurfer',\
+                                'subj%02d'%subject, 'label', 'Kastner2015.mgz.ctab')
     names = np.array(pd.read_csv(filename_ret))
     names = [str(name) for name in names]
     ret_num_labels = [int(name[2:np.char.find(name,' ')]) for name in names]
@@ -87,11 +166,13 @@ def load_roi_label_mapping(subject, verbose=False):
         print(ret_num_labels)
         print(ret_text_labels)
 
-    # kastner atlas and prf have same values/names for all shared elements - so can just use kastner going forward.
+    # kastner atlas and prf have same values/names for all shared elements, 
+    # so can just use kastner going forward.
     assert(np.array_equal(prf_num_labels,ret_num_labels[0:len(prf_num_labels)]))
     assert(np.array_equal(prf_text_labels,ret_text_labels[0:len(prf_text_labels)]))
 
-    filename_faces = os.path.join(nsd_root,'nsddata','freesurfer','subj%02d'%subject, 'label', 'floc-faces.mgz.ctab')
+    filename_faces = os.path.join(default_paths.nsd_root,'nsddata','freesurfer',\
+                                  'subj%02d'%subject, 'label', 'floc-faces.mgz.ctab')
     names = np.array(pd.read_csv(filename_faces))
     names = [str(name) for name in names]
     faces_num_labels = [int(name[2:np.char.find(name,' ')]) for name in names]
@@ -105,7 +186,8 @@ def load_roi_label_mapping(subject, verbose=False):
         print(faces_num_labels)
         print(faces_text_labels)
 
-    filename_places = os.path.join(nsd_root,'nsddata','freesurfer','subj%02d'%subject, 'label', 'floc-places.mgz.ctab')
+    filename_places = os.path.join(default_paths.nsd_root,'nsddata','freesurfer',\
+                                   'subj%02d'%subject, 'label', 'floc-places.mgz.ctab')
     names = np.array(pd.read_csv(filename_places))
     names = [str(name) for name in names]
     places_num_labels = [int(name[2:np.char.find(name,' ')]) for name in names]
@@ -119,7 +201,8 @@ def load_roi_label_mapping(subject, verbose=False):
         print(places_num_labels)
         print(places_text_labels)
         
-    filename_body = os.path.join(nsd_root,'nsddata','freesurfer','subj%02d'%subject, 'label', 'floc-bodies.mgz.ctab')
+    filename_body = os.path.join(default_paths.nsd_root,'nsddata','freesurfer',\
+                                 'subj%02d'%subject, 'label', 'floc-bodies.mgz.ctab')
     names = np.array(pd.read_csv(filename_body))
     names = [str(name) for name in names]
     body_num_labels = [int(name[2:np.char.find(name,' ')]) for name in names]
@@ -133,26 +216,27 @@ def load_roi_label_mapping(subject, verbose=False):
         print(body_num_labels)
         print(body_text_labels)
 
-    return [ret_num_labels, ret_text_labels], [faces_num_labels, faces_text_labels], [places_num_labels, places_text_labels], [body_num_labels, body_text_labels]
+    return [ret_num_labels, ret_text_labels], [faces_num_labels, faces_text_labels], \
+            [places_num_labels, places_text_labels], [body_num_labels, body_text_labels]
                 
      
-def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_body=True, verbose=True):
+def get_voxel_roi_info(subject, volume_space=True, include_all=False, verbose=True):
 
     """
-    For a specified subject, load all definitions of all ROIs for this subject.
+    For a specified subject, load all definitions of all ROIs for this subject. 
     The ROIs included here are retinotopic visual regions (defined using a combination of Kastner 2015 atlas
     and pRF mapping data), and category-selective (face and place) ROIs.
-    Will return two separate bricks of labels - one for the retinotopic and one for the category-selective labels. 
+    Will return four separate bricks of labels, for each method of definition (retino, category, etc.)
     These are partially overlapping, so can choose later which definition to use for the overlapping voxels.
     Can be done in either volume space (volume_space=True) or surface space (volume_space=False).
     If surface space, then each voxel is a "vertex" of mesh.
-    
     """
     
      # First loading each ROI definitions file - lists nvoxels long, with diff numbers for each ROI.
     if volume_space:
 
-        roi_path = os.path.join(nsd_root, 'nsddata', 'ppdata', 'subj%02d'%subject, 'func1pt8mm', 'roi')
+        roi_path = os.path.join(default_paths.nsd_root, 'nsddata', 'ppdata', \
+                                'subj%02d'%subject, 'func1pt8mm', 'roi')
        
         if verbose:
             print('\nVolume space: ROI defs are located at: %s\n'%roi_path)
@@ -170,12 +254,13 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
         body_labels_full = nsd_utils.load_from_nii(os.path.join(roi_path, 'floc-bodies.nii.gz')).flatten()
         
         # Masks of ncsnr values for each voxel 
-        ncsnr_full = nsd_utils.load_from_nii(os.path.join(beta_root, 'subj%02d'%subject, 'func1pt8mm', \
-                                                'betas_fithrf_GLMdenoise_RR', 'ncsnr.nii.gz')).flatten()
+        ncsnr_full = nsd_utils.load_from_nii(os.path.join(default_paths.beta_root, \
+                                              'subj%02d'%subject, 'func1pt8mm', \
+                                              'betas_fithrf_GLMdenoise_RR', 'ncsnr.nii.gz')).flatten()
 
     else:
         
-        roi_path = os.path.join(nsd_root,'nsddata', 'freesurfer', 'subj%02d'%subject, 'label')
+        roi_path = os.path.join(default_paths.nsd_root,'nsddata', 'freesurfer', 'subj%02d'%subject, 'label')
 
         if verbose:
             print('\nSurface space: ROI defs are located at: %s\n'%roi_path)
@@ -208,10 +293,12 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
         nsd_general_full = np.concatenate((general_labs1, general_labs2), axis=0)
   
         # Masks of ncsnr values for each voxel 
-        n1 = nsd_utils.load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
-                                                'betas_fithrf_GLMdenoise_RR', 'lh.ncsnr.mgh')).flatten()
-        n2 = nsd_utils.load_from_mgz(os.path.join(beta_root, 'subj%02d'%subject, 'nativesurface', \
-                                                'betas_fithrf_GLMdenoise_RR', 'rh.ncsnr.mgh')).flatten()
+        n1 = nsd_utils.load_from_mgz(os.path.join(default_paths.beta_root, \
+                                                  'subj%02d'%subject, 'nativesurface',\
+                                                  'betas_fithrf_GLMdenoise_RR', 'lh.ncsnr.mgh')).flatten()
+        n2 = nsd_utils.load_from_mgz(os.path.join(default_paths.beta_root, 'subj%02d'%subject, \
+                                                  'nativesurface','betas_fithrf_GLMdenoise_RR',\
+                                                  'rh.ncsnr.mgh')).flatten()
         ncsnr_full = np.concatenate((n1, n2), axis=0)
   
         brain_nii_shape = None
@@ -229,7 +316,8 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
     # Partially overwrite these defs with prf defs, which are more accurate when they exist.
     roi_labels_retino[has_prf_label] = prf_labels_full[has_prf_label]
     if verbose:
-        print('%d voxels of overlap between kastner and prf definitions, using prf defs'%np.sum(has_kast_label & has_prf_label))
+        print('%d voxels of overlap between kastner and prf definitions, using prf defs'\
+              %np.sum(has_kast_label & has_prf_label))
         print('unique values in retino labels:')
         print(np.unique(roi_labels_retino))
 
@@ -245,16 +333,17 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
         print('unique values in body labels:')
         print(np.unique(roi_labels_body))
         # how much overlap between these sets of roi definitions?
-        print('%d voxels are defined (differently) in both retinotopic areas and category areas'%np.sum((has_kast_label | has_prf_label) & (has_face_label | has_place_label | has_body_label)))
-        print('%d voxels are defined (differently) in both face areas and place areas'%np.sum(has_face_label & has_place_label))    
-        print('%d voxels are defined (differently) in both face areas and body areas'%np.sum(has_face_label & has_body_label))    
-        print('%d voxels are defined (differently) in both place areas and body areas'%np.sum(has_place_label & has_body_label))    
+        print('%d voxels are defined (differently) in both retinotopic areas and category areas'\
+              %np.sum((has_kast_label | has_prf_label) & (has_face_label | has_place_label | has_body_label)))
+        print('%d voxels are defined (differently) in both face areas and place areas'\
+              %np.sum(has_face_label & has_place_label))    
+        print('%d voxels are defined (differently) in both face areas and body areas'\
+              %np.sum(has_face_label & has_body_label))    
+        print('%d voxels are defined (differently) in both place areas and body areas'\
+              %np.sum(has_place_label & has_body_label))    
         
     # Now masking out all voxels that have any definition, and using them for the analysis. 
-    if include_body:
-        voxel_mask = (roi_labels_retino>0) | (roi_labels_face>0) | (roi_labels_place>0) | (roi_labels_body>0)
-    else:
-        voxel_mask = (roi_labels_retino>0) | (roi_labels_face>0) | (roi_labels_place>0)
+    voxel_mask = (roi_labels_retino>0) | (roi_labels_face>0) | (roi_labels_place>0) | (roi_labels_body>0)
     if include_all:
         if verbose:
             print('Including all voxels that are defined within nsdgeneral mask, in addition to roi labels.')
@@ -272,7 +361,8 @@ def get_voxel_roi_info(subject, volume_space=True, include_all=False, include_bo
     if verbose:
         print('\nSizes of all defined ROIs in this subject:')
     
-    # checking the retino grouping labels to make sure we have them correct (print which subregions go to which label)
+    # checking the retino grouping labels to make sure we have them correct 
+    # (print which subregions go to which label)
     ret_vox_total = 0
     for gi, group in enumerate(ret_group_inds):
         n_this_region = np.sum(np.isin(roi_labels_retino, group))
@@ -304,97 +394,3 @@ def view_data(vol_shape, idx_mask, data_vol, order='C', save_to=None):
     if save_to:
         nib.save(nib.Nifti1Image(view_vol, affine=np.eye(4)), save_to)
     return view_vol
-
-def get_sizes(roi_def):
-    """
-    roi_def is a tuple containing output by get_combined_rois, above in this module.
-    """
-    retlabs, facelabs, placelabs, bodylabs, \
-        ret_names, face_names, place_names, body_names = roi_def
-
-    nret = len(ret_names)
-    nface = len(face_names)
-    nplace = len(place_names)
-    nbody = len(body_names)    
-    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
-    roi_names = ret_names+face_names+place_names+body_names
-
-    is_ret = np.arange(0, n_rois)<nret
-    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
-    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
-    is_body = np.arange(0, n_rois)>=nret+nface+nplace
-    
-    n_each = np.zeros((n_rois,),dtype=int)
-    for rr in range(n_rois):
-
-        if is_ret[rr]:
-            inds_this_roi = retlabs==rr
-        elif is_face[rr]:
-            inds_this_roi = facelabs==(rr-nret)
-        elif is_place[rr]:
-            inds_this_roi = placelabs==(rr-nret-nface)
-        elif is_body[rr]:
-            inds_this_roi = bodylabs==(rr-nret-nface-nplace)
-          
-        n_total = np.sum(inds_this_roi)
-        n_each[rr] = n_total
-        
-    return n_each
-    
-def print_overlaps(roi_def):
-    
-    """
-    roi_def is a tuple containing output by get_combined_rois, above in this module.
-    """
-    
-    retlabs, facelabs, placelabs, bodylabs, \
-        ret_names, face_names, place_names, body_names = roi_def
-
-    nret = len(ret_names)
-    nface = len(face_names)
-    nplace = len(place_names)
-    nbody = len(body_names)    
-    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
-    roi_names = ret_names+face_names+place_names+body_names
-
-    is_ret = np.arange(0, n_rois)<nret
-    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
-    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
-    is_body = np.arange(0, n_rois)>=nret+nface+nplace
-
-    for rr in range(n_rois):
-
-        if is_ret[rr]:
-            inds_this_roi = retlabs==rr
-        elif is_face[rr]:
-            inds_this_roi = facelabs==(rr-nret)
-        elif is_place[rr]:
-            inds_this_roi = placelabs==(rr-nret-nface)
-        elif is_body[rr]:
-            inds_this_roi = bodylabs==(rr-nret-nface-nplace)
-          
-        n_total = np.sum(inds_this_roi)
-        
-        print('%s: %d vox total'%(roi_names[rr], n_total))
-        
-        for rr2 in range(n_rois):
-            
-            if rr2==rr:
-                continue
-            
-            if is_ret[rr2]:
-                inds_this_roi2 = retlabs==rr2
-            elif is_face[rr2]:
-                inds_this_roi2 = facelabs==(rr2-nret)
-            elif is_place[rr2]:
-                inds_this_roi2 = placelabs==(rr2-nret-nface)
-            elif is_body[rr2]:
-                inds_this_roi2 = bodylabs==(rr2-nret-nface-nplace)
-
-            n_overlap = np.sum(inds_this_roi & inds_this_roi2)
-            
-            if n_overlap>0:
-                print('    %d vox overlap with %s'%(n_overlap, roi_names[rr2]))
-                
-                
-    

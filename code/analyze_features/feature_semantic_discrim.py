@@ -47,7 +47,6 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
     assert(np.all([len(un)==2 for un in unique_labels_each]))
     
     print('Number of images using: %d'%labels_all.shape[0])
-    print(unique_labels_each)
     n_sem_axes = labels_all.shape[1]
         
     # make feature loaders to get visual features
@@ -57,15 +56,28 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
                                                         which_prf_grid=which_prf_grid,\
                                                         feature_type='gabor_solo', \
                                                         n_ori=12, n_sf=8, nonlin=True) for ss in subjects]
-    elif feature_type=='pyramid_texture':
+    elif 'pyramid_texture' in feature_type:
         path_to_load = default_paths.pyramid_texture_feat_path
+        if feature_type=='pyramid_texture_ll': 
+            include_ll=True
+            include_hl=False
+            use_pca_feats_hl = False
+        elif feature_type=='pyramid_texture_hl':
+            include_ll=False
+            include_hl=True
+            use_pca_feats_hl = False
+        elif feature_type=='pyramid_texture_hl_pca':
+            assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
+            include_ll=False
+            include_hl=True
+            use_pca_feats_hl = True
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='pyramid_texture',\
                                                         n_ori=4, n_sf=4,\
-                                                        include_ll=True, include_hl=True,\
-                                                        use_pca_feats_hl = False) for ss in subjects]       
-
+                                                        include_ll=include_ll, include_hl=include_hl,\
+                                                        use_pca_feats_hl = use_pca_feats_hl) for ss in subjects]       
+ 
     elif feature_type=='sketch_tokens':
         path_to_load = default_paths.sketch_token_feat_path
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
@@ -105,19 +117,31 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
     if subject=='all':
-        fn2save_corrs = os.path.join(path_to_save, 'All_trn_semantic_corrs_grid%d.npy'%(which_prf_grid))
-        fn2save_discrim = os.path.join(path_to_save, 'All_trn_semantic_discrim_tstat_grid%d.npy'%(which_prf_grid))
-        fn2save_mean = os.path.join(path_to_save, 'All_trn_mean_grid%d.npy'%(which_prf_grid))
-        fn2save_var = os.path.join(path_to_save, 'All_trn_var_grid%d.npy'%(which_prf_grid))
-        fn2save_covar = os.path.join(path_to_save, 'All_trn_covar_grid%d.npy'%(which_prf_grid)) 
-        fn2save_nsamp = os.path.join(path_to_save, 'All_trn_nsamp_grid%d.npy'%(which_prf_grid)) 
+        fn2save_corrs = os.path.join(path_to_save, 'All_trn_%s_semantic_corrs_grid%d.npy'\
+                                     %(feature_type, which_prf_grid))
+        fn2save_discrim = os.path.join(path_to_save, 'All_trn_%s_semantic_discrim_tstat_grid%d.npy'\
+                                     %(feature_type, which_prf_grid))
+        fn2save_mean = os.path.join(path_to_save, 'All_trn_%s_mean_grid%d.npy'\
+                                     %(feature_type, which_prf_grid))
+        fn2save_var = os.path.join(path_to_save, 'All_trn_%s_var_grid%d.npy'\
+                                     %(feature_type, which_prf_grid))
+        fn2save_covar = os.path.join(path_to_save, 'All_trn_%s_covar_grid%d.npy'\
+                                     %(feature_type, which_prf_grid)) 
+        fn2save_nsamp = os.path.join(path_to_save, 'All_trn_%s_nsamp_grid%d.npy'\
+                                     %(feature_type, which_prf_grid))
     else:        
-        fn2save_corrs = os.path.join(path_to_save, 'S%s_semantic_corrs_grid%d.npy'%(subject, which_prf_grid))
-        fn2save_discrim = os.path.join(path_to_save, 'S%s_semantic_discrim_tstat_grid%d.npy'%(subject, which_prf_grid))
-        fn2save_mean = os.path.join(path_to_save, 'S%s_mean_grid%d.npy'%(subject, which_prf_grid))
-        fn2save_var = os.path.join(path_to_save, 'S%s_var_grid%d.npy'%(subject, which_prf_grid))
-        fn2save_covar = os.path.join(path_to_save, 'S%s_covar_grid%d.npy'%(subject, which_prf_grid)) 
-        fn2save_nsamp = os.path.join(path_to_save, 'S%s_nsamp_grid%d.npy'%(subject, which_prf_grid))
+        fn2save_corrs = os.path.join(path_to_save, 'S%s_%s_semantic_corrs_grid%d.npy'\
+                                     %(subject, feature_type, which_prf_grid))
+        fn2save_discrim = os.path.join(path_to_save, 'S%s_%s_semantic_discrim_tstat_grid%d.npy'\
+                                     %(subject, feature_type, which_prf_grid))
+        fn2save_mean = os.path.join(path_to_save, 'S%s_%s_mean_grid%d.npy'\
+                                     %(subject,feature_type, which_prf_grid))
+        fn2save_var = os.path.join(path_to_save, 'S%s_%s_var_grid%d.npy'\
+                                     %(subject, feature_type, which_prf_grid))
+        fn2save_covar = os.path.join(path_to_save, 'S%s_%s_covar_grid%d.npy'\
+                                     %(subject, feature_type, which_prf_grid)) 
+        fn2save_nsamp = os.path.join(path_to_save, 'S%s_%s_nsamp_grid%d.npy'\
+                                     %(subject, feature_type, which_prf_grid))
     
     n_features = feat_loaders[0].max_features
     n_prfs = models.shape[0]
@@ -138,21 +162,28 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         for si, feat_loader in enumerate(feat_loaders):
 
             # take training set trials only
-            features_ss, _ = feat_loader.load(np.where(trninds_list[si])[0],prf_model_index);
-
+            features_ss, def_ss = feat_loader.load(np.where(trninds_list[si])[0],prf_model_index);
+ 
             if si==0:
                 features_in_prf_trn = features_ss
+                feature_inds_defined = def_ss
+                feat_defined = np.where(def_ss)[0]
+                
             else:
                 features_in_prf_trn = np.concatenate([features_in_prf_trn,features_ss], axis=0)
-
+                assert(np.all(def_ss==feature_inds_defined))
+        
         assert(features_in_prf_trn.shape[0]==labels_all.shape[0])
+        assert(features_in_prf_trn.shape[1]==len(feat_defined))
+        assert(len(feature_inds_defined)==n_features)
+       
         print('Size of features array for this image set and prf is:')
         print(features_in_prf_trn.shape)
         
         # computing some basic stats for the features in this pRF
-        all_mean[:,prf_model_index] = np.mean(features_in_prf_trn, axis=0);
-        all_var[:,prf_model_index] = np.var(features_in_prf_trn, axis=0);
-        all_covar[:,:,prf_model_index] = np.cov(features_in_prf_trn.T)
+        all_mean[feature_inds_defined,prf_model_index] = np.mean(features_in_prf_trn, axis=0);
+        all_var[feature_inds_defined,prf_model_index] = np.var(features_in_prf_trn, axis=0);
+        all_covar[feature_inds_defined,:,prf_model_index][:,feature_inds_defined] = np.cov(features_in_prf_trn.T)
         
         sys.stdout.flush()
                                  
@@ -169,17 +200,18 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
                
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
                 
-                group_inds = [((labels==ll) & inds2use) for ll in unique_labels_actual]                
-                for ff in range(n_features):
-                    
-                    groups = [features_in_prf_trn[gi,ff] for gi in group_inds]
+                group_inds = [((labels==ll) & inds2use) for ll in unique_labels_actual]  
+                
+                for fi, ff in enumerate(feat_defined):
+                  
+                    groups = [features_in_prf_trn[gi,fi] for gi in group_inds]
                     # use t-statistic as a measure of discriminability
                     # larger value means resp[label==1] > resp[label==0]
                     all_discrim[ff, prf_model_index, aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
                     # also computing a correlation coefficient between semantic label/voxel response
                     # sign is consistent with t-statistic
                     all_corrs[ff,prf_model_index,aa] = stats_utils.numpy_corrcoef_warn(\
-                                                        features_in_prf_trn[inds2use,ff],labels[inds2use])[0,1]
+                                                        features_in_prf_trn[inds2use,fi],labels[inds2use])[0,1]
                 n_samp_each_axis[prf_model_index,aa,0] = np.sum(group_inds[0])
                 n_samp_each_axis[prf_model_index,aa,1] = np.sum(group_inds[1])
                 

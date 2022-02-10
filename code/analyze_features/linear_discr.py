@@ -135,7 +135,9 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
     val_acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
     trn_dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
     val_dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
-
+    n_samp_trn_each_prf = np.zeros((n_prfs, n_sem_axes, 2),dtype=np.float32)
+    n_samp_val_each_prf = np.zeros((n_prfs, n_sem_axes, 2),dtype=np.float32)
+    
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
@@ -182,6 +184,7 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                 _, scalings, trn_acc, trn_dprime, clf = do_lda(features_in_prf_z[trninds_full & inds2use,:], \
                                                                labels[trninds_full & inds2use], \
                                                                verbose=True, balance_downsample=balance_downsample)
+                
                 if clf is not None:
 
                     # applying the transformation to all images. Including both train and validation here.
@@ -207,6 +210,11 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                     trn_dprime_each_prf[prf_model_index,aa] = trn_dprime
                     val_acc_each_prf[prf_model_index,aa] = val_acc
                     val_dprime_each_prf[prf_model_index,aa] = val_dprime
+                    
+                    n_samp_trn_each_prf[prf_model_index,aa,0] = np.sum(labels[trninds_full & inds2use]==0)
+                    n_samp_trn_each_prf[prf_model_index,aa,1] = np.sum(labels[trninds_full & inds2use]==1)
+                    n_samp_val_each_prf[prf_model_index,aa,0] = np.sum(labels[valinds_full & inds2use]==0)
+                    n_samp_val_each_prf[prf_model_index,aa,1] = np.sum(labels[valinds_full & inds2use]==1)
 
                 else:
                     print('Problem with LDA fit, returning nans for model %d, axis %d'%(prf_model_index, aa))
@@ -214,7 +222,8 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                     trn_dprime_each_prf[prf_model_index,aa] = np.nan
                     val_acc_each_prf[prf_model_index,aa] = np.nan
                     val_dprime_each_prf[prf_model_index,aa] = np.nan
-
+                    n_samp_trn_each_prf[prf_model_index,aa,:] = np.nan
+                    n_samp_val_each_prf[prf_model_index,aa,:] = np.nan
             else:
                 if any_in_val:
                     print('missing some labels for axis %d, model %d'%(aa, prf_model_index))
@@ -229,14 +238,19 @@ def find_lda_axes(subject, feature_type, which_prf_grid=1, debug=False, \
                 trn_dprime_each_prf[prf_model_index,aa] = np.nan
                 val_acc_each_prf[prf_model_index,aa] = np.nan
                 val_dprime_each_prf[prf_model_index,aa] = np.nan
-
+                n_samp_trn_each_prf[prf_model_index,aa,:] = np.nan
+                n_samp_val_each_prf[prf_model_index,aa,:] = np.nan
+                    
             sys.stdout.flush()
 
 
     print('saving to %s'%fn2save)
     np.save(fn2save, {'trn_acc': trn_acc_each_prf, \
-                      'trn_dprime': trn_dprime_each_prf, 'val_acc': val_acc_each_prf, \
-                      'val_dprime': val_dprime_each_prf})
+                      'trn_dprime': trn_dprime_each_prf, \
+                      'val_acc': val_acc_each_prf, \
+                      'val_dprime': val_dprime_each_prf, \
+                      'n_samp_trn_each_prf': n_samp_trn_each_prf, \
+                      'n_samp_val_each_prf': n_samp_val_each_prf, })
             
     
 

@@ -61,6 +61,8 @@ class nsd_roi_def():
                                volume_space=self.volume_space, \
                                include_all=self.include_all, \
                                verbose=verbose)
+        self.voxel_mask = voxel_mask
+        self.nii_shape = brain_nii_shape
         
         [roi_labels_retino, roi_labels_face, roi_labels_place, roi_labels_body] = \
                     copy.deepcopy(voxel_roi)

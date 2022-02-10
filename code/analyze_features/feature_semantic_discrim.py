@@ -38,11 +38,14 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
             unique_labels_each = unique_labels_each_ss
         else:
             labels_all = np.concatenate([labels_all, labels_all_ss], axis=0)
-            unique_labels_each = [np.unique(np.concatenate([unique_labels_each[ii],unique_labels_each_ss[ii]], axis=0))\
-                                 for ii in range(len(unique_labels_each))]
             # check that columns are same for all subs
             assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
+            assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) \
+                           for ii in range(len(unique_labels_each))]))
             
+    # all categories must be binary.
+    assert(np.all([len(un)==2 for un in unique_labels_each]))
+    
     print('Number of images using: %d'%labels_all.shape[0])
     print(unique_labels_each)
     n_sem_axes = labels_all.shape[1]
@@ -74,7 +77,7 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
         path_to_load = default_paths.alexnet_feat_path
         if layer_name is None or layer_name=='':
-            raise ValueError('need to specify layer_name for alexnet')
+            layer_name='Conv5_ReLU'
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='alexnet',layer_name=layer_name,\
@@ -85,7 +88,7 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.
         path_to_load = default_paths.clip_feat_path
         if layer_name is None or layer_name=='':
-            raise ValueError('need to specify layer_name for clip')
+            layer_name='block15'
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='clip',layer_name=layer_name,\
@@ -103,16 +106,18 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         os.mkdir(path_to_save)
     if subject=='all':
         fn2save_corrs = os.path.join(path_to_save, 'All_trn_semantic_corrs_grid%d.npy'%(which_prf_grid))
-        fn2save_discrim = os.path.join(path_to_save, 'All_trn_semantic_discrim_fstat_grid%d.npy'%(which_prf_grid))
+        fn2save_discrim = os.path.join(path_to_save, 'All_trn_semantic_discrim_tstat_grid%d.npy'%(which_prf_grid))
         fn2save_mean = os.path.join(path_to_save, 'All_trn_mean_grid%d.npy'%(which_prf_grid))
         fn2save_var = os.path.join(path_to_save, 'All_trn_var_grid%d.npy'%(which_prf_grid))
         fn2save_covar = os.path.join(path_to_save, 'All_trn_covar_grid%d.npy'%(which_prf_grid)) 
+        fn2save_nsamp = os.path.join(path_to_save, 'All_trn_nsamp_grid%d.npy'%(which_prf_grid)) 
     else:        
         fn2save_corrs = os.path.join(path_to_save, 'S%s_semantic_corrs_grid%d.npy'%(subject, which_prf_grid))
-        fn2save_discrim = os.path.join(path_to_save, 'S%s_semantic_discrim_fstat_grid%d.npy'%(subject, which_prf_grid))
+        fn2save_discrim = os.path.join(path_to_save, 'S%s_semantic_discrim_tstat_grid%d.npy'%(subject, which_prf_grid))
         fn2save_mean = os.path.join(path_to_save, 'S%s_mean_grid%d.npy'%(subject, which_prf_grid))
         fn2save_var = os.path.join(path_to_save, 'S%s_var_grid%d.npy'%(subject, which_prf_grid))
         fn2save_covar = os.path.join(path_to_save, 'S%s_covar_grid%d.npy'%(subject, which_prf_grid)) 
+        fn2save_nsamp = os.path.join(path_to_save, 'S%s_nsamp_grid%d.npy'%(subject, which_prf_grid))
     
     n_features = feat_loaders[0].max_features
     n_prfs = models.shape[0]
@@ -121,6 +126,7 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
     all_mean = np.zeros((n_features, n_prfs), dtype=np.float32)
     all_var =  np.zeros((n_features, n_prfs), dtype=np.float32)
     all_covar =  np.zeros((n_features, n_features, n_prfs), dtype=np.float32)
+    n_samp_each_axis = np.zeros((n_prfs, n_sem_axes, 2), dtype=np.float32)
     
     for prf_model_index in range(n_prfs):
 
@@ -167,9 +173,16 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
                 for ff in range(n_features):
                     
                     groups = [features_in_prf_trn[gi,ff] for gi in group_inds]
-                    fstat = stats_utils.anova_oneway_warn(groups).statistic
-                    all_discrim[ff, prf_model_index, aa] = fstat
-                    
+                    # use t-statistic as a measure of discriminability
+                    # larger value means resp[label==1] > resp[label==0]
+                    all_discrim[ff, prf_model_index, aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
+                    # also computing a correlation coefficient between semantic label/voxel response
+                    # sign is consistent with t-statistic
+                    all_corrs[ff,prf_model_index,aa] = stats_utils.numpy_corrcoef_warn(\
+                                                        features_in_prf_trn[inds2use,ff],labels[inds2use])[0,1]
+                n_samp_each_axis[prf_model_index,aa,0] = np.sum(group_inds[0])
+                n_samp_each_axis[prf_model_index,aa,1] = np.sum(group_inds[1])
+                
             else:
                 # if any labels are missing, skip this axis for this pRF
                 print('missing some labels for axis %d'%aa)
@@ -180,14 +193,8 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
                 print('nans for model %d, axis %d, because some labels were missing'\
                           %(prf_model_index, aa))
                 all_discrim[:, prf_model_index, aa] = np.nan
-           
-            # just for the binary categories, also getting a correlation coefficient (includes direction/sign)
-            if (len(unique_labels_each[aa])==2) and (len(unique_labels_actual)==2):
-                for ff in range(n_features):
-                    all_corrs[ff,prf_model_index,aa] = stats_utils.numpy_corrcoef_warn(\
-                                                        features_in_prf_trn[inds2use,ff],labels[inds2use])[0,1]
-            else:
                 all_corrs[:,prf_model_index,aa] = np.nan
+                n_samp_each_axis[prf_model_index,aa,:] = np.nan
                 
     print('saving to %s\n'%fn2save_corrs)
     np.save(fn2save_corrs, all_corrs)                     
@@ -199,6 +206,8 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
     np.save(fn2save_var, all_var)    
     print('saving to %s\n'%fn2save_covar)
     np.save(fn2save_covar, all_covar)    
+    print('saving to %s\n'%fn2save_nsamp)
+    np.save(fn2save_nsamp, n_samp_each_axis)    
 
     
 if __name__ == '__main__':

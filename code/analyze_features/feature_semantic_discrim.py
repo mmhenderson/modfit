@@ -183,7 +183,9 @@ def get_feature_discrim(subject, feature_type, which_prf_grid=1, debug=False, la
         # computing some basic stats for the features in this pRF
         all_mean[feature_inds_defined,prf_model_index] = np.mean(features_in_prf_trn, axis=0);
         all_var[feature_inds_defined,prf_model_index] = np.var(features_in_prf_trn, axis=0);
-        all_covar[feature_inds_defined,:,prf_model_index][:,feature_inds_defined] = np.cov(features_in_prf_trn.T)
+        cov_subset = all_covar[feature_inds_defined,:,prf_model_index]
+        cov_subset[:,feature_inds_defined] = np.cov(features_in_prf_trn.T)
+        all_covar[feature_inds_defined,:,prf_model_index] = cov_subset
         
         sys.stdout.flush()
                                  

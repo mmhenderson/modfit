@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
-import copy
-import cortex
-from utils import roi_utils
 
 def set_all_font_sizes(fs):
     
@@ -15,192 +12,29 @@ def set_all_font_sizes(fs):
     plt.rc('legend', fontsize=fs)    # legend fontsize
     plt.rc('figure', titlesize=fs)  # fontsize of the figure title
 
-def get_full_surface(values, voxel_mask):
-    """
-    For PyCortex: Put values for voxels that were analyzed back into their 
-    correct coordinates in full surface space matrix.
-    """
-    full_vals = copy.deepcopy(voxel_mask).astype('float64')
-    full_vals[voxel_mask==0] = np.nan
-    full_vals[voxel_mask==1] = values
-    
-    return full_vals
-
-def get_full_volume(values, voxel_mask, shape):
-    """
-    For PyCortex: Put values for voxels that were analyzed back into their 
-    correct coordinates in full volume space matrix.
-    """
-    voxel_mask_3d = np.reshape(voxel_mask, shape)
-    full_vals = copy.deepcopy(voxel_mask_3d).astype('float64')
-    full_vals[voxel_mask_3d==0] = np.nan
-    full_vals[voxel_mask_3d==1] = values
-    
-    full_vals = np.moveaxis(full_vals, [0,1,2], [2,1,0])
-    
-    return full_vals
-
-def get_roi_maps_for_pycortex(subject, roi_def):    
-    """
-    Create a dictionary of cortex.Vertex labels for ROIs, to be plotted in PyCortex.
-    roi_def is from roi_utils.nsd_roi_def()
-    """ 
-    substr = 'subj%02d'%subject
-    
-    retlabs = roi_def.retlabs
-    facelabs = roi_def.facelabs
-    placelabs = roi_def.placelabs
-    bodylabs = roi_def.bodylabs
-    retlabs[retlabs==-1] = np.nan
-    facelabs[facelabs==-1] = np.nan
-    placelabs[placelabs==-1] = np.nan
-    bodylabs[bodylabs==-1] = np.nan
-
-    volume_space = roi_def.volume_space
-    voxel_mask = roi_def.voxel_mask
-    nii_shape = roi_def.nii_shape
-
-    if volume_space:
-        print('Data is in 3d volume space')
-        xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
-        mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
-
-        dat2plot = {'ROI labels (retinotopic)': \
-                    cortex.Volume(data=get_full_volume(retlabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(retlabs[~np.isnan(retlabs)])+1,\
-                    xfmname=xfmname, mask=mask_3d), \
-                'ROI labels (face-selective)': \
-                    cortex.Volume(data=get_full_volume(facelabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(facelabs[~np.isnan(facelabs)])+1, \
-                    xfmname=xfmname, mask=mask_3d), \
-                'ROI labels (place-selective)': \
-                    cortex.Volume(data=get_full_volume(placelabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(placelabs[~np.isnan(placelabs)])+1, \
-                    xfmname=xfmname, mask=mask_3d), \
-                'ROI labels (body-selective)': \
-                    cortex.Volume(data=get_full_volume(bodylabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(bodylabs[~np.isnan(bodylabs)])+1, \
-                     xfmname=xfmname, mask=mask_3d)}
-
-    else:
-        print('Data is in nativesurface space')
-
-        dat2plot = {'ROI labels (retinotopic)': \
-                    cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(retlabs)+1), \
-                'ROI labels (face-selective)': \
-                    cortex.Vertex(data = get_full_surface(facelabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(facelabs)+1), \
-                'ROI labels (place-selective)': \
-                    cortex.Vertex(data = get_full_surface(placelabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(placelabs)+1), \
-                'ROI labels (body-selective)': \
-                    cortex.Vertex(data = get_full_surface(bodylabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(bodylabs)+1)}
-        
-    return dat2plot
-
-    
-def plot_maps_pycortex(subject, title, port, maps, names, roi_def=None, \
-                       mins=None, maxes=None, cmaps=None, vox2plot = None, \
-                      volume_space=None, nii_shape=None, voxel_mask=None):
-
-    """
-    Plot a set of maps in PyCortex surface space.
-    Need to either specify a voxel_mask (which voxels in whole brain do your maps 
-    correspond to?) or include roi_def (an object from roi_utils.nsd_roi_def that includes
-    info about all the voxels/rois).
-    """
-    
-    substr = 'subj%02d'%subject
-  
-    if roi_def is not None:
-        dat2plot = get_roi_maps_for_pycortex(subject, roi_def)
-        volume_space = roi_def.volume_space
-        voxel_mask = roi_def.voxel_mask
-        nii_shape = roi_def.nii_shape
-    else:
-        if voxel_mask is None:
-            raise ValueError('must specify either voxel_mask or roi_def.')   
-        if volume_space is None:
-            volume_space = nii_shape is not None
-        else:
-            if nii_shape is None:
-                raise ValueError('must specify nii_shape if volume_space=True.')   
-        dat2plot = {}
-        
-    if volume_space:
-        xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
-        mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
-
-        
-    if mins is None:
-        mins = [None for ll in range(len(names))]
-    elif len(mins)==1:
-        mins = [mins[0] for ll in range(len(names))]
-    if maxes is None:
-        maxes = [None for ll in range(len(names))]
-    elif len(maxes)==1:
-        maxes = [maxes[0] for ll in range(len(names))]
-    if cmaps is None:
-        cmaps = ['PuBu' for ll in range(len(names))]
-    elif len(cmaps)==1:
-        cmaps = [cmaps[0] for ll in range(len(names))]  
-    
-    for ni, name in enumerate(names):
-        map_thresh = copy.deepcopy(maps[ni])
-        if vox2plot is not None:          
-            map_thresh[~vox2plot] = np.nan
-        if volume_space:
-            dat2plot[name] = cortex.Volume(data = get_full_volume(map_thresh, voxel_mask, nii_shape), \
-                                           cmap=cmaps[ni], subject=substr, \
-                                           vmin=mins[ni], vmax=maxes[ni],\
-                                           xfmname=xfmname, mask=mask_3d)
-        else:
-            dat2plot[name] = cortex.Vertex(data = get_full_surface(map_thresh, voxel_mask),\
-                                           cmap=cmaps[ni], subject=substr, \
-                                           vmin=mins[ni], vmax=maxes[ni])
-            
-    # Open the webviewer
-    print('navigate browser to: 127.0.0.1:%s'%port)
-    cortex.webshow(dat2plot, open_browser=True, port=port, \
-                   title = 'S%02d, %s'%(subject, title))
-    
-
-    
-def create_roi_subplots(data, inds2use, single_plot_object, subject, out, roi_def=None, skip_inds=None, \
+def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=None, \
                         suptitle=None, label_just_corner=True, figsize=None):
 
     """
-    Create a grid of subplots for each ROI in the dataset.
-    Takes in a 'single plot object' which is either scatter plot, violin plot, or bar plot, with some parameters.
+    Create a grid of subplots for each ROI in our dataset.
+    
+    data: array [n_voxels x n_features]
+    inds2use: mask for which of n_voxels to use (based on e.g. R2 threshold)
+    single_plot_object: either a scatter_plot, violin_plot, or bar_plot (see below)
+    roi_def: roi definition object, from roi_utils.nsd_roi_def()
+    skip_inds: which of the n_rois in roi_def do you want to skip?
+    suptitle: optional string for a sup-title
+    label_just_corner: boolean, want to add axis labels just to the lower left plot?
+    figsize: optional figure size for entire plot
+    
     """
 
-    if roi_def is None:
-        roi_def = roi_utils.get_combined_rois(subject,verbose=False)    
-    retlabs, facelabs, placelabs, bodylabs, ret_names, face_names, place_names, body_names = roi_def    
-
+    n_rois = roi_def.n_rois
+    roi_names = roi_def.roi_names
+   
     if skip_inds is None:
         skip_inds = []
-    nret = len(ret_names)
-    nface = len(face_names)
-    nplace = len(place_names)
-    nbody = len(body_names)    
-    n_rois = len(ret_names) + len(face_names) + len(place_names) + len(body_names)
-    
-    is_ret = np.arange(0, n_rois)<nret
-    is_face = (np.arange(0, n_rois)>=nret) & (np.arange(0, n_rois)<nret+nface)
-    is_place = (np.arange(0, n_rois)>=nret+nface) & (np.arange(0, n_rois)<nret+nface+nplace)
-    is_body = np.arange(0, n_rois)>=nret+nface+nplace
-    
+   
     # Preferred feature type, based on unique var explained. Separate plot each ROI.
     if figsize==None:
         figsize=(24,20)
@@ -218,25 +52,14 @@ def create_roi_subplots(data, inds2use, single_plot_object, subject, out, roi_de
 
         if rr not in skip_inds:
             
-            if is_ret[rr]:
-                inds_this_roi = retlabs==rr
-                rname = ret_names[rr]
-            elif is_face[rr]:
-                inds_this_roi = facelabs==(rr-nret)
-                rname = face_names[rr-nret]
-            elif is_place[rr]:
-                inds_this_roi = placelabs==(rr-nret-nface)
-                rname = place_names[rr-nret-nface]
-            elif is_body[rr]:
-                inds_this_roi = bodylabs==(rr-nret-nface-nplace)
-                rname = body_names[rr-nret-nface-nplace]
-            
+            inds_this_roi = roi_def.get_indices(rr)
+
             data_this_roi = data[inds2use & inds_this_roi,:]
 
             pi = pi+1
             plt.subplot(npx, npy, pi)
 
-            single_plot_object.title = '%s (%d vox)'%(rname, data_this_roi.shape[0])
+            single_plot_object.title = '%s (%d vox)'%(roi_names[rr], data_this_roi.shape[0])
             if pi in pi2label:
                 minimal_labels=False
             else:
@@ -249,7 +72,33 @@ def create_roi_subplots(data, inds2use, single_plot_object, subject, out, roi_de
         
 class bar_plot:
        
-    def __init__(self, colors=None, column_labels=None, plot_errorbars=True, ylabel=None, yticks=None, title=None, horizontal_line_pos=None, ylims=None, plot_counts=False, groups=None):
+    """
+    A bar plot object that plots the means of each column in a data matrix.
+    
+    Can be passed to "create_roi_subplots" to draw many barplots.
+    
+    colors: optional array of colors, [n_bars x 3]
+    column_labels: optional list of strings, [n_bars]
+    plot_errorbars: boolean, want to add SEM errorbars to your plot?
+    ylabel: optional, string for yaxis label
+    yticks: optional, list of y-axis ticks to use
+    ylims: optional, tuple of y-lims
+    title: optional title for the barplot
+    horizontal_line_pos: optional, position to draw a horizontal line on the plot    
+    plot_counts: boolean, are we going to plot a histogram? if yes, must specify "groups"
+    groups: list of groups to do counts in, if plot_counts=True
+    
+    Use "create" method to pass in data and make the plot.
+    data: [n_samples x n_bars], the bar heights will be the mean of each column. 
+    new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
+    figsize: optional figure size
+    minimal_labels: boolean, if True the plot will not have xticks/yticks/xlims/ylims
+    
+    """
+    
+    def __init__(self, colors=None, column_labels=None, plot_errorbars=True, \
+                 ylabel=None, yticks=None, ylims=None, title=None, \
+                 horizontal_line_pos=None, plot_counts=False, groups=None):
 
         self.colors = colors
         self.column_labels = column_labels
@@ -298,7 +147,8 @@ class bar_plot:
 
         if not minimal_labels:
             if self.column_labels is not None:
-                plt.xticks(ticks=np.arange(0,n_columns),labels=self.column_labels,rotation=45, ha='right',rotation_mode='anchor')
+                plt.xticks(ticks=np.arange(0,n_columns),labels=self.column_labels,\
+                           rotation=45, ha='right',rotation_mode='anchor')
             if self.ylabel is not None:
                 plt.ylabel(self.ylabel)
             if self.yticks is not None:
@@ -317,7 +167,30 @@ class bar_plot:
             
 class scatter_plot:
        
-    def __init__(self, color=None, xlabel=None, ylabel=None, xlims=None, ylims=None, xticks=None, yticks=None, \
+    """
+    A scatter plot object that plots the relationship between two columns of data.
+    
+    Can be passed to "create_roi_subplots" to draw many scatterplots.
+    
+    colors: optional color for the dots
+    xlabel/ylabel: optional, string for x-axis/y-axis label
+    xticks/yticks: optional, list of x-axis/y-axis ticks to use
+    xlims/ylims: optional, tuple of x-lims/y-lims   
+    title: optional title for the plot
+    show_diagonal: boolean, do you want to add a diagonal line with slope 1/intercept 0?
+    show_axes: boolean, do you want to draw horizontal and vertical lines at x=0, y=0?
+    square: boolean, do you want to make the axes square?
+    
+    Use "create" method to pass in data and make the plot.
+    data: [n_samples x 2], or [xvals, yvals] 
+    new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
+    figsize: optional figure size
+    minimal_labels: boolean, if True the plot will not have xticks/yticks/xlims/ylims
+    
+    """
+        
+    def __init__(self, color=None, xlabel=None, ylabel=None, xlims=None, \
+                 ylims=None, xticks=None, yticks=None, \
                  title=None, show_diagonal=True, show_axes=True, square=True):
 
         self.color = color
@@ -385,7 +258,29 @@ class scatter_plot:
             
 class violin_plot:
        
-    def __init__(self, colors=None, column_labels=None, ylabel=None, yticks=None, title=None, horizontal_line_pos=None, ylims=None):
+    """
+    A violin plot object that plots the distribution of each column in a data matrix.
+    
+    Can be passed to "create_roi_subplots" to draw many violin plots.
+    
+    colors: optional array of colors, [n_violins x 3]
+    column_labels: optional list of strings, [n_violins]
+    ylabel: optional, string for yaxis label
+    yticks: optional, list of y-axis ticks to use
+    ylims: optional, tuple of y-lims
+    title: optional title for the violin plot
+    horizontal_line_pos: optional, position to draw a horizontal line on the plot    
+    
+    Use "create" method to pass in data and make the plot.
+    data: [n_samples x n_violins], each violin will be one column.
+    new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
+    figsize: optional figure size
+    minimal_labels: boolean, if True the plot will not have xticks/yticks/xlims/ylims
+    
+    """
+        
+    def __init__(self, colors=None, column_labels=None, ylabel=None, yticks=None, \
+                 title=None, horizontal_line_pos=None, ylims=None):
         
         self.colors = colors
         self.column_labels = column_labels
@@ -421,7 +316,8 @@ class violin_plot:
 
         if not minimal_labels:
             if self.column_labels is not None:
-                plt.xticks(ticks=np.arange(0,n_columns),labels=self.column_labels,rotation=45, ha='right',rotation_mode='anchor')
+                plt.xticks(ticks=np.arange(0,n_columns),labels=self.column_labels,\
+                           rotation=45, ha='right',rotation_mode='anchor')
             if self.ylabel is not None:
                 plt.ylabel(self.ylabel)
             if self.yticks is not None:
@@ -436,3 +332,76 @@ class violin_plot:
             plt.axhline(self.horizontal_line_pos, color=[0.8, 0.8, 0.8])
         if self.ylims is not None:
             plt.ylim(self.ylims)
+            
+            
+def plot_multi_bars(mean_data, err_data=None, colors=None, space=0.3, \
+                    xticklabels=None, ylabel=None, ylim=None, \
+                    horizontal_line_pos=None,
+                    title=None, legend_labels=None, \
+                    legend_overlaid=False, legend_separate=True, \
+                    fig_size=(12,6)):
+    
+    """
+    Create a bar plot with multiple series of data next to each other.
+    Plots error bars if desired.
+    
+    mean_data: heights of bars to plot; shape [nlevels1 x nlevels2] 
+        where nlevels1 is the number of clusters of bars, and nlevels2 
+        is the number of bars per cluster.
+    err_data: symmetrical error bar lengths, should be same size as mean_data.
+    colors: list of colors, [nlevels2 x 3]
+    space: how big of a space between each bar cluster? max is 0.45.
+    xticklabels: name for each bar "cluster", should be [nlevels1] in length.
+    ylabel: optional yaxis label
+    horizontal_line_pos: optional position to draw a horizontal line on plot.
+    ylim: optional yaxis limits
+    title: optional title
+    legend_labels: labels for each series in the plot, [nlevels2] in length
+    legend_overlaid: want a legend drawn on top of the plot?
+    legend_separate: want legend as a separate axis?
+    
+    """
+    assert(space<0.45 and space>0)
+    assert(len(mean_data.shape)==2)
+    nlevels1, nlevels2 = mean_data.shape
+    
+    offsets = np.linspace(-0.5+space, 0.5-space, nlevels2)
+    bw = np.min([(offsets[1] - offsets[0]), space*2])
+    if colors is None:
+        colors = cm.Dark2(np.linspace(0,1,nlevels2))
+        
+    plt.figure(figsize=fig_size)
+    
+    lh = []
+    for ll in range(nlevels2):
+        
+        h = plt.bar(np.arange(nlevels1)+offsets[ll], mean_data[:,ll], \
+                width=bw, color=colors[ll,:])
+        lh.append(h)
+        if err_data is not None:
+            plt.errorbar(np.arange(nlevels1)+offsets[ll], \
+                     mean_data[:,ll], err_data[:,ll], \
+                     ecolor='k',zorder=10, ls='none')
+    
+    if xticklabels is not None:                                          
+        plt.xticks(np.arange(nlevels1), xticklabels, \
+               rotation=45,ha='right',rotation_mode='anchor')
+    if ylim is not None:
+        plt.ylim(ylim)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if horizontal_line_pos is not None:
+        plt.axhline(horizontal_line_pos, color=[0.8, 0.8, 0.8])
+    if title is not None:
+        plt.title(title)
+        
+    if legend_overlaid and legend_labels is not None:
+        ax = plt.gca()
+        ax.legend(lh, legend_labels)
+ 
+    if legend_separate and legend_labels is not None:
+        plt.figure();
+        for ll in range(nlevels2):
+            plt.plot(0,ll,'-',color=colors[ll,:],linewidth=15)
+        plt.legend(legend_labels)
+    

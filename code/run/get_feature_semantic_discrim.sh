@@ -10,11 +10,11 @@
 debug=0
 which_prf_grid=5
 
-# subjects=(1)
+subjects=(1)
 # feature_types=(gabor_solo)
 # subjects=(2 3 4 5 6 7 8)
-subjects=(all)
-feature_types=(gabor_solo sketch_tokens pyramid_texture)
+# subjects=(all)
+feature_types=(gabor_solo sketch_tokens pyramid_texture_ll pyramid_texture_hl pyramid_texture_hl_pca alexnet clip)
 
 source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/analyze_features

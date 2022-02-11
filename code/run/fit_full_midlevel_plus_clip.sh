@@ -2,6 +2,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=48G
+#SBATCH --exclude=mind-1-23
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -22,14 +23,14 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
-# from_scratch=1
-# date_str=0
-from_scratch=0
-date_str=Feb-05-2022_2224_22
+from_scratch=1
+date_str=0
+# from_scratch=0
+# date_str=Feb-05-2022_2224_22
 overwrite_sem_disc=0
 do_val=1
-do_tuning=1
-do_sem_disc=1
+do_tuning=0
+do_sem_disc=0
 
 fitting_type=full_midlevel
 

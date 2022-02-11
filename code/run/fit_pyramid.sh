@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
+#SBATCH --exclude=mind-1-23
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append

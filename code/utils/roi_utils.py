@@ -21,7 +21,7 @@ class nsd_roi_def():
     (for instance a voxel can be in both V3A and OPA)
     """
     
-    def __init__(self, subject, volume_space=True, include_all=True, verbose=True):
+    def __init__(self, subject, volume_space=True, include_all=True, verbose=False):
         
         self.subject=subject
         self.volume_space=volume_space

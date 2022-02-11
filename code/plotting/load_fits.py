@@ -1,17 +1,18 @@
 import numpy as np
-import sys
 import os
 from utils import default_paths
 
 """
-General use functions for loading/getting basic properties of encoding model fit results.
-Input to most of these functions is 'out', which is a dictionary containing 
-fit results. Created by the model fitting code in model_fitting/fit_model.py
+General use functions for loading encoding model fit results.
+Works with the fits generated and saved by code in model_fitting/fit_model.py
 """
 
-
-def load_fit_results(subject, fitting_type, volume_space=True, n_from_end=0, verbose=True, root=None):
-       
+def load_fit_results(subject, fitting_type, n_from_end=0, volume_space=True, verbose=True, root=None):     
+    """
+    Load fit params for a given subject and fitting type. 
+    By default, it loads the most recent fit (based on date str in name of saved file).
+    If n_from_end is specified, will go back in time and load the nth most recent.
+    """
     if root is None:
         root = default_paths.save_fits_path
     if volume_space:

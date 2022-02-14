@@ -298,7 +298,8 @@ def load_best_model_layers(subject, model):
                 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params.npy')
     elif subject==8:
         if model=='clip':
-            raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+                'S08/clip_RN50_all_resblocks_pca/Feb-09-2022_1544_10/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S08/alexnet_all_conv_pca/Jan-22-2022_1508_21/all_fit_params.npy')

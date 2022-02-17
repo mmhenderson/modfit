@@ -597,6 +597,63 @@ def write_natural_humanmade_csv(subject, which_prf_grid):
 
     return
 
+
+def write_realworldsize_csv(subject, which_prf_grid):
+    """
+    Creating binary labels for real-world-size of image patches (based on approx sizes
+    of object categories in coco).
+    """
+
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
+                get_coco_cat_info(coco_val)
+
+    # load a dict of sizes for each category
+    fn2save = (os.path.join(default_paths.stim_labels_root,'Realworldsize_categ.npy'))
+    names_to_sizes = np.load(fn2save, allow_pickle=True).item()
+    # make [3 x ncateg] one-hot array of size labels for each categ
+    categ_size_labels = np.array([[names_to_sizes[kk]==ii for kk in names_to_sizes.keys()] \
+                                  for ii in range(3)])
+    # print size lists as a sanity check
+    for ii in range(3):
+        print('things categories with size %d:'%ii)
+        print(np.array(cat_names)[categ_size_labels[ii,:]])
+        
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    n_prfs = len(models)
+    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
+                                                                                        which_prf_grid))
+    for prf_model_index in range(n_prfs):
+             
+        fn2load = os.path.join(labels_folder, \
+                          'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
+        coco_df = pd.read_csv(fn2load, index_col = 0)
+
+        cat_labels = np.array(coco_df)[:,12:92]
+
+        has_small = np.any(cat_labels[:,categ_size_labels[0,:]], axis=1)
+        has_medium = np.any(cat_labels[:,categ_size_labels[1,:]], axis=1)
+        has_large = np.any(cat_labels[:,categ_size_labels[2,:]], axis=1)
+
+        rwsize_df = pd.DataFrame({'has_small': has_small, 'has_medium': has_medium, 'has_large': has_large})
+
+        ambiguous = np.sum(np.array(rwsize_df), axis=1)==0
+        conflict = np.sum(np.array(rwsize_df), axis=1)>1
+        good = np.sum(np.array(rwsize_df), axis=1)==1
+
+        print('proportion of images that are ambiguous (no object annotation):')
+        print(np.mean(ambiguous))
+        print('proportion of images with conflict (have annotation for multiple sizes of objects):')
+        print(np.mean(conflict))
+        print('proportion of images unambiguous (exactly one size label):')
+        print(np.mean(good))
+
+        fn2save = os.path.join(labels_folder, 'S%d_realworldsize_prf%d.csv'%(subject, prf_model_index))
+
+        print('Saving to %s'%fn2save)
+        rwsize_df.to_csv(fn2save, header=True)
+
+    return
+
 def count_labels_each_prf(which_prf_grid=5, debug=False):
 
     """

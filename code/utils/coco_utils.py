@@ -589,27 +589,6 @@ def write_natural_humanmade_csv(subject, which_prf_grid):
         print('proportion of images with conflict (have annotation for both natural and humanmade object):')
         print(np.mean(conflict))
 
-#         conflict_natural = conflict & (natural_sum_things+natural_sum_stuff > humanmade_sum_things+humanmade_sum_stuff)
-#         conflict_humanmade = conflict & (humanmade_sum_things+humanmade_sum_stuff > natural_sum_things+natural_sum_stuff)
-#         conflict_unresolved = conflict & (natural_sum_things+natural_sum_stuff == humanmade_sum_things+humanmade_sum_stuff)
-#         print('conflicting images that can be resolved to natural/humanmade/tie based on number annotations:')
-#         print([np.mean(conflict_natural), np.mean(conflict_humanmade), np.mean(conflict_unresolved)])
-
-#         # correct the conflicting images that we are able to resolve
-
-#         humanmade_all[conflict_natural] = 0
-#         natural_all[conflict_humanmade] = 0
-
-#         ambiguous = ~humanmade_all & ~natural_all
-#         conflict = humanmade_all & natural_all
-
-#         print('\nafter resolving conflicts based on number of annotations:')
-#         print('proportion of images that are ambiguous (no natural or humanmade object annotation):')
-#         print(np.mean(ambiguous))
-#         print('proportion of images with conflict (have annotation for both natural and humanmade object):')
-#         print(np.mean(conflict))
-
-
         natural_humanmade_df = pd.DataFrame({'has_natural': natural_all, 'has_humanmade': humanmade_all})
         fn2save = os.path.join(labels_folder, 'S%d_natural_humanmade_prf%d.csv'%(subject, prf_model_index))
 

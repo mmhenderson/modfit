@@ -2,11 +2,8 @@
 import sys
 import os
 import numpy as np
-import pandas as pd
-import PIL
 
-from utils import default_paths, nsd_utils, prf_utils, segmentation_utils
-from model_fitting import initialize_fitting
+from utils import default_paths
 
 # import coco api tools
 sys.path.append(os.path.join(default_paths.coco_api_path,'cocoapi','PythonAPI'))

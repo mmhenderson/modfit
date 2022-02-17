@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import PIL
 
-from utils import default_paths, nsd_utils, prf_utils, segmentation_utils
+from utils import default_paths, nsd_utils, prf_utils, segmentation_utils, coco_utils
 from model_fitting import initialize_fitting
 
 def write_binary_labels_csv(subject, stuff=False):
@@ -19,13 +19,13 @@ def write_binary_labels_csv(subject, stuff=False):
     all_coco_ids = np.array(subject_df['cocoId'])
     
     if stuff:
-        coco_object = coco_stuff_val
+        coco_object = coco_utils.coco_stuff_val
     else:
-        coco_object = coco_val
-    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = get_coco_cat_info(coco_object)
+        coco_object = coco_utils.coco_val
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = coco_utils.get_coco_cat_info(coco_object)
        
-    ims_each_cat, cats_each_image = list_cats_each_image(all_coco_ids, stuff=stuff)
-    ims_each_supcat, supcats_each_image = list_supcats_each_image(all_coco_ids, stuff=stuff)
+    ims_each_cat, cats_each_image = coco_utils.list_cats_each_image(all_coco_ids, stuff=stuff)
+    ims_each_supcat, supcats_each_image = coco_utils.list_supcats_each_image(all_coco_ids, stuff=stuff)
 
     binary_df = pd.DataFrame(data=np.concatenate([ims_each_supcat, ims_each_cat], axis=1), \
                                  columns = supcat_names + cat_names)
@@ -77,13 +77,13 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
         
     # Initialize arrays to store all labels for each pRF
     if stuff:
-        coco_v = coco_stuff_val
-        coco_t = coco_stuff_trn
+        coco_v = coco_utils.coco_stuff_val
+        coco_t = coco_utils.coco_stuff_trn
     else:
-        coco_v = coco_val
-        coco_t = coco_trn
+        coco_v = coco_utils.coco_val
+        coco_t = coco_utils.coco_trn
         
-    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = get_coco_cat_info(coco_v)
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = coco_utils.get_coco_cat_info(coco_v)
 
     n_images = len(subject_df)
     n_categ = len(cat_names)
@@ -180,10 +180,10 @@ def write_indoor_outdoor_csv(subject):
     """
     
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-            get_coco_cat_info(coco_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
-            get_coco_cat_info(coco_stuff_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val)
 
     must_be_indoor = np.array([0, 0, 0, 0, 0, 0, 0, 0, \
                  0, 0, 0, 0, 0, 0, 0, 0, \
@@ -326,10 +326,10 @@ def write_natural_humanmade_csv(subject, which_prf_grid):
     """
 
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-                get_coco_cat_info(coco_val)
+                coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
-            get_coco_cat_info(coco_stuff_val) 
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val) 
 
     must_be_natural = np.array([1,0,0,0,0,0,0,0,0,0,0,0,\
                            0,0,1,1,1,1,1,1,1,1,1,1,\
@@ -445,7 +445,7 @@ def write_realworldsize_csv(subject, which_prf_grid):
     """
 
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-                get_coco_cat_info(coco_val)
+                coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     # load a dict of sizes for each category
     fn2save = (os.path.join(default_paths.stim_labels_root,'Realworldsize_categ.npy'))
@@ -506,10 +506,10 @@ def count_labels_each_prf(which_prf_grid=5, debug=False):
     fn2save = os.path.join(default_paths.stim_labels_root, 'Coco_label_counts_all_prf_grid%d.npy'%(which_prf_grid))   
     
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-            get_coco_cat_info(coco_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
-            get_coco_cat_info(coco_stuff_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val)
 
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     n_prfs = models.shape[0]
@@ -606,10 +606,10 @@ def get_top_two_subcateg(which_prf_grid=5):
     """
     
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-            get_coco_cat_info(coco_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
-            get_coco_cat_info(coco_stuff_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val)
 
 
     labels_folder = os.path.join(default_paths.stim_labels_root)
@@ -703,10 +703,10 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
     """
 
     cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
-            get_coco_cat_info(coco_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_val)
 
     stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
-            get_coco_cat_info(coco_stuff_val)
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val)
 
     labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))

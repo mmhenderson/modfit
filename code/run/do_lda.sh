@@ -27,9 +27,9 @@ do
 
     python3 linear_discr.py --subject $subj --debug $debug --feature_type $feature_type --which_prf_grid $which_prf_grid --zscore_each $zscore_each --balance_downsample $balance_downsample
     
-    balance_downsample=0
-    zscore_each=1
+#     balance_downsample=0
+#     zscore_each=1
 
-    python3 linear_discr.py --subject $subj --debug $debug --feature_type $feature_type --which_prf_grid $which_prf_grid --zscore_each $zscore_each --balance_downsample $balance_downsample
+#     python3 linear_discr.py --subject $subj --debug $debug --feature_type $feature_type --which_prf_grid $which_prf_grid --zscore_each $zscore_each --balance_downsample $balance_downsample
     
 done

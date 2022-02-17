@@ -11,7 +11,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40
@@ -25,8 +25,8 @@ which_prf_grid=5
 from_scratch=1
 date_str=0
 do_val=1
-do_tuning=1
-do_sem_disc=1
+do_tuning=0
+do_sem_disc=0
 
 fitting_type=gabor_solo
 

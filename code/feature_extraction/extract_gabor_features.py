@@ -10,8 +10,11 @@ from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths
 from model_fitting import initialize_fitting
 from feature_extraction import gabor_feature_extractor
 
-device = initialize_fitting.init_cuda()
-
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
+    
 def extract_features(subject, n_ori=4, n_sf=4, sample_batch_size=100, \
                      use_node_storage=False, nonlin_fn=False, \
                      which_prf_grid=1, debug=False):

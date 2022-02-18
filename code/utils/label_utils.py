@@ -45,12 +45,13 @@ def write_binary_labels_csv(subject, stuff=False):
     
     return
 
-def write_binary_labels_csv_within_prf(subject, min_overlap_pct=5, stuff=False, which_prf_grid=1, debug=False):
+def write_binary_labels_csv_within_prf(subject, min_overlap_pct=0.10, stuff=False, \
+                                       which_prf_grid=1, debug=False):
     """
     Creating a csv file where columns are binary labels for the presence/absence of categories
     and supercategories in COCO.
     Analyzing presence of categories for each pRF position separately - make a separate csv file for each prf.
-    10,000 images long (same size as image arrays at /user_data/mmhender/nsd_stimuli/stimuli/)
+    10,000 images long (same size as image arrays in /nsd/stimuli/)
     """
 
     subject_df = nsd_utils.get_subj_df(subject);
@@ -129,21 +130,21 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pct=5, stuff=False, 
             mask_cropped_resized = np.asarray(PIL.Image.fromarray(mask_cropped).resize(newsize,\
                                             resample=PIL.Image.BILINEAR))
 
-            # Loop over pRFs, identify whether there is overlap with the annotation.
-            for prf_ind in range(n_prfs):
-
-                prf_mask = prf_masks[prf_ind,:,:]
+            # find where this overlaps with any pRFs
+            overlap_pix = np.tensordot(mask_cropped_resized, prf_masks, [[0,1], [1,2]])
+            has_overlap = overlap_pix > min_pix_req
+            
+            if np.any(has_overlap):
                 
-                overlap_pix = np.tensordot(mask_cropped_resized, prf_mask, [[0,1], [0,1]])
-                has_overlap = overlap_pix > min_pix_req[prf_ind]
-                
-                if has_overlap:
-
-                    cid = annotations[aa]['category_id']
-                    column_ind = np.where(np.array(cat_ids)==cid)[0][0]
-                    cat_labels_binary[image_ind, column_ind, prf_ind] = 1
-                    supcat_column_ind = np.where([np.any(np.isin(ids_each_supcat[sc],cid)) \
+                cid = annotations[aa]['category_id']
+                column_ind = np.where(np.array(cat_ids)==cid)[0][0]
+                supcat_column_ind = np.where([np.any(np.isin(ids_each_supcat[sc],cid)) \
                                   for sc in range(n_supcateg)])[0][0]
+                
+                # Loop over pRFs that overlap
+                for prf_ind in np.where(has_overlap)[0]:
+                    
+                    cat_labels_binary[image_ind, column_ind, prf_ind] = 1                    
                     supcat_labels_binary[image_ind, supcat_column_ind, prf_ind] = 1
 
         sys.stdout.flush()            

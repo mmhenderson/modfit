@@ -45,7 +45,7 @@ def write_binary_labels_csv(subject, stuff=False):
     
     return
 
-def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False, which_prf_grid=1, debug=False):
+def write_binary_labels_csv_within_prf(subject, min_overlap_pct=5, stuff=False, which_prf_grid=1, debug=False):
     """
     Creating a csv file where columns are binary labels for the presence/absence of categories
     and supercategories in COCO.
@@ -63,18 +63,20 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
     n_pix = 425
     n_prf_sd_out = 2
     prf_masks = np.zeros((n_prfs, n_pix, n_pix))
-
+    
     for prf_ind in range(n_prfs):    
         prf_params = models[prf_ind,:] 
         x,y,sigma = prf_params
         aperture=1.0
-        prf = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                               patch_size=n_pix, aperture=aperture, dtype=np.float32)
-        # Creating a mask 2 SD from the center
-        # cutoff of 0.14 approximates +/-2 SDs
-        prf_mask = prf/np.max(prf)>0.14
+        prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
+                               patch_size=n_pix)
         prf_masks[prf_ind,:,:] = prf_mask.astype('int')
-        
+    
+    # the number of pixels required to overlap will depend on how many
+    # pixels the pRF occupies.
+    mask_sums = np.sum(np.sum(prf_masks, axis=1), axis=1)
+    min_pix_req = np.ceil(mask_sums*min_overlap_pct)
+    
     # Initialize arrays to store all labels for each pRF
     if stuff:
         coco_v = coco_utils.coco_stuff_val
@@ -124,14 +126,16 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
             mask = masks[aa,:,:]
             mask_cropped = mask[crop_box_pixels[0]:crop_box_pixels[1], crop_box_pixels[2]:crop_box_pixels[3]]
             newsize=[n_pix, n_pix]
-            mask_cropped_resized = np.asarray(PIL.Image.fromarray(mask_cropped).resize(newsize, resample=PIL.Image.BILINEAR))
+            mask_cropped_resized = np.asarray(PIL.Image.fromarray(mask_cropped).resize(newsize,\
+                                            resample=PIL.Image.BILINEAR))
 
             # Loop over pRFs, identify whether there is overlap with the annotation.
             for prf_ind in range(n_prfs):
 
                 prf_mask = prf_masks[prf_ind,:,:]
-
-                has_overlap = np.tensordot(mask_cropped_resized, prf_mask, [[0,1], [0,1]])>min_overlap_pix
+                
+                overlap_pix = np.tensordot(mask_cropped_resized, prf_mask, [[0,1], [0,1]])
+                has_overlap = overlap_pix > min_pix_req[prf_ind]
                 
                 if has_overlap:
 
@@ -146,21 +150,15 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pix=10, stuff=False,
              
                     
     # Now save as csv files for each pRF
-    animate_supcat_ids = [1,9]
-
     for mm in range(n_prfs):
         
         if debug and mm>1:
             continue
 
-        binary_df = pd.DataFrame(data=np.concatenate([supcat_labels_binary[:,:,mm], cat_labels_binary[:,:,mm]], axis=1), \
-                                     columns = supcat_names + cat_names)
-        if not stuff:
-            animate_columns= np.array([supcat_labels_binary[:,animate_supcat_ids[ii],mm] \
-                           for ii in range(len(animate_supcat_ids))]).T
-            has_animate = np.any(animate_columns, axis=1)
-            binary_df['has_animate'] = has_animate.astype('int')
-
+        binary_df = pd.DataFrame(data=np.concatenate([supcat_labels_binary[:,:,mm], \
+                                                      cat_labels_binary[:,:,mm]], axis=1), \
+                                                      columns = supcat_names + cat_names)
+    
         folder2save = os.path.join(default_paths.stim_labels_root, \
                                            'S%d_within_prf_grid%d'%(subject, which_prf_grid))
         if not os.path.exists(folder2save):

@@ -1,7 +1,7 @@
 import struct
 import numpy as np
 import math
-# from scipy.special import erf
+import copy
 
 def make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
                           eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16):
@@ -274,9 +274,12 @@ def gauss_2d(center, sd, patch_size, orient_deg=0, aperture=1.0, dtype=np.float3
     # first meshgrid over image space
     x,y = np.meshgrid(np.linspace(-aperture/2, aperture/2, patch_size), \
                       np.linspace(-aperture/2, aperture/2, patch_size))
-    x_centered = x-center[0]
-    center[1] = (-1)*center[1] # negate the y coord so the grid matches w my other code
-    y_centered = y-center[1]
+    
+    new_center = copy.deepcopy(center) # make sure we don't edit the input value by accident!
+    new_center[1] = (-1)*new_center[1] # negate the y coord so the grid matches w my other code
+    
+    x_centered = x-new_center[0]
+    y_centered = y-new_center[1]
     
     # rotate the axes to match desired orientation (if orient=0, this is just regular x and y)
     x_prime = x_centered * np.cos(orient_rad) + y_centered * np.sin(orient_rad)
@@ -291,33 +294,3 @@ def gauss_2d(center, sd, patch_size, orient_deg=0, aperture=1.0, dtype=np.float3
     gauss = gauss.astype(dtype)
     
     return gauss
-
-
-# def gaussian_mass(xi, yi, dx, dy, x, y, sigma):
-#     return 0.25*(erf((xi-x+dx/2)/(np.sqrt(2)*sigma)) - erf((xi-x-dx/2)/(np.sqrt(2)*sigma)))*(erf((yi-y+dy/2)/(np.sqrt(2)*sigma)) - erf((yi-y-dy/2)/(np.sqrt(2)*sigma)))
-    
-# def make_gaussian_mass(x, y, sigma, n_pix, size=None, dtype=np.float32):
-#     deg = dtype(n_pix) if size==None else size
-#     dpix = dtype(deg) / n_pix
-#     pix_min = -deg/2. + 0.5 * dpix
-#     pix_max = deg/2.
-#     [Xm, Ym] = np.meshgrid(np.arange(pix_min,pix_max,dpix), np.arange(pix_min,pix_max,dpix));
-#     if sigma<=0:
-#         Zm = np.zeros_like(Xm)
-#     elif sigma<dpix:
-#         g_mass = np.vectorize(lambda a, b: gaussian_mass(a, b, dpix, dpix, x, y, sigma)) 
-#         Zm = g_mass(Xm, -Ym)        
-#     else:
-#         d = (2*dtype(sigma)**2)
-#         A = dtype(1. / (d*np.pi))
-#         Zm = dpix**2 * A * np.exp(-((Xm-x)**2 + (-Ym-y)**2) / d)
-#     return Xm, -Ym, Zm.astype(dtype)   
-    
-# def make_gaussian_mass_stack(xs, ys, sigmas, n_pix, size=None, dtype=np.float32):
-#     stack_size = min(len(xs), len(ys), len(sigmas))
-#     assert stack_size>0
-#     Z = np.ndarray(shape=(stack_size, n_pix, n_pix), dtype=dtype)
-#     X,Y,Z[0,:,:] = make_gaussian_mass(xs[0], ys[0], sigmas[0], n_pix, size=size, dtype=dtype)
-#     for i in range(1,stack_size):
-#         _,_,Z[i,:,:] = make_gaussian_mass(xs[i], ys[i], sigmas[i], n_pix, size=size, dtype=dtype)
-#     return X, Y, Z

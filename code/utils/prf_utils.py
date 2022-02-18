@@ -297,11 +297,16 @@ def gauss_2d(center, sd, patch_size, orient_deg=0, aperture=1.0, dtype=np.float3
 
 def get_prf_mask(center, sd, patch_size):
     
+    """
+    Get boolean mask for each pRF (region +/- 2 sds from center)
+    To be used for getting overlap with coco semantic segmentations.
+    """
+    
     if np.all(np.abs(center)<0.50):
         
         # if the center of the pRF is within the image region, 
         # then can get max value without padding.
-        prf = prf_utils.gauss_2d(center, sd, patch_size, aperture=1.0)
+        prf = gauss_2d(center, sd, patch_size, aperture=1.0)
         # Creating a mask 2 SD from the center
         # cutoff of 0.14 approximates +/-2 SDs
         prf_mask = prf/np.max(prf)>0.14
@@ -314,7 +319,7 @@ def get_prf_mask(center, sd, patch_size):
         spaces_pad = int(np.ceil(0.5/grid_space))
         padded_aperture = 1.0+grid_space*spaces_pad*2
         padded_size = patch_size+spaces_pad*2
-        prf_padded = prf_utils.gauss_2d([x,y], sd, patch_size=padded_size, \
+        prf_padded = gauss_2d(center, sd, patch_size=padded_size, \
                                  aperture=padded_aperture)
         # Creating a mask 2 SD from the center
         # cutoff of 0.14 approximates +/-2 SDs

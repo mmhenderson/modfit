@@ -18,4 +18,4 @@ if __name__ == '__main__':
    
     print('concat labels')
     label_utils.concat_labels_each_prf(subject=args.subject, \
-                                      which_prf_grid=args.which_prf_grid)
+                                      which_prf_grid=args.which_prf_grid, verbose=True)

@@ -22,6 +22,6 @@ if __name__ == '__main__':
     
    
     # doing these labels separately for coco labels (objects) and coco-stuff
-    label_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pix=10, debug=args.debug, stuff=False, which_prf_grid=args.which_prf_grid)
+    label_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pct=0.10, debug=args.debug, stuff=False, which_prf_grid=args.which_prf_grid)
 
-    label_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pix=10, debug=args.debug, stuff=True, which_prf_grid=args.which_prf_grid)
+    label_utils.write_binary_labels_csv_within_prf(subject=args.subject, min_overlap_pct=0.10, debug=args.debug, stuff=True, which_prf_grid=args.which_prf_grid)

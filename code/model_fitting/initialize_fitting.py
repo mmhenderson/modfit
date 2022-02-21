@@ -174,7 +174,7 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
 
     return lambdas
 
-def get_prf_models(which_grid=5):
+def get_prf_models(which_grid=5, verbose=False):
 
     # models is three columns, x, y, sigma
     if which_grid==1:
@@ -203,11 +203,12 @@ def get_prf_models(which_grid=5):
     else:
         raise ValueError('prf grid number not recognized')
 
-    print('number of pRFs: %d'%len(models))
-    print('most extreme RF positions:')
-    print(models[0,:])
-    print(models[-1,:])
-    
+    if verbose:
+        print('number of pRFs: %d'%len(models))
+        print('most extreme RF positions:')
+        print(models[0,:])
+        print(models[-1,:])
+
     return models
 
 def load_precomputed_prfs(subject):

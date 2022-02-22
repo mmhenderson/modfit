@@ -28,6 +28,10 @@ class semantic_feature_loader:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_natural_humanmade_prf0.csv'%(self.subject))          
                 self.n_features = 2
+            elif feature_set=='real_world_size':            
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_realworldsize_prf0.csv'%(self.subject))          
+                self.n_features = 3
             elif 'coco_things' in feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
@@ -99,6 +103,14 @@ class semantic_feature_loader:
                 nat_hum_df = pd.read_csv(self.features_file, index_col=0)                
                 labels = np.array(nat_hum_df)
                 colnames = list(nat_hum_df.keys())
+            elif self.feature_set=='real_world_size':
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_realworldsize_prf%d.csv'%(self.subject, prf_model_index))
+                print('Loading pre-computed features from %s'%self.features_file)
+                size_df = pd.read_csv(self.features_file, index_col=0)                
+                # use small, medium, large.
+                labels = np.array(size_df).astype(np.float32)
+                colnames = list(size_df.keys())
             elif 'coco_stuff' in self.feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_stuff_binary_prf%d.csv'%(self.subject, \

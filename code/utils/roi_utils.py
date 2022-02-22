@@ -10,7 +10,6 @@ ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[1
 from utils import default_paths
 from utils import nsd_utils
 
-
 class nsd_roi_def():
     
     """
@@ -27,10 +26,10 @@ class nsd_roi_def():
         self.volume_space=volume_space
         self.include_all=include_all
       
-        self.init_names(verbose)
-        self.init_labels(verbose)
+        self.__init_names__(verbose)
+        self.__init_labels__(verbose)
         
-    def init_names(self, verbose):
+    def __init_names__(self, verbose):
         
         ret, face, place, body = load_roi_label_mapping(self.subject, verbose=verbose)
         self.face_names = face[1]
@@ -54,7 +53,7 @@ class nsd_roi_def():
                         (np.arange(0, self.n_rois)<self.nret+self.nface+self.nplace)
         self.is_body = np.arange(0, self.n_rois)>=self.nret+self.nface+self.nplace
         
-    def init_labels(self, verbose):
+    def __init_labels__(self, verbose):
         
         voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
                     get_voxel_roi_info(self.subject, \
@@ -131,6 +130,49 @@ class nsd_roi_def():
                 if n_overlap>0:
                     print('    %d vox overlap with %s'%(n_overlap, self.roi_names[rr2]))
 
+                    
+class multi_subject_roi_def(nsd_roi_def):
+    
+    """
+    A class for combining ROI definitions across multiple subjects.
+    To be used for cases where we have concatenated some property (i.e. encoding model fit
+    performance) across all voxels in all subjects. 
+    Can use "get_indices" same way as for single subject case - here it will return a long
+    boolean array with length equal to the total number of voxels across all subjects.
+    """
+    
+    def __init__(self, subjects, volume_space=True, include_all=True, verbose=False):
+    
+        if verbose:
+            print('Making combined ROI definition for subjects:')
+            print(subjects)
+            print('\n')
+            
+        # first initialize object with just first subject, most of
+        # the properties are same for all subs (ROI names etc.)
+        super().__init__(subject=subjects[0], volume_space=volume_space,\
+                         include_all=include_all, verbose=verbose)
+        
+        self.subjects = subjects
+        
+        # now getting subject-specific properties, labels for each voxel.
+        self.ss_roi_defs = [nsd_roi_def(ss, volume_space=volume_space,\
+                         include_all=include_all, verbose=False) for ss in self.subjects]
+        
+        self.__concat_labels__()
+        
+    def __concat_labels__(self):
+
+        # concatenate ROI labels across all subjects.
+        self.facelabs = np.concatenate([roi.facelabs for roi in self.ss_roi_defs], axis=0)
+        self.placelabs = np.concatenate([roi.placelabs for roi in self.ss_roi_defs], axis=0)
+        self.bodylabs = np.concatenate([roi.bodylabs for roi in self.ss_roi_defs], axis=0)
+        self.retlabs = np.concatenate([roi.retlabs for roi in self.ss_roi_defs], axis=0)
+        
+        # these properties probably won't be used much for multi-subject case.
+        self.voxel_mask = [roi.voxel_mask for roi in self.ss_roi_defs]
+        self.nii_shape = [roi.nii_shape for roi in self.ss_roi_defs]
+        
 
 def load_roi_label_mapping(subject, verbose=False):
     """

@@ -14,8 +14,8 @@ which_prf_grid=5
 source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/analyze_features
 
-ft=(gabor_solo)
-# ft=(gabor_solo pyramid_texture_ll pyramid_texture_hl_pca sketch_tokens alexnet clip)
+# ft=(gabor_solo)
+ft=(gabor_solo pyramid_texture_ll pyramid_texture_hl_pca sketch_tokens alexnet clip)
 # ft=(pyramid_texture_hl_pca)
 # ft=(pyramid_texture_hl_pca pyramid_texture_hl)
 

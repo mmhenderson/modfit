@@ -25,20 +25,20 @@ which_prf_grid=5
 from_scratch=1
 date_str=0
 do_val=1
-do_tuning=1
+do_tuning=0
 do_sem_disc=0
 
 fitting_type=semantic
 
-semantic_feature_sets=(indoor_outdoor natural_humanmade animacy)
-# semantic_feature_sets=(indoor_outdoor)
+# semantic_feature_sets=(indoor_outdoor natural_humanmade animacy)
+semantic_feature_sets=(real_world_size)
 
 for subject in ${subjects[@]}
 do
     for semantic_feature_set in ${semantic_feature_sets[@]}
     do
-        zscore_features=0
-        python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --semantic_feature_set $semantic_feature_set
+#         zscore_features=0
+#         python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --semantic_feature_set $semantic_feature_set
         zscore_features=1
         python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --semantic_feature_set $semantic_feature_set
     done

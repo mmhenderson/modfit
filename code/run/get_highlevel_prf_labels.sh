@@ -10,13 +10,12 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/utils/run/
 
-
 which_prf_grid=5
-do_indoor=0
-do_natural=0
+do_indoor=1
+do_natural=1
 do_size=1
 
-subjects=(1)
+subjects=(1 2 3 4)
 
 for subject in ${subjects[@]}
 do

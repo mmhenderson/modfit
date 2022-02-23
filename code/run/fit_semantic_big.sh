@@ -13,8 +13,8 @@ cd /user_data/mmhender/imStat/code/model_fitting
 
 subjects=(1)
 
-debug=1
-up_to_sess=1
+debug=0
+up_to_sess=40
 
 sample_batch_size=100
 voxel_batch_size=100
@@ -30,8 +30,10 @@ do_sem_disc=0
 
 fitting_type=semantic
 
+semantic_feature_sets=(all_coco)
+
 # semantic_feature_sets=(coco_things_categ)
-semantic_feature_sets=(all_coco_categ all_coco all_coco_things all_coco_stuff)
+# semantic_feature_sets=(all_coco_categ all_coco all_coco_things all_coco_stuff)
 # semantic_feature_sets=(indoor_outdoor)
 
 for subject in ${subjects[@]}

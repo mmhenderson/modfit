@@ -8,16 +8,15 @@
 
 source ~/myenv/bin/activate
 
-cd /user_data/mmhender/imStat/code/utils/
+cd /user_data/mmhender/imStat/code/utils/run/
 
-# subjects=1
 debug=0
 which_prf_grid=5
-concat=1
 
-subjects=(2 3 4 5 6 7 8)
+# subjects=(1)
+subjects=(2 3 4 5)
 for subject in ${subjects[@]}
 do
     echo $subject
-    python3 get_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid --concat $concat
+    python3 get_binary_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
 done

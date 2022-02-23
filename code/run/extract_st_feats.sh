@@ -1,65 +1,43 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --nodelist=mind-1-3
+#SBATCH --nodelist=mind-1-11
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=8-00:00:00
 
-subj=1
 debug=0
-use_node_storage=1
-which_prf_grid=7
-
 source ~/myenv/bin/activate
+module load matlab-9.7
+codepath1=/user_data/mmhender/toolboxes/SketchTokens/
+codepath2=/user_data/mmhender/imStat/code/feature_extraction/
+use_node_storage=1
+which_prf_grid=5
 
-CWD=$(pwd)
-cd ../
-ROOT=$(pwd)
-cd $ROOT/feature_extraction
+subjects=(2)
+for subject in ${subjects[@]}
+do
 
+    cd $codepath1
 
-if [ $use_node_storage == 1 ]
-then
+    matlab -nodisplay -nodesktop -nosplash -r "get_st_features_wrapper($subject,$debug); exit"
 
-    remote_feature_path=/user_data/mmhender/features/sketch_tokens
-    local_feature_path=/scratch/mmhender/features/sketch_tokens
-    remote_file="${remote_feature_path}""/S""${subj}""_features_227.h5py"
-    local_file="${local_feature_path}""/S""${subj}""_features_227.h5py"
-    if [ -f ${local_file} ]
-    then
-        echo File already exists in the node scratch folder
-    else
-        if [ ! -d $local_feature_path ]
-        then
-            echo Making new directory at $local_feature_path
-            mkdir -p $local_feature_path
-        fi
-        echo Copying big file from $remote_file to $local_file
-
-        if [ $debug == 0 ]
-        then            
-            scp $remote_file $local_file
-        fi
-
-        echo Done copying big file, starting script...
-    fi
-fi
-
-python3 extract_sketch_token_features.py --subject $subj --use_node_storage $use_node_storage --debug $debug --which_prf_grid $which_prf_grid
-
-if [ $use_node_storage == 1 ]
-then
-
-    echo Copying output file from $local_feature_path to $remote_feature_path
-   
-    if [ $debug == 0 ]
-    then
-        scp "${local_feature_path}""/S""${subj}""_features_each_prf_grid7.h5py" "${remote_feature_path}""/S""${subj}""_features_each_prf_grid7.h5py"
-    fi
+    cd $codepath2
     
-    echo Done copying file back!  
+    python3 extract_sketch_token_features.py --subject $subject --use_node_storage $use_node_storage --debug $debug --which_prf_grid $which_prf_grid
+
+    fn_features_node=/scratch/mmhender/features/sketch_tokens/S${subject}_features_each_prf_grid5.h5py
+    fn_features_local=/user_data/mmhender/features/sketch_tokens/S${subject}_features_each_prf_grid5.h5py
     
-fi
+    echo Copying file back from $fn_features_node to $fn_features_local
+    scp $fn_features_node $fn_features_local
+    echo Done copying file!
+    rm $fn_features_node
+
+    fn_edges_node=/scratch/mmhender/features/sketch_tokens/S${subject}_edges_240.h5py
+    rm $fn_edges_node   
+    fn_features_big_node=/scratch/mmhender/features/sketch_tokens/S${subject}_features_240.h5py
+    rm $fn_features_big_node
+done

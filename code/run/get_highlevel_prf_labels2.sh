@@ -11,12 +11,15 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/utils/run/
 
 which_prf_grid=5
+do_indoor=1
+do_natural=1
+do_size=1
 
-subjects=(1 2 3 4 5 6 7 8)
+subjects=(5 6 7 8)
 
 for subject in ${subjects[@]}
 do
     echo $subject
-    python3 concat_prf_labels.py --subject $subject --which_prf_grid $which_prf_grid 
+    python3 get_highlevel_prf_labels.py --subject $subject --which_prf_grid $which_prf_grid --do_indoor $do_indoor --do_size $do_size --do_natural $do_natural
 
 done

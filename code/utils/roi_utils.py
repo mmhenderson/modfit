@@ -139,6 +139,8 @@ class multi_subject_roi_def(nsd_roi_def):
     performance) across all voxels in all subjects. 
     Can use "get_indices" same way as for single subject case - here it will return a long
     boolean array with length equal to the total number of voxels across all subjects.
+    Just make sure that the order of subjects here (arg 'subjects') is same as it was when 
+    concatenating the property of interest for analysis.
     """
     
     def __init__(self, subjects, volume_space=True, include_all=True, verbose=False):

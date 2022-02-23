@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+from matplotlib import cm
+
 import numpy as np
 import os
 from utils import roi_utils, nsd_utils
@@ -12,19 +14,36 @@ model_fitting/fit_model.py
 
 """
 
+def get_substr(out):   
+    if hasattr(out, 'keys'):        
+        # single subject case
+        substr = 'S%d'%out['subject']        
+    else:        
+        # multi subject case      
+        substr = 'concat '+', '.join(['S%d'%o['subject'] for o in out])      
+    return substr
+
 def plot_perf_summary(fitting_type, out, fig_save_folder=None):
     """
     Plot some general metrics of fit performance, across all voxels.
     """
     
-    best_losses = out['best_losses']
-    if len(best_losses.shape)==2:
-        best_losses = best_losses[:,0]
-    val_cc = out['val_cc'][:,0]
-    val_r2 = out['val_r2'][:,0]
-    best_lambdas = out['best_lambdas']
-    lambdas = out['lambdas']
-
+    if hasattr(out, 'keys'):        
+        # single subject case
+        best_losses = out['best_losses'][:,0]
+        val_cc = out['val_cc'][:,0]
+        val_r2 = out['val_r2'][:,0]
+        best_lambdas = out['best_lambdas']
+        lambdas = out['lambdas']        
+    else:        
+        # multi subject case, concat all voxels
+        best_losses =np.concatenate([o['best_losses'][:,0] for o in out], axis=0)
+        val_cc =np.concatenate([o['val_cc'][:,0] for o in out], axis=0)
+        val_r2 =np.concatenate([o['val_r2'][:,0] for o in out], axis=0)
+        best_lambdas =np.concatenate([o['best_lambdas'][:,0] for o in out], axis=0)
+        lambdas = out[0]['lambdas']
+        assert(np.all([np.all(lambdas==o['lambdas']) for o in out]))
+        
     plt.figure(figsize=(16,8));
 
     plt.subplot(2,2,1)
@@ -52,10 +71,11 @@ def plot_perf_summary(fitting_type, out, fig_save_folder=None):
     plt.xlabel('lambda value for best fit');
     plt.ylabel('number of voxels');
 
-    plt.suptitle('S%02d, %s'%(out['subject'], fitting_type))
+    plt.suptitle('%s\n%s'%(get_substr(out), fitting_type))
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.png'))
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.pdf'))
+
 
 def plot_summary_pycortex(fitting_type, out, port, roi_def=None):
     
@@ -65,6 +85,9 @@ def plot_summary_pycortex(fitting_type, out, port, roi_def=None):
     If roi_def is included, then will also plot ROI masks.
     """
     
+    if not hasattr(out, 'keys'):
+        raise ValueError('can only use this for single-subject data presently.')
+        
     substr = 'subj%02d'%out['subject']
 
     best_ecc_deg, best_angle_deg, best_size_deg = plot_prf_params.get_prf_pars_deg(out, screen_eccen_deg=8.4)
@@ -91,6 +114,9 @@ def plot_fit_summary_volume_space(fitting_type, out, roi_def=None, screen_eccen_
     as the pycortex plots, but is a good sanity check for brain mask/retinotopy.
     """     
     
+    if not hasattr(out, 'keys'):
+        raise ValueError('can only use this for single-subject data presently.')
+      
     if out['brain_nii_shape'] is None:
         raise ValueError('Cannot use this function for data that is in surface space, should use pycortex to visualize instead.')
 
@@ -150,7 +176,14 @@ def plot_noise_ceilings(fitting_type,out, fig_save_folder=None):
     Plot distribution of noise ceilings and NCSNR across all voxels.
     This is just a property of the voxels; should be same for any encoding model fit.
     """    
-    voxel_ncsnr = out['voxel_ncsnr'].ravel()[out['voxel_index'][0]]
+    
+    if hasattr(out, 'keys'):        
+        # single subject case
+        voxel_ncsnr = out['voxel_ncsnr'][out['voxel_index']]       
+    else:       
+        # multi subject case, concat all voxels
+        voxel_ncsnr = np.concatenate([o['voxel_ncsnr'][o['voxel_index']] for o in out], axis=0)
+    
     noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)
 
     plt.figure(figsize=(16,4));
@@ -166,7 +199,7 @@ def plot_noise_ceilings(fitting_type,out, fig_save_folder=None):
     plt.ylabel('number of voxels');
     plt.axvline(0,color='k')
 
-    plt.suptitle('S%02d, %s'%(out['subject'], fitting_type))
+    plt.suptitle('%s\n%s'%(get_substr(out), fitting_type))
     
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'noise_ceiling_dist.png'))
@@ -183,8 +216,13 @@ def plot_cc_each_roi(fitting_type, out, roi_def, skip_inds=None, fig_save_folder
     if skip_inds is None:
         skip_inds = []
     
-    val_cc = out['val_cc'][:,0]
-    
+    if hasattr(out, 'keys'):
+        # single subject case
+        val_cc = out['val_cc'][:,0]
+    else:
+        # multi subject case, concatenate
+        val_cc = np.concatenate([o['val_cc'][:,0] for o in out], axis=0)
+        
     if fig_size is None:
         fig_size = (16,12)
     plt.figure(figsize=fig_size)
@@ -212,42 +250,70 @@ def plot_cc_each_roi(fitting_type, out, roi_def, skip_inds=None, fig_save_folder
             plt.axvline(0,color='k')
             plt.title('%s (%d vox)'%(roi_names[rr], np.sum(inds_this_roi)))
 
-    plt.suptitle('Correlation coef. on validation set\nS%02d, %s'%(out['subject'], fitting_type));
+    plt.suptitle('Correlation coef. on validation set\n%s\n%s'%(get_substr(out), fitting_type));
 
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'corr_each_roi.pdf'))
         plt.savefig(os.path.join(fig_save_folder,'corr_each_roi.png'))
-        
+             
         
 def plot_r2_vs_nc(fitting_type, out, roi_def, skip_inds=None, \
-                  axlims=None, fig_save_folder=None, fig_size=None):
+                  axlims=None, fig_save_folder=None, fig_size=None, \
+                  sub_colors=None):
 
     """
     Create scatter plots for each ROI, comparing each voxel's R2 prediction to the noise ceiling.
     """
   
-    voxel_ncsnr = out['voxel_ncsnr'].ravel()[out['voxel_index'][0]]
+    if hasattr(out, 'keys'):
+        # single subject case
+        voxel_ncsnr = out['voxel_ncsnr'].ravel()[out['voxel_index'][0]]
+        noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
+        val_r2 = out['val_r2'][:,0]       
+        n_subs=1
+        n_vox_each = [val_r2.shape[0]]
+    else:
+        # multi subject case, concat all voxels
+        voxel_ncsnr = np.concatenate([o['voxel_ncsnr'][o['voxel_index']] for o in out], axis=0)
+        val_r2 = np.concatenate([o['val_r2'][:,0] for o in out], axis=0)
+        # color diff subjects differently
+        n_subs = len(out)
+        n_vox_each = np.array([o['val_r2'].shape[0] for o in out])
+    
+    group_color_inds = np.repeat(np.arange(n_subs), n_vox_each)
+    
+    if sub_colors is not None:
+        assert(sub_colors.shape[0]==n_subs)
+    else:
+        sub_colors = cm.Set2(np.linspace(0,1,n_subs))
+        sub_colors[:,3] = 0.1 # make each set of points transparent
+        
     noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
-    val_r2 = out['val_r2'][:,0]
+        
     dat2plot = np.concatenate([noise_ceiling[:,np.newaxis],val_r2[:,np.newaxis]], axis=1)
-    suptitle = 'S%02d, %s\nComparing model performance to noise ceiling'\
-                           %(out['subject'], fitting_type)
+    suptitle = '%s\n%s\nComparing model performance to noise ceiling'\
+                           %(get_substr(out), fitting_type)
     
     inds2use = np.ones(np.shape(val_r2))==1
     if axlims is None:
         axlims = [-0.1, 0.7]
-    sp = plot_utils.scatter_plot(color=None, xlabel='Noise Ceiling', ylabel='R2', \
+
+    sp = plot_utils.scatter_plot(color=sub_colors, xlabel='Noise Ceiling', ylabel='R2', \
                                  xlims=axlims, ylims=axlims, \
                                  xticks=[0, 0.2, 0.4, 0.6], yticks=[0, 0.2, 0.4, 0.6],\
                                  show_diagonal=True, show_axes=True);
     if fig_size is None:
         fig_size = (16,16)
 
-    plot_utils.create_roi_subplots(dat2plot, inds2use, sp, roi_def, skip_inds=skip_inds, \
-                        suptitle=suptitle, label_just_corner=True, figsize=fig_size)
-    
+    plot_utils.create_roi_subplots(dat2plot, inds2use, sp, roi_def, \
+                                   group_color_inds=group_color_inds, \
+                                   skip_inds=skip_inds, \
+                                   suptitle=suptitle, \
+                                   label_just_corner=True, \
+                                   figsize=fig_size)
+
     plt.gcf().subplots_adjust(bottom=0.5)
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'r2_vs_noiseceiling.png'))
         plt.savefig(os.path.join(fig_save_folder,'r2_vs_noiseceiling.pdf'))
-        
+          

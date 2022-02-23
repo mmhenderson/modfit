@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
+import copy
 
 def set_all_font_sizes(fs):
     
@@ -12,8 +13,9 @@ def set_all_font_sizes(fs):
     plt.rc('legend', fontsize=fs)    # legend fontsize
     plt.rc('figure', titlesize=fs)  # fontsize of the figure title
 
-def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=None, \
-                        suptitle=None, label_just_corner=True, figsize=None):
+def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
+                        group_color_inds=None, skip_inds=None, suptitle=None, \
+                        label_just_corner=True, figsize=None):
 
     """
     Create a grid of subplots for each ROI in our dataset.
@@ -22,6 +24,8 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=N
     inds2use: mask for which of n_voxels to use (based on e.g. R2 threshold)
     single_plot_object: either a scatter_plot, violin_plot, or bar_plot (see below)
     roi_def: roi definition object, from roi_utils.nsd_roi_def()
+    group_color_inds: for scatter plots only, do you want to assign different colors to 
+        subsets of the points? For example for different subjects.
     skip_inds: which of the n_rois in roi_def do you want to skip?
     suptitle: optional string for a sup-title
     label_just_corner: boolean, want to add axis labels just to the lower left plot?
@@ -35,7 +39,6 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=N
     if skip_inds is None:
         skip_inds = []
    
-    # Preferred feature type, based on unique var explained. Separate plot each ROI.
     if figsize==None:
         figsize=(24,20)
     plt.figure(figsize=figsize)
@@ -55,7 +58,11 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=N
             inds_this_roi = roi_def.get_indices(rr)
 
             data_this_roi = data[inds2use & inds_this_roi,:]
-
+            if group_color_inds is not None:
+                group_color_inds_this_roi = group_color_inds[inds2use & inds_this_roi]
+            else:   
+                group_color_inds_this_roi = None
+                
             pi = pi+1
             plt.subplot(npx, npy, pi)
 
@@ -64,7 +71,8 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, skip_inds=N
                 minimal_labels=False
             else:
                 minimal_labels=True
-            single_plot_object.create(data_this_roi, new_fig=False, minimal_labels=minimal_labels)
+            single_plot_object.create(data_this_roi, new_fig=False, minimal_labels=minimal_labels, \
+                                      group_color_inds=group_color_inds_this_roi)
 
     if suptitle is not None:
         plt.suptitle(suptitle)
@@ -111,7 +119,7 @@ class bar_plot:
         self.plot_counts = plot_counts
         self.groups = groups
         
-    def create(self, data, new_fig=True, figsize=None, minimal_labels=False):
+    def create(self, data, new_fig=True, figsize=None, minimal_labels=False, **kwargs):
     
         if new_fig:
             if figsize is None:
@@ -183,6 +191,7 @@ class scatter_plot:
     
     Use "create" method to pass in data and make the plot.
     data: [n_samples x 2], or [xvals, yvals] 
+    group_color_inds: [n_samples,], provides index into self.colors for each point.
     new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
     figsize: optional figure size
     minimal_labels: boolean, if True the plot will not have xticks/yticks/xlims/ylims
@@ -205,19 +214,38 @@ class scatter_plot:
         self.show_axes = show_axes   
         self.square = square
         
-    def create(self, data, new_fig=True, figsize=None, minimal_labels=False):
+    def create(self, data, new_fig=True, \
+               figsize=None, minimal_labels=False, **kwargs):
     
         if new_fig:
             if figsize is None:
                 figsize=(10,10)
             plt.figure(figsize=figsize)
-
-        if self.color is None:
-            color = [0.29803922, 0.44705882, 0.69019608, 1]
+            
+        group_color_inds = kwargs['group_color_inds'] if 'group_color_inds' in kwargs.keys() else None
+        if group_color_inds is not None:
+            group_color_inds = copy.deepcopy(group_color_inds).astype('int')
+            assert(np.all(group_color_inds>=0))
+            n_color_groups = np.max(group_color_inds)+1
         else:
+            group_color_inds = np.zeros((data.shape[0],))
+            n_color_groups = 1
+            
+        if self.color is None:
+            if group_color_inds is not None:
+                color = cm.tab10(np.linspace(0,1,n_color_groups))
+            else:
+                color = [0.29803922, 0.44705882, 0.69019608, 1]
+        else:
+            # if i specify n colors and there are fewer groups represented here, 
+            # this is ok (will keep colors consistent even if a subj is missing)
+            assert(self.color.shape[0]>=n_color_groups)
             color = self.color
             
-        plt.plot(data[:,0], data[:,1],'.',color=color)
+        for gg in range(n_color_groups):
+            inds = (group_color_inds==gg);
+            plt.plot(data[inds,0], data[inds,1],'.',color=color[gg,:])
+                                
         if self.square==True:
             plt.axis('square')
         
@@ -290,7 +318,7 @@ class violin_plot:
         self.ylims = ylims
         self.yticks = yticks
         
-    def create(self, data, new_fig=True, figsize=None, minimal_labels=False):
+    def create(self, data, new_fig=True, figsize=None, minimal_labels=False, **kwargs):
     
         if new_fig:
             if figsize is None:

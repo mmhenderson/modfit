@@ -19,8 +19,12 @@ def get_substr(out):
         # single subject case
         substr = 'S%d'%out['subject']        
     else:        
-        # multi subject case      
-        substr = 'concat '+', '.join(['S%d'%o['subject'] for o in out])      
+        # multi subject case   
+        if len(out)>1:
+            substr = 'combined '+', '.join(['S%d'%o['subject'] for o in out])  
+        else: 
+            substr = 'S%d'%(out[0]['subject'])
+            
     return substr
 
 def plot_perf_summary(fitting_type, out, fig_save_folder=None):

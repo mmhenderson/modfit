@@ -45,7 +45,7 @@ def write_binary_labels_csv(subject, stuff=False):
     
     return
 
-def write_binary_labels_csv_within_prf(subject, min_overlap_pct=0.10, stuff=False, \
+def write_binary_labels_csv_within_prf(subject, min_pix = 10, stuff=False, \
                                        which_prf_grid=1, debug=False):
     """
     Creating a csv file where columns are binary labels for the presence/absence of categories
@@ -76,7 +76,8 @@ def write_binary_labels_csv_within_prf(subject, min_overlap_pct=0.10, stuff=Fals
     # the number of pixels required to overlap will depend on how many
     # pixels the pRF occupies.
     mask_sums = np.sum(np.sum(prf_masks, axis=1), axis=1)
-    min_pix_req = np.ceil(mask_sums*min_overlap_pct)
+#     min_pix_req = np.ceil(mask_sums*min_overlap_pct)
+    min_pix_req = min_pix*np.ones((n_prfs,))
     
     # Initialize arrays to store all labels for each pRF
     if stuff:

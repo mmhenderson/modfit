@@ -21,9 +21,11 @@ import copy
 
 from PIL import Image
 
-from utils import default_paths, nsd_utils
-from model_fitting import initialize_fitting
+import argparse
 
+from utils import default_paths, nsd_utils, texture_utils
+from model_fitting import initialize_fitting
+from feature_extraction import fwrf_features
 
 class bent_gabor_feature_bank():
     
@@ -298,15 +300,23 @@ class bent_gabor_feature_bank():
         return np.fft.fftshift(all_conved_images, axes=(0,1))
  
             
-def measure_curvrect_stats(bank, file_list, batch_size=20, \
-                           resize=True, patchnorm=False, crop_one=False):
+def measure_curvrect_stats(bank, image_brick, batch_size=20, \
+                           resize=True, patchnorm=False):
     
-    n_images = len(file_list)
+    # image brick should be [n_images x h x w]
+    
+    n_images = image_brick.shape[0]
+    
     n_batches = int(np.ceil(n_images/batch_size))
 
     bend_values = bank.bend_values
     scale_values = bank.scale_values
     image_size = bank.image_size
+    print(image_brick.shape)
+    print(image_brick.shape[1:3])
+    print(image_size)
+    assert(np.all(image_size==np.array(image_brick.shape[1:3])))
+    assert(np.mod(image_brick.shape[1],2)==0) # must have even n pixels
     
     curv_score_overall = np.zeros((n_images,))
     curv_score_each_bend = np.zeros((n_images, len(bend_values)-1))
@@ -325,39 +335,41 @@ def measure_curvrect_stats(bank, file_list, batch_size=20, \
 
         batch_inds = np.arange(batch_size*bb, np.min([batch_size*(bb+1), n_images]))
 
-        file_list_batch = np.array(file_list)[batch_inds]
-        image_list = []
-        print('loading images, batch %d of %d'%(bb, n_batches))
+        image_batch = np.moveaxis(image_brick[batch_inds,:,:], [0,1,2], [2,0,1])
+        
+#         file_list_batch = np.array(file_list)[batch_inds]
+#         image_list = []
+#         print('loading images, batch %d of %d'%(bb, n_batches))
 
-        for fi, filename in enumerate(file_list_batch):
+#         for fi, filename in enumerate(file_list_batch):
 
-            image_raw = skio.imread(filename)
+#             image_raw = skio.imread(filename)
             
-            if crop_one:
-                # this means that original image size was odd, so will trim off one row of pixels.
-                assert(image_raw.shape[0]==(image_size+1) and image_raw.shape[1]==(image_size+1))
-                image_raw = image_raw[0:image_size, 0:image_size]
+#             if crop_one:
+#                 # this means that original image size was odd, so will trim off one row of pixels.
+#                 assert(image_raw.shape[0]==(image_size+1) and image_raw.shape[1]==(image_size+1))
+#                 image_raw = image_raw[0:image_size, 0:image_size]
                 
-            if resize:
-                image_resized = resize(image_raw, [image_size, image_size])
-            else:
-                assert(image_raw.shape[0]==image_size and image_raw.shape[1]==image_size)
-                image_resized = image_raw
+#             if resize:
+#                 image_resized = resize(image_raw, [image_size, image_size])
+#             else:
+#                 assert(image_raw.shape[0]==image_size and image_raw.shape[1]==image_size)
+#                 image_resized = image_raw
                 
-            if len(image_resized.shape)>2:              
-                image_gray = rgb2gray(image_resized)
-            else:
-                image_gray = image_resized
+#             if len(image_resized.shape)>2:              
+#                 image_gray = rgb2gray(image_resized)
+#             else:
+#                 image_gray = image_resized
                 
-            if patchnorm:
-                image_normed = patchnorm(image_gray)
-            else:
-                image_normed = image_gray
+#             if patchnorm:
+#                 image_normed = patchnorm(image_gray)
+#             else:
+#                 image_normed = image_gray
             
                 
-            image_list.append(image_normed)
+#             image_list.append(image_normed)
 
-        image_batch = np.dstack(image_list)
+#         image_batch = np.dstack(image_list)
 
         print('processing images w filter bank')
         sys.stdout.flush()
@@ -454,8 +466,7 @@ def measure_curvrect_stats(bank, file_list, batch_size=20, \
     curv_rect_index = (mean_curv_z - mean_rect_z - mean_lin_z) / \
                       (mean_curv_z + mean_rect_z + mean_lin_z)
 
-    curvrect = {'file_list': file_list, 
-                 'curv_score_overall': curv_score_overall, 
+    curvrect = {'curv_score_overall': curv_score_overall, 
                  'rect_score_overall': rect_score_overall, 
                  'curv_score_each_bend': curv_score_each_bend, 
                  'rect_score_each_bend': rect_score_each_bend, 
@@ -505,27 +516,46 @@ def patchnorm(image):
     return local_normed_image
 
     
-def measure_sketch_tokens_top_ims_curvrect(debug=False):
+def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
     
     freq_values_cyc_per_pix = [0.5, 0.25, 0.125, 0.0625, 0.03125]
     bend_values = [0, 0.04, 0.08, 0.16, 0.32, 0.64]
     orient_values = np.linspace(0,np.pi*2, 9)[0:8]
     
-    folder2load = os.path.join(default_paths.sketch_token_feat_path, 'top_im_patches')
+    subjects = np.arange(1,9)
+    path_to_load = default_paths.sketch_token_feat_path
+    feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
+                                which_prf_grid=which_prf_grid, \
+                                feature_type='sketch_tokens',\
+                                use_pca_feats = False) for ss in subjects]
+    n_features = feat_loaders[0].max_features
+    
+    val_inds_ss = np.array(nsd_utils.get_subj_df(subject=1)['shared1000'])
+    trninds_ss = np.where(val_inds_ss==False)[0]
+        
+    ims_list = []
+    for ss in subjects:
+        images = nsd_utils.get_image_data(subject=ss)
+        images = images[trninds_ss,:,:,:]
+        image_size = images.shape[2:4]
+        images = nsd_utils.image_uncolorize_fn(images)
+        ims_list.append(images)
+
+    prf_models = initialize_fitting.get_prf_models(which_prf_grid)
+    n_prfs = prf_models.shape[0]
+    
+    
+#     folder2load = os.path.join(default_paths.sketch_token_feat_path, 'top_im_patches')
     fn2save = os.path.join(default_paths.sketch_token_feat_path, 'feature_curvrect_stats.npy')
     
     top_n_images = 96;
     subjects = np.arange(1,9)
     top_n_each_subj = int(np.ceil(top_n_images/len(subjects)))
     
-    which_prf_grid=5
-    prf_models = initialize_fitting.get_prf_models(which_prf_grid)
-    n_prfs = prf_models.shape[0]
+#     sublist = np.repeat(subjects, top_n_each_subj)
+#     ranklist = np.tile(np.arange(top_n_each_subj), [len(subjects),])
     
-    sublist = np.repeat(subjects, top_n_each_subj)
-    ranklist = np.tile(np.arange(top_n_each_subj), [len(subjects),])
-    
-    n_features = 150
+#     n_features = 150
     curv_rect_index = np.zeros((top_n_images, n_prfs, n_features))
     
     mean_curv = np.zeros((top_n_images, n_prfs, n_features))
@@ -546,48 +576,68 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False):
     best_rect_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     best_lin_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     
-    
+      
     for mm in range(n_prfs):
         
         if debug and mm>1:
             continue
+            
         print('Processing pRF %d of %d'%(mm, n_prfs))
         
-        # getting the size from first file, all others are same size.
-        imfn = os.path.join(folder2load, 'S1_prf%d_feature0_ranked0.jpg'%mm)
-        image_size = skio.imread(imfn).shape[0]
-        if np.mod(image_size,2)!=0:
-            image_size-=1
-            crop_one = True
-        else:
-            crop_one = False
-        # adjusting the freqs so that they are constant cycles/pixel. 
-        # since these images were cropped out of larger images at a fixed size, 
-        # want this to be as if we filtered the entire image and then cropped.
-        freq_values_cyc_per_image = np.array(freq_values_cyc_per_pix)*image_size
-        bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
-                                       bend_values = bend_values, \
-                                       orient_values = orient_values, \
-                                       image_size=image_size)
-    
+
+        bbox = texture_utils.get_bbox_from_prf(prf_models[mm,:], \
+                                   image_size, n_prf_sd_out=2, \
+                                   min_pix=None, verbose=False, \
+                                   force_square=False)
+
         for ff in range(n_features):
             
             if debug and ff>1:
                 continue
-            print('Processing feat %d of %d'%(ff, n_features))
-        
-            # get all n filenames
-            file_list = []
-            for ii in range(top_n_images):               
-                imfn = os.path.join(folder2load, 'S%d_prf%d_feature%d_ranked%d.jpg'%\
-                                           (sublist[ii], mm, ff, ranklist[ii]))
-                file_list.append(imfn)
+            print('Processing feature %d of %d'%(ff, n_features))
+            
+            
+            # making a stack of images to analyze, across all subs
+            top_images_cropped = []
+            
+            for si, ss in enumerate(subjects):
+
+                # get sketch tokens model response to each image at this pRF position
+                feat, _ = feat_loaders[si].load(trninds_ss, prf_model_index=mm)
+                assert(feat.shape[0]==ims_list[si].shape[0])
+
+                # sort in descending order, to get top n images
+                sorted_order = np.flip(np.argsort(feat[:,ff]))
+            
+                top_images = ims_list[si][sorted_order[0:top_n_each_subj],:,:,:]
+
+                # taking just the patch around this pRF, because this is the region that 
+                # contributed to computing the sketch tokens feature
+                top_cropped = top_images[:,0,bbox[0]:bbox[1], bbox[2]:bbox[3]]
+
+                top_images_cropped.append(top_cropped)
                 
-            print('first image is %s'%file_list[0])
-            print('last image is %s'%file_list[-1])
-            curvrect = measure_curvrect_stats(bank, file_list, batch_size=20, \
-                                              resize=False, patchnorm=False, \
-                                              crop_one=crop_one)
+            top_images_cropped = np.concatenate(top_images_cropped, axis=0)
+                
+            assert(top_images_cropped.shape[0]==top_n_images)
+            cropped_size = top_images_cropped.shape[2]
+            if np.mod(cropped_size,2)!=0:
+                cropped_size-=1
+                top_images_cropped = top_images_cropped[:,0:cropped_size, 0:cropped_size]  
+       
+            # adjusting the freqs so that they are constant cycles/pixel. 
+            # since these images were cropped out of larger images at a fixed size, 
+            # want this to be as if we filtered the entire image and then cropped.
+            # but it should be faster just to filter the crops.
+            freq_values_cyc_per_image = np.array(freq_values_cyc_per_pix)*cropped_size
+            bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
+                                           bend_values = bend_values, \
+                                           orient_values = orient_values, \
+                                           image_size=cropped_size)
+    
+            curvrect = measure_curvrect_stats(bank, image_brick=top_images_cropped, \
+                                              batch_size=20, \
+                                              resize=False, patchnorm=False)
           
             curv_rect_index[:,mm,ff] = curvrect['curv_rect_index']
             mean_curv[:,mm,ff] = np.mean(curvrect['mean_curv_over_space'], axis=1)
@@ -661,6 +711,16 @@ def run_test():
 if __name__ == '__main__':
     
     
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--debug", type=int,default=0,
+                    help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    
+    args = parser.parse_args()
+
+    if args.debug:
+        print('DEBUG MODE\n')
+        
 #     run_test()
 
-    measure_sketch_tokens_top_ims_curvrect(debug=False)
+    measure_sketch_tokens_top_ims_curvrect(debug=args.debug==1)

@@ -3,6 +3,8 @@ from matplotlib import cm
 
 import numpy as np
 import os
+import copy
+
 from utils import roi_utils, nsd_utils
 from plotting import plot_utils, pycortex_plot_utils, plot_prf_params
 
@@ -90,25 +92,56 @@ def plot_summary_pycortex(fitting_type, out, port, roi_def=None):
     """
     
     if not hasattr(out, 'keys'):
-        raise ValueError('can only use this for single-subject data presently.')
+        # multi subject case
+        subjects = [o['subject'] for o in out]
+    else:
+        # single subject case 
+        subjects = [out['subject']]
+        out = [copy.deepcopy(out)]
         
-    substr = 'subj%02d'%out['subject']
+    names_each = ['pRF eccentricity', 'pRF angle','pRF size', \
+              'Correlation (validation set)','R2 (validation set)']
+    mins_each = [0, 0, 0, 0, 0]
+    maxes_each = [9, 360, 9, 0.8, 0.6]
+    cmaps_each = ['PRGn', 'Retinotopy_RYBCR', 'PRGn', 'PuBu','PuBu']
 
-    best_ecc_deg, best_angle_deg, best_size_deg = plot_prf_params.get_prf_pars_deg(out, screen_eccen_deg=8.4)
-    val_cc = out['val_cc'][:,0]
-    val_r2 = out['val_r2'][:,0]
-   
-    maps  = [best_ecc_deg, best_angle_deg, best_size_deg, val_cc, val_r2]
-    names = ['pRF eccentricity', 'pRF angle','pRF size', 'Correlation (validation set)','R2 (validation set)']
-    mins = [0, 0, 0, 0, 0]
-    maxes = [9, 360, 9, 0.8, 0.6]
-    cmaps = ['PRGn', 'Retinotopy_RYBCR', 'PRGn', 'PuBu','PuBu']
+    title = '%s, %s'%(get_substr(out), fitting_type);
+
+    vox2plot = []
+    maps = []
+    cmaps = []
+    mins = []
+    maxes = []
+    subject_map_inds = []
+    names = []
+
+    for si, ss in enumerate(subjects):
+
+        best_ecc_deg, best_angle_deg, best_size_deg = \
+                    plot_prf_params.get_prf_pars_deg(out[si], screen_eccen_deg=8.4)
+        val_cc = out[si]['val_cc'][:,0]
+        val_r2 = out[si]['val_r2'][:,0]
+        maps += [best_ecc_deg, best_angle_deg, best_size_deg, val_cc, val_r2]
+        
+        vox2plot.append(val_r2>0.01)
+        
+        names += ['S%d: %s'%(ss, name) for name in names_each]
+        cmaps += cmaps_each
+        mins += mins_each
+        maxes += maxes_each
+        subject_map_inds += [si for name in names_each]
+
+    voxel_mask = [o['voxel_mask'] for o in out]
+    nii_shape = [o['brain_nii_shape'] for o in out]
+    volume_space = out[0]['volume_space']
     
-    pycortex_plot_utils.plot_maps_pycortex(out['subject'], port, maps, names, mins=mins, maxes=maxes, cmaps=cmaps, \
-                                  title = 'S%02d %s'%(out['subject'], fitting_type), vox2plot=None, 
-                                  roi_def=roi_def, voxel_mask = out['voxel_mask'], \
-                                  nii_shape = out['brain_nii_shape'], \
-                                  volume_space=out['volume_space'])
+    pycortex_plot_utils.plot_maps_pycortex(subjects, port, maps, names, \
+                            subject_map_inds=subject_map_inds, \
+                            mins=mins, maxes=maxes, cmaps=cmaps, \
+                            title=title, vox2plot = vox2plot, roi_def=roi_def, \
+                            voxel_mask =voxel_mask, \
+                            nii_shape = nii_shape, \
+                            volume_space=volume_space)
 
 def plot_fit_summary_volume_space(fitting_type, out, roi_def=None, screen_eccen_deg = 8.4, \
                                 fig_save_folder=None):

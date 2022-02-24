@@ -62,6 +62,33 @@ def invertible_sort(sequence):
     
     return order2sort, order2reverse
 
+def double_sort(array, sort_by1, sort_by2):
+
+    """
+    Sort an array twice, first along one dimension and then by another dimension
+    (i.e. within levels of the first dim)
+    """
+    array_orig = np.squeeze(array)
+    assert(len(np.shape(array))==1)
+    sort_by1 = np.squeeze(sort_by1)
+    assert(len(np.shape(sort_by1))==1)
+    sort_by2 = np.squeeze(sort_by2)
+    assert(len(np.shape(sort_by2))==1)
+    
+    new_order = np.zeros(np.shape(array))
+    n1 = len(np.unique(sort_by1))
+    vals1 = np.unique(sort_by1)
+    n2 = len(np.unique(sort_by2))
+    for ni in range(n1):
+        orig_inds = np.where(np.array(sort_by1)==vals1[ni])[0];
+        new_inds = np.arange(ni*n2, (ni+1)*n2)
+        sorder = np.argsort(np.array(sort_by2)[orig_inds])
+        new_order[new_inds] = orig_inds[sorder]
+        
+    new_order = new_order.astype(int)
+    
+    return array[new_order], new_order
+
 def iterate_range(start, length, batchsize):
     batch_count = int(length // batchsize )
     residual = int(length % batchsize)

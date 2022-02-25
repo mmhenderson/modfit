@@ -83,7 +83,7 @@ def plot_perf_summary(fitting_type, out, fig_save_folder=None):
         plt.savefig(os.path.join(fig_save_folder,'fit_summary.pdf'))
 
 
-def plot_summary_pycortex(fitting_type, out, port, roi_def=None):
+def plot_summary_pycortex(fitting_type, out, port, roi_def=None, simplest_roi_maps=False):
     
     """
     Use pycortex webgl function to plot some summary statistics for encoding model fits, in surface space.
@@ -141,7 +141,8 @@ def plot_summary_pycortex(fitting_type, out, port, roi_def=None):
                             title=title, vox2plot = vox2plot, roi_def=roi_def, \
                             voxel_mask =voxel_mask, \
                             nii_shape = nii_shape, \
-                            volume_space=volume_space)
+                            volume_space=volume_space, \
+                            simplest_roi_maps=simplest_roi_maps)
 
 def plot_fit_summary_volume_space(fitting_type, out, roi_def=None, screen_eccen_deg = 8.4, \
                                 fig_save_folder=None):

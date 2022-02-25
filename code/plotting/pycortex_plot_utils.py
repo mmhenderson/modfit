@@ -5,7 +5,8 @@ import cortex
 def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
                         mins=None, maxes=None, cmaps=None, \
                         title=None, vox2plot = None, roi_def=None,  \
-                        volume_space=None, nii_shape=None, voxel_mask=None):
+                        volume_space=None, nii_shape=None, voxel_mask=None, 
+                        simplest_roi_maps=False):
 
     """
     Plot a set of maps in pycortex surface space, using cortex.webshow()
@@ -35,7 +36,9 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
         (if >1 subject, should be a list n subjects long)
     volume_space: is the data in volume space (from a 3D nifti file?)
         otherwise assume it is in surface space (i.e. each voxel is a mesh vertex)
-    
+    simplest_roi_maps: want to draw all ROIs on one map, color coded only by "type"?
+        (i.e. V1-V2 are same color, PPA/RSC are same color) 
+        Only used if you have specified roi_def.
     """
     
     if not hasattr(subject, '__len__') or len(subject)==1:
@@ -53,7 +56,8 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
             assert(len(roi_def.ss_roi_defs)==len(subject))
             dat2plot = {}
             for si, ss in enumerate(subject):
-                dat2plot.update(get_roi_maps_for_pycortex(ss, roi_def.ss_roi_defs[si]))          
+                dat2plot.update(get_roi_maps_for_pycortex(ss, roi_def.ss_roi_defs[si],\
+                                                          simplest_maps=simplest_roi_maps))          
             voxel_mask = roi_def.voxel_mask
             nii_shape = roi_def.nii_shape
         else:
@@ -117,7 +121,7 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
     cortex.webshow(dat2plot, open_browser=True, port=port, \
                    title = title)
 
-def get_roi_maps_for_pycortex(subject, roi_def):    
+def get_roi_maps_for_pycortex(subject, roi_def, simplest_maps=False):    
     """
     Create a dictionary of cortex.Vertex labels for ROIs, to be plotted in PyCortex.
     
@@ -127,25 +131,45 @@ def get_roi_maps_for_pycortex(subject, roi_def):
     """ 
     substr = 'subj%02d'%subject
     
-    retlabs = roi_def.retlabs
-    facelabs = roi_def.facelabs
+    retlabs = roi_def.retlabs 
+    has_ret = retlabs>-1
+    facelabs = roi_def.facelabs 
+    has_face = facelabs>-1
     placelabs = roi_def.placelabs
-    bodylabs = roi_def.bodylabs
-    retlabs[retlabs==-1] = np.nan
-    facelabs[facelabs==-1] = np.nan
-    placelabs[placelabs==-1] = np.nan
-    bodylabs[bodylabs==-1] = np.nan
+    has_place=placelabs>-1
+    bodylabs = roi_def.bodylabs 
+    has_body = bodylabs>-1
+    
+    retlabs[~has_ret] = np.nan
+    facelabs[~has_face] = np.nan
+    placelabs[~has_place] = np.nan
+    bodylabs[~has_body] = np.nan
 
     volume_space = roi_def.volume_space
     voxel_mask = roi_def.voxel_mask
     nii_shape = roi_def.nii_shape
 
     if volume_space:
-#         print('Data is in 3d volume space')
+        
         xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
         mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
-
-        dat2plot = {'S%d ROI labels (retinotopic)'%subject: \
+        
+        if simplest_maps:
+            roi_labs = np.nan*np.ones(np.shape(retlabs))
+            roi_labs[has_ret] = 0
+            roi_labs[has_face] = 1
+            roi_labs[has_body] = 2
+            roi_labs[has_place] = 3
+            overlap = (has_ret.astype(int)+has_face.astype(int)+\
+                       has_body.astype(int)+has_place.astype(int))>1
+            roi_labs[overlap] = 4;
+            dat2plot = {'S%d ROI labels (ret/face/body/place/overlap)'%subject: \
+                    cortex.Volume(data=get_full_volume(roi_labs, voxel_mask, nii_shape),\
+                    subject=substr, cmap='BROYG',\
+                    vmin = 0, vmax = 4,\
+                    xfmname=xfmname, mask=mask_3d)}
+        else:
+            dat2plot = {'S%d ROI labels (retinotopic)'%subject: \
                     cortex.Volume(data=get_full_volume(retlabs, voxel_mask, nii_shape),\
                     subject=substr, cmap='Accent',\
                     vmin = 0, vmax = np.max(retlabs[~np.isnan(retlabs)])+1,\
@@ -167,7 +191,6 @@ def get_roi_maps_for_pycortex(subject, roi_def):
                      xfmname=xfmname, mask=mask_3d)}
 
     else:
-#         print('Data is in nativesurface space')
 
         dat2plot = {'S%d ROI labels (retinotopic)'%subject: \
                     cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \

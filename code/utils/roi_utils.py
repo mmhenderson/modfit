@@ -4,8 +4,6 @@ import pandas as pd
 import nibabel as nib
 import copy
 
-# ret_group_names = ['V1', 'V2', 'V3','hV4','VO1-2','PHC1-2','LO1-2','TO1-2','V3ab','IPS0-5','SPL1','FEF']
-# ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[18,19,20,21,22,23],[24],[25]]
 ret_group_names = ['V1', 'V2', 'V3','hV4','VO1-2','PHC1-2','LO1-2','TO1-2','V3ab',\
                    'IPS0-1','IPS2-5','SPL1','FEF']
 ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[18,19],[20,21,22,23],[24],[25]]
@@ -21,28 +19,36 @@ class nsd_roi_def():
     Kastner 2015 atlas and pRF mapping data), and category-selective (face, place, body) ROIs.
     Definitions will be partly overlapping between different methods 
     (for instance a voxel can be in both V3A and OPA)
+    If skip_areas is provided, this is an index into the original n_rois list, for which
+    you would like to skip here. Will reduce the total n_rois.
     """
     
-    def __init__(self, subject, volume_space=True):
+    def __init__(self, subject, volume_space=True, skip_areas=[]):
         
         self.subject=subject
         self.volume_space=volume_space
        
-        self.__init_names__()
+        self.__init_names__()        
         self.__init_labels__()
-        
+        if len(skip_areas)>0:
+            self.__remove_skipped__(skip_areas)
+            
     def __init_names__(self):
         
         ret, face, place, body = load_roi_label_mapping(self.subject)
         self.face_names = face[1]
         self.place_names = place[1]
         self.body_names = body[1]
-        self.ret_names = ret_group_names
+        self.ret_names = copy.deepcopy(ret_group_names)
+
+        self.__combine_names__()
+        
+    def __combine_names__(self):
         
         self.nret = len(self.ret_names)
         self.nface = len(self.face_names)
         self.nplace = len(self.place_names)
-        self.nbody = len(self.body_names)    
+        self.nbody = len(self.body_names)
         
         self.n_rois = len(self.ret_names) + len(self.face_names) \
                         + len(self.place_names) + len(self.body_names)
@@ -81,6 +87,37 @@ class nsd_roi_def():
             inds_this_roi = np.isin(roi_labels_retino, ret_group_inds[rr])
             self.retlabs[inds_this_roi] = rr
 
+    def __remove_skipped__(self, skip_areas):
+        
+        rc=0; fc=0; pc=0; bc=0;
+        for aa in skip_areas:
+            if self.is_ret[aa]:
+                ind = aa-rc
+                self.ret_names.remove(self.ret_names[ind])
+                self.retlabs[self.retlabs==ind] = -1
+                self.retlabs[self.retlabs>ind] -= 1
+                rc+=1
+            elif self.is_face[aa]:
+                ind = aa-self.nret-fc
+                self.face_names.remove(self.face_names[ind])
+                self.facelabs[self.facelabs==ind] = -1
+                self.facelabs[self.facelabs>ind] -= 1
+                fc+=1
+            elif self.is_place[aa]:
+                ind = aa-self.nret-self.nface-pc
+                self.place_names.remove(self.place_names[ind])
+                self.placelabs[self.placelabs==ind] = -1
+                self.placelabs[self.placelabs>ind] -= 1
+                pc+=1
+            elif self.is_body[aa]:
+                ind = aa-self.nret-self.nface-self.nplace-bc
+                self.body_names.remove(self.body_names[ind])
+                self.bodylabs[self.bodylabs==ind] = -1
+                self.bodylabs[self.bodylabs>ind] -= 1
+                bc+=1
+            
+        self.__combine_names__()
+                
     def get_indices_from_name(self, roi_name):
         
         if np.any([name==roi_name for name in self.roi_names]):
@@ -143,16 +180,16 @@ class multi_subject_roi_def(nsd_roi_def):
     concatenating the property of interest for analysis.
     """
     
-    def __init__(self, subjects, volume_space=True):
+    def __init__(self, subjects, volume_space=True, skip_areas=[]):
      
         # first initialize object with just first subject, most of
         # the properties are same for all subs (ROI names etc.)
-        super().__init__(subject=subjects[0], volume_space=volume_space)
+        super().__init__(subject=subjects[0], volume_space=volume_space, skip_areas=skip_areas)
         
         self.subjects = subjects
         
         # now getting subject-specific properties, labels for each voxel.
-        self.ss_roi_defs = [nsd_roi_def(ss, volume_space=volume_space) \
+        self.ss_roi_defs = [nsd_roi_def(ss, volume_space=volume_space, skip_areas=skip_areas) \
                             for ss in self.subjects]
         
         self.__concat_labels__()

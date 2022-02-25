@@ -156,7 +156,7 @@ def fit_fwrf(args):
     # decide what voxels to use  
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
                                 roi_utils.get_voxel_roi_info(args.subject, \
-                                args.volume_space, include_all=True)
+                                args.volume_space)
 
     if (args.single_sess is not None) and (args.single_sess!=0):
         sessions = np.array([args.single_sess])

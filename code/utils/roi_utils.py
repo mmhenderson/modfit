@@ -46,19 +46,19 @@ class nsd_roi_def():
     def __combine_names__(self):
         
         self.nret = len(self.ret_names)
-        self.nface = len(self.face_names)
         self.nplace = len(self.place_names)
+        self.nface = len(self.face_names)        
         self.nbody = len(self.body_names)
         
         self.n_rois = len(self.ret_names) + len(self.face_names) \
                         + len(self.place_names) + len(self.body_names)
-        self.roi_names = self.ret_names+self.face_names+self.place_names+self.body_names
+        self.roi_names = self.ret_names+self.place_names+self.face_names+self.body_names
 
         self.is_ret = np.arange(0, self.n_rois)<self.nret
-        self.is_face = (np.arange(0, self.n_rois)>=self.nret) & \
-                        (np.arange(0, self.n_rois)<self.nret+self.nface)
-        self.is_place = (np.arange(0, self.n_rois)>=self.nret+self.nface) & \
-                        (np.arange(0, self.n_rois)<self.nret+self.nface+self.nplace)
+        self.is_place = (np.arange(0, self.n_rois)>=self.nret) & \
+                        (np.arange(0, self.n_rois)<self.nret+self.nplace)
+        self.is_face = (np.arange(0, self.n_rois)>=self.nret+self.nplace) & \
+                        (np.arange(0, self.n_rois)<self.nret+self.nplace+self.nface)        
         self.is_body = np.arange(0, self.n_rois)>=self.nret+self.nface+self.nplace
         
     def __init_labels__(self):
@@ -73,10 +73,10 @@ class nsd_roi_def():
                     copy.deepcopy(voxel_roi)
         
         # make these zero-indexed, where 0 is first ROI and -1 is not in any ROI
-        self.facelabs = roi_labels_face[voxel_index] - 1        
-        self.facelabs[self.facelabs==-2] = -1
         self.placelabs = roi_labels_place[voxel_index] - 1
         self.placelabs[self.placelabs==-2] = -1
+        self.facelabs = roi_labels_face[voxel_index] - 1        
+        self.facelabs[self.facelabs==-2] = -1        
         self.bodylabs = roi_labels_body[voxel_index] - 1
         self.bodylabs[self.bodylabs==-2] = -1
 
@@ -97,18 +97,18 @@ class nsd_roi_def():
                 self.retlabs[self.retlabs==ind] = -1
                 self.retlabs[self.retlabs>ind] -= 1
                 rc+=1
-            elif self.is_face[aa]:
-                ind = aa-self.nret-fc
-                self.face_names.remove(self.face_names[ind])
-                self.facelabs[self.facelabs==ind] = -1
-                self.facelabs[self.facelabs>ind] -= 1
-                fc+=1
             elif self.is_place[aa]:
-                ind = aa-self.nret-self.nface-pc
+                ind = aa-self.nret-pc
                 self.place_names.remove(self.place_names[ind])
                 self.placelabs[self.placelabs==ind] = -1
                 self.placelabs[self.placelabs>ind] -= 1
                 pc+=1
+            elif self.is_face[aa]:
+                ind = aa-self.nret-self.nplace-fc
+                self.face_names.remove(self.face_names[ind])
+                self.facelabs[self.facelabs==ind] = -1
+                self.facelabs[self.facelabs>ind] -= 1
+                fc+=1           
             elif self.is_body[aa]:
                 ind = aa-self.nret-self.nface-self.nplace-bc
                 self.body_names.remove(self.body_names[ind])
@@ -134,10 +134,10 @@ class nsd_roi_def():
         
         if self.is_ret[rr]:
             inds_this_roi = self.retlabs==rr
-        elif self.is_face[rr]:
-            inds_this_roi = self.facelabs==(rr-self.nret)
         elif self.is_place[rr]:
-            inds_this_roi = self.placelabs==(rr-self.nret-self.nface)
+            inds_this_roi = self.placelabs==(rr-self.nret)
+        elif self.is_face[rr]:
+            inds_this_roi = self.facelabs==(rr-self.nret-self.nplace)        
         elif self.is_body[rr]:
             inds_this_roi = self.bodylabs==(rr-self.nret-self.nface-self.nplace)
 

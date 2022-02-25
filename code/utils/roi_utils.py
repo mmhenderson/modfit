@@ -4,8 +4,11 @@ import pandas as pd
 import nibabel as nib
 import copy
 
-ret_group_names = ['V1', 'V2', 'V3','hV4','VO1-2','PHC1-2','LO1-2','TO1-2','V3ab','IPS0-5','SPL1','FEF']
-ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[18,19,20,21,22,23],[24],[25]]
+# ret_group_names = ['V1', 'V2', 'V3','hV4','VO1-2','PHC1-2','LO1-2','TO1-2','V3ab','IPS0-5','SPL1','FEF']
+# ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[18,19,20,21,22,23],[24],[25]]
+ret_group_names = ['V1', 'V2', 'V3','hV4','VO1-2','PHC1-2','LO1-2','TO1-2','V3ab',\
+                   'IPS0-1','IPS2-5','SPL1','FEF']
+ret_group_inds = [[1,2],[3,4],[5,6],[7],[8,9],[10,11],[14,15],[12,13],[16,17],[18,19],[20,21,22,23],[24],[25]]
 
 from utils import default_paths
 from utils import nsd_utils

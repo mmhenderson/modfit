@@ -722,7 +722,8 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
     top_two = np.load(top_two_fn, allow_pickle=True).item()
     
     # list all the attributes we want to look at here
-    discrim_type_list = ['indoor_outdoor','natural_humanmade','animacy','real_world_size']
+    discrim_type_list = ['indoor_outdoor','natural_humanmade','animacy','real_world_size_binary',\
+                         'real_world_size_continuous']
 
     discrim_type_list+=supcat_names # presence or absence of each superordinate category
     # within each superordinate category, will label the basic-level sub-categories 
@@ -791,10 +792,15 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
                 colnames = list(nat_hum_df.keys())
             
             elif 'real_world_size' in discrim_type:
-                # use just small and big, ignoring medium.
-                labels = np.array(size_df)[:,[0,2]].astype(np.float32)
-                colnames = [size_df.keys()[0], size_df.keys()[2]]
-
+                if 'binary' in discrim_type:
+                    # use just small and big, ignoring medium.
+                    labels = np.array(size_df)[:,[0,2]].astype(np.float32)
+                    colnames = [size_df.keys()[0], size_df.keys()[2]]
+                elif 'continuous' in discrim_type:
+                    # use all three levels, for a continuous variable.
+                    labels = np.array(size_df).astype(np.float32)
+                    colnames = list(size_df.keys())
+                    
             elif 'animacy' in discrim_type:
                 supcat_labels = np.array(coco_things_df)[:,0:12]
                 animate_supcats = [1,9]

@@ -82,6 +82,7 @@ def fit_fwrf(args):
             'sem_corr_each_axis': sem_corr_each_axis,
             'discrim_type_list': discrim_type_list,
             'n_sem_samp_each_axis': n_sem_samp_each_axis,
+            'mean_each_sem_level': mean_each_sem_level,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -139,6 +140,7 @@ def fit_fwrf(args):
     sem_corr_each_axis = None
     discrim_type_list = None
     n_sem_samp_each_axis = None
+    mean_each_sem_level = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
@@ -248,6 +250,7 @@ def fit_fwrf(args):
                 sem_corr_each_axis = last_saved['sem_corr_each_axis']
                 discrim_type_list = last_saved['discrim_type_list']
                 n_sem_samp_each_axis = last_saved['n_sem_samp_each_axis']
+                mean_each_sem_level = last_saved['mean_each_sem_level']
             else:
                 voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
         else:
@@ -539,7 +542,7 @@ def fit_fwrf(args):
                                                         image_inds=val_image_order, \
                                                         models=prf_models,verbose=False, \
                                                         debug=args.debug)
-                discrim_tmp, corr_tmp, n_samp_tmp = \
+                discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
                         fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                                           labels_all, unique_labs_each, \
                                                           val_voxel_data_pred,\
@@ -551,9 +554,12 @@ def fit_fwrf(args):
                                                      dtype=corr_tmp.dtype)
                     n_sem_samp_each_axis = np.zeros((n_voxels, n_samp_tmp.shape[1], n_samp_tmp.shape[2]), \
                                                      dtype=n_samp_tmp.dtype)
+                    mean_each_sem_level = np.zeros((n_voxels, mean_tmp.shape[1], mean_tmp.shape[2]), \
+                                                     dtype=mean_tmp.dtype)
                 sem_discrim_each_axis[voxel_subset_mask,:] = discrim_tmp
                 sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
                 n_sem_samp_each_axis[voxel_subset_mask,:,:] = n_samp_tmp
+                mean_each_sem_level[voxel_subset_mask,:,:] = mean_tmp
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
             

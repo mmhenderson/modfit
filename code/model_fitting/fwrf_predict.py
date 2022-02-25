@@ -206,10 +206,13 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     n_sem_axes = labels_all.shape[1]
     sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes))
     sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
-    n_samp_each_axis = np.zeros((n_voxels, n_sem_axes, 2),dtype=np.float32)
     
-    # all categories must be binary.
-    assert(np.all([len(un)==2 for un in unique_labels_each]))
+    max_categ = np.max([len(un) for un in unique_labels_each])
+    n_samp_each_axis = np.zeros((n_voxels, n_sem_axes, max_categ),dtype=np.float32)
+    mean_each_sem_level = np.zeros((n_voxels, n_sem_axes, max_categ),dtype=np.float32)
+    
+#     all categories must be binary.
+#     assert(np.all([len(un)==2 for un in unique_labels_each]))
     
     for vv in range(n_voxels):
         
@@ -227,21 +230,33 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             unique_labels_actual = np.unique(labels[inds2use])
             
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
+                
+                # separate trials into those with the different labels for this semantic axis.
                 group_inds = [(labels==ll) & inds2use for ll in unique_labels_actual]
                 groups = [resp[gi] for gi in group_inds]
-                # use t-statistic as a measure of discriminability
-                # larger value means resp[label==1] > resp[label==0]
-                sem_discrim_each_axis[vv,aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
+                
+                if len(unique_labels_actual)==2:
+                    # use t-statistic as a measure of discriminability
+                    # larger pos value means resp[label==1] > resp[label==0]
+                    sem_discrim_each_axis[vv,aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
+                else:
+                    # if more than 2 classes, computing an F statistic 
+                    sem_discrim_each_axis[vv,aa] = stats_utils.anova_oneway_warn(**groups).statistic
                 # also computing a correlation coefficient between semantic label/voxel response
                 # sign is consistent with t-statistic
                 sem_corr_each_axis[vv,aa] = stats_utils.numpy_corrcoef_warn(\
                                         resp[inds2use],labels[inds2use])[0,1]
-                n_samp_each_axis[vv,aa,0] = len(groups[0])
-                n_samp_each_axis[vv,aa,1] = len(groups[1])
+                for gi, gg in enumerate(groups):
+                    n_samp_each_axis[vv,aa,gi] = len(gg)
+                    # mean within each label group 
+                    mean_each_sem_level[vv,aa,gi] = np.mean(gg)
             else:                
+                # at least one category is missing for this voxel's pRF and this semantic axis.
+                # skip it and put nans in the arrays.               
                 sem_discrim_each_axis[vv,aa] = np.nan
                 sem_corr_each_axis[vv,aa] = np.nan
                 n_samp_each_axis[vv,aa,:] = np.nan
+                mean_each_sem_level[vv,aa,:] = np.nan
                 
-    return sem_discrim_each_axis, sem_corr_each_axis, n_samp_each_axis
+    return sem_discrim_each_axis, sem_corr_each_axis, n_samp_each_axis, mean_each_sem_level
 

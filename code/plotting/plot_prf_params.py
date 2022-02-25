@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import os
+
+from plotting import summary_plots
     
 """
 General use functions for plotting spatial pRFs from FWRF encoding model.
@@ -39,18 +41,23 @@ def plot_spatial_rf_circles(fitting_type, out, roi_def, skip_inds=None, r2_cutof
     Each circle is a voxel, with the size of the circle indicating the pRF's size (1 SD)
     """
 
+    if hasattr(out, 'keys'):        
+        # single subject case
+        best_models_deg = out['best_params'][0] * screen_eccen_deg
+        val_r2 = out['val_r2'][:,0]
+    else:        
+        # multi subject case   
+        best_models_deg = np.concatenate([o['best_params'][0] * screen_eccen_deg for o in out], axis=0)
+        val_r2 = np.concatenate([o['val_r2'][:,0] for o in out])
+        
     pp=0
-    best_models_deg = out['best_params'][0] * screen_eccen_deg
-    if len(best_models_deg.shape)==2:
-        best_models_deg = np.expand_dims(best_models_deg, axis=1)
-    
+   
     n_rois = roi_def.n_rois
     roi_names = roi_def.roi_names
    
     if skip_inds is None:
         skip_inds = []
     
-    val_r2 = out['val_r2'][:,0]
     abv_thresh = val_r2>r2_cutoff
     
     plt.figure(figsize=(24,18))
@@ -106,8 +113,8 @@ def plot_spatial_rf_circles(fitting_type, out, roi_def, skip_inds=None, r2_cutof
                 plt.yticks([])
             plt.title('%s (%d vox)'%(roi_names[rr], len(inds2use)))
 
-    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\nS%02d, %s'\
-                 %(r2_cutoff, out['subject'], fitting_type));
+    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\n%s\n%s'\
+                 %(r2_cutoff, summary_plots.get_substr(out), fitting_type));
 
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'spatial_prf_distrib.pdf'))
@@ -123,8 +130,22 @@ def plot_size_vs_eccen(fitting_type, out, roi_def, skip_inds=None, r2_cutoff=0.1
     best pRF estimate versus its eccentricity.
     """
 
-    best_ecc_deg, best_angle_deg, best_size_deg = get_prf_pars_deg(out, screen_eccen_deg)
-    
+    if hasattr(out, 'keys'):        
+        # single subject case
+        best_ecc_deg,best_ang_deg,best_size_deg = get_prf_pars_deg(out, screen_eccen_deg)
+        val_r2 = out['val_r2'][:,0]
+    else:        
+        # multi subject case       
+        best_ecc_deg = [];
+        best_angle_deg = [];
+        best_size_deg = [];
+        for si in range(len(out)):
+            be,ba,bs = get_prf_pars_deg(out[si], screen_eccen_deg)
+            best_ecc_deg = np.concatenate([best_ecc_deg, be], axis=0)
+            best_angle_deg = np.concatenate([best_angle_deg, ba], axis=0)
+            best_size_deg = np.concatenate([best_size_deg, bs], axis=0)
+        val_r2 = np.concatenate([o['val_r2'][:,0] for o in out])   
+   
     n_rois = roi_def.n_rois
     roi_names = roi_def.roi_names
     
@@ -136,7 +157,6 @@ def plot_size_vs_eccen(fitting_type, out, roi_def, skip_inds=None, r2_cutoff=0.1
     if skip_inds is None:
         skip_inds = []
     
-    val_r2 = out['val_r2'][:,0]
     abv_thresh = val_r2>r2_cutoff
     
     npy = int(np.ceil(np.sqrt(n_rois-len(skip_inds))))
@@ -184,8 +204,8 @@ def plot_size_vs_eccen(fitting_type, out, roi_def, skip_inds=None, r2_cutoff=0.1
             plt.axvline(0,color=[0.8, 0.8, 0.8])
             plt.title('%s (%d vox)'%(roi_names[rr], len(inds2use)))
 
-    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\nS%02d, %s'\
-                 %(r2_cutoff, out['subject'], fitting_type))
+    plt.suptitle('pRF estimates\nshowing all voxels with R2 > %.2f\n%s\n%s'\
+                 %(r2_cutoff, summary_plots.get_substr(out), fitting_type))
     
     if fig_save_folder is not None:
         plt.savefig(os.path.join(fig_save_folder,'size_vs_eccen.png'))

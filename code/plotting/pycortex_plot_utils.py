@@ -41,9 +41,12 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
         Only used if you have specified roi_def.
     """
     
-    if not hasattr(subject, '__len__') or len(subject)==1:
+    if not hasattr(subject, '__len__'):
         subject = [subject]
-        subject_map_inds = np.zeros((len(maps),))
+        voxel_mask = [voxel_mask]
+        nii_shape = [nii_shape]
+    if len(subject)==1:
+        subject_map_inds = np.zeros((len(maps),),dtype=int)
         n_subjects = 1
     else:
         n_subjects = len(subject)
@@ -61,9 +64,16 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
             voxel_mask = roi_def.voxel_mask
             nii_shape = roi_def.nii_shape
         else:
-            dat2plot = get_roi_maps_for_pycortex(subject[0], roi_def)
-            voxel_mask = [roi_def.voxel_mask]
-            nii_shape = [roi_def.nii_shape]
+            if hasattr(roi_def, 'subjects'):
+                rdef = roi_def.ss_roi_defs[0]
+                voxel_mask = roi_def.voxel_mask
+                nii_shape = roi_def.nii_shape
+            else:
+                rdef = roi_def
+                voxel_mask = [roi_def.voxel_mask]
+                nii_shape = [roi_def.nii_shape]
+            dat2plot = get_roi_maps_for_pycortex(subject[0], rdef, simplest_maps=simplest_roi_maps)
+            
             
         volume_space = roi_def.volume_space
         
@@ -80,6 +90,8 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
      
     if volume_space:
         xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
+        assert(len(voxel_mask)==n_subjects)
+        assert(len(nii_shape)==n_subjects)
         mask_3d = [np.reshape(voxel_mask[si], nii_shape[si], order='C') \
                     for si in range(n_subjects)]
 
@@ -118,8 +130,12 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
         
     # Open the webviewer
     print('navigate browser to: 127.0.0.1:%s'%port)
-    cortex.webshow(dat2plot, open_browser=True, port=port, \
+    viewer = cortex.webshow(dat2plot, open_browser=True, port=port, \
                    title = title)
+    
+#     viewer.get_view('subj01','default_flat')
+    
+    return viewer
 
 def get_roi_maps_for_pycortex(subject, roi_def, simplest_maps=False):    
     """

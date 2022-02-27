@@ -241,7 +241,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
                     sem_discrim_each_axis[vv,aa] = stats_utils.ttest_warn(groups[1], groups[0]).statistic
                 else:
                     # if more than 2 classes, computing an F statistic 
-                    sem_discrim_each_axis[vv,aa] = stats_utils.anova_oneway_warn(**groups).statistic
+                    sem_discrim_each_axis[vv,aa] = stats_utils.anova_oneway_warn(groups).statistic
                 # also computing a correlation coefficient between semantic label/voxel response
                 # sign is consistent with t-statistic
                 sem_corr_each_axis[vv,aa] = stats_utils.numpy_corrcoef_warn(\

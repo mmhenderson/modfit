@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=64G
+#SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -11,7 +11,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40
@@ -22,13 +22,13 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
-# from_scratch=1
-# date_str=0
-from_scratch=0
-date_str=Feb-05-2022_2208_06
+from_scratch=1
+date_str=0
+# from_scratch=0
+# date_str=Feb-05-2022_2208_06
 do_val=1
-do_tuning=1
-do_sem_disc=1
+do_tuning=0
+do_sem_disc=0
 
 fitting_type=full_midlevel
 

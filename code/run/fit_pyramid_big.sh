@@ -39,7 +39,8 @@ fitting_type=texture_pyramid
 
 n_ori_pyr=4
 n_sf_pyr=4
-group_all_hl_feats=0
+# group_all_hl_feats=0
+group_all_hl_feats=1
 use_pca_pyr_feats_hl=1
 
 for subject in ${subjects[@]}

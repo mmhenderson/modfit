@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:0
+#SBATCH --gres=gpu:1
 #SBATCH --mem=24G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
@@ -11,7 +11,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40
@@ -30,11 +30,7 @@ do_sem_disc=0
 
 fitting_type=semantic
 
-semantic_feature_sets=(all_coco)
-
-# semantic_feature_sets=(coco_things_categ)
-# semantic_feature_sets=(all_coco_categ all_coco all_coco_things all_coco_stuff)
-# semantic_feature_sets=(indoor_outdoor)
+semantic_feature_sets=(coco_things_categ all_coco_categ all_coco)
 
 for subject in ${subjects[@]}
 do

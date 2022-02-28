@@ -12,7 +12,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40
@@ -23,8 +23,9 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
-from_scratch=0
-date_str=Feb-10-2022_1134_26
+from_scratch=1
+date_str=0
+# date_str=Feb-10-2022_1134_26
 # from_scratch=0
 # date_str=Feb-05-2022_2224_22
 overwrite_sem_disc=0

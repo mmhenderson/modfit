@@ -14,13 +14,15 @@ cd /user_data/mmhender/imStat/code/model_fitting/
 debug=0
 up_to_sess=40
 
-subj=1
+subjects=(2 3 4 5 6 7 8)
+
 which_prf_grid=5
 
 use_all_data=0
 
-python3 semantic_discrim_raw.py --subject $subj --up_to_sess $up_to_sess --debug $debug --which_prf_grid $which_prf_grid --use_all_data $use_all_data
+for subject in ${subjects[@]}
+do
 
-use_all_data=1
+    python3 semantic_discrim_raw.py --subject $subject --up_to_sess $up_to_sess --debug $debug --which_prf_grid $which_prf_grid --use_all_data $use_all_data
 
-python3 semantic_discrim_raw.py --subject $subj --up_to_sess $up_to_sess --debug $debug --which_prf_grid $which_prf_grid --use_all_data $use_all_data
+done

@@ -12,7 +12,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40

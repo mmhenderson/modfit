@@ -71,7 +71,17 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
                 minimal_labels=False
             else:
                 minimal_labels=True
-            single_plot_object.create(data_this_roi, new_fig=False, minimal_labels=minimal_labels, \
+            if hasattr(single_plot_object, 'plot_errorbars'):
+                # bar plot case, take mean and sem over all pts.
+                if data_this_roi.shape[0]>0:
+                    mean_this_roi = np.mean(data_this_roi, axis=0)
+                    err_this_roi = np.std(data_this_roi, axis=0)/np.sqrt(data_this_roi.shape[0])
+                    single_plot_object.create(mean_this_roi, err_data=err_this_roi, new_fig=False, \
+                                              minimal_labels=minimal_labels, \
+                                              group_color_inds=group_color_inds_this_roi)
+            else:
+                # other plot types, passing in raw data.
+                single_plot_object.create(data_this_roi, new_fig=False, minimal_labels=minimal_labels, \
                                       group_color_inds=group_color_inds_this_roi)
 
     if suptitle is not None:
@@ -95,7 +105,8 @@ class bar_plot:
     horizontal_line_pos: optional, position to draw a horizontal line on the plot    
     plot_counts: boolean, are we going to plot a histogram? if yes, must specify "groups"
     groups: list of groups to do counts in, if plot_counts=True
-    
+    input_stats: is the data you will enter a summary statistic (mean and SEM)? else assume it 
+        is raw data, and compute mean/SEM in this code.
     Use "create" method to pass in data and make the plot.
     data: [n_samples x n_bars], the bar heights will be the mean of each column. 
     new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
@@ -106,52 +117,58 @@ class bar_plot:
     
     def __init__(self, colors=None, column_labels=None, plot_errorbars=True, \
                  ylabel=None, yticks=None, ylims=None, title=None, \
-                 horizontal_line_pos=None, plot_counts=False, groups=None):
+                 horizontal_line_pos=None, plot_counts=False, groups=None, \
+                 input_stats=False):
 
         self.colors = colors
         self.column_labels = column_labels
         self.plot_errorbars=plot_errorbars
+        self.plot_counts = plot_counts
+        if self.plot_counts:
+            self.plot_errorbars=False
         self.ylabel = ylabel
         self.title = title
         self.horizontal_line_pos = horizontal_line_pos
         self.ylims = ylims
-        self.yticks = yticks
-        self.plot_counts = plot_counts
+        self.yticks = yticks      
         self.groups = groups
+        self.input_stats = input_stats
         
-    def create(self, data, new_fig=True, figsize=None, minimal_labels=False, **kwargs):
+    def create(self, data, err_data=None, new_fig=True, figsize=None, minimal_labels=False, **kwargs):
     
+        data = np.squeeze(data)
+        assert(len(data.shape)==1)
+        if self.plot_errorbars:
+            assert(err_data is not None)
+            err_data = np.squeeze(err_data)
+            assert(np.all(err_data.shape==data.shape))
+        
         if new_fig:
             if figsize is None:
                 figsize=(16,8)
             plt.figure(figsize=figsize)
   
         if self.plot_counts:
-            data = np.squeeze(data)
-            assert(len(data.shape)==1)
             if self.groups is None:
                 self.groups = np.unique(data)                
             counts = np.array([np.sum(data==gg) for gg in self.groups])
-            counts = counts[np.newaxis, :]
             data = counts
-            self.plot_errorbars = False
             
-        n_columns = data.shape[1]
+        # n_columns=n_bars
+        n_columns = len(data)
           
         if self.colors is None:
             colors = cm.plasma(np.linspace(0,1,n_columns))
             colors = np.flipud(colors)
         else:
             colors = self.colors
-            
-        if data.shape[0]>0:
-        
-            for cc in range(n_columns):               
-                mean = np.mean(data[:,cc])
-                plt.bar(cc, mean, color=colors[cc,:])
-                if self.plot_errorbars:
-                    sem = np.std(data[:,cc])/np.sqrt(data.shape[0])
-                    plt.errorbar(cc, mean, sem, color = colors[cc,:], ecolor='k', zorder=10)
+
+        for cc in range(n_columns):
+            mean = data[cc]
+            plt.bar(cc, mean, color=colors[cc,:])
+            if self.plot_errorbars:
+                err = err_data[cc]
+                plt.errorbar(cc, mean, err, color = colors[cc,:], ecolor='k', zorder=10)
 
         if not minimal_labels:
             if self.column_labels is not None:

@@ -37,8 +37,9 @@ def get_sem_corrs(which_prf_grid=1, debug=False):
             assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) \
                            for ii in range(len(unique_labels_each))]))
             
-    # all categories must be binary.
-    assert(np.all([len(un)==2 for un in unique_labels_each]))
+    # how many diff levels for each semantic axis? usually two, sometimes 3.
+    n_levels = [len(un) for un in unique_labels_each]
+#     assert(np.all([len(un)==2 for un in unique_labels_each]))
     
     print('Number of images using: %d'%labels_all.shape[0])
     n_sem_axes_total = labels_all.shape[1]
@@ -74,18 +75,21 @@ def get_sem_corrs(which_prf_grid=1, debug=False):
 
                 inds2use = ~np.isnan(labels1) & ~np.isnan(labels2)  
                 
-                n1 = np.sum((labels1[inds2use]==0) & (labels2[inds2use]==0))
-                n2 = np.sum((labels1[inds2use]==0) & (labels2[inds2use]==1))
-                n3 = np.sum((labels1[inds2use]==1) & (labels2[inds2use]==0))
-                n4 = np.sum((labels1[inds2use]==1) & (labels2[inds2use]==1))
-                nsamp = np.array([n1,n2,n3,n4])
-                all_nsamp[aa1, aa2, prf_model_index, :] = nsamp
-
+                if (n_levels[aa1]==2) and (n_levels[aa2]==2):
+                    n1 = np.sum((labels1[inds2use]==0) & (labels2[inds2use]==0))
+                    n2 = np.sum((labels1[inds2use]==0) & (labels2[inds2use]==1))
+                    n3 = np.sum((labels1[inds2use]==1) & (labels2[inds2use]==0))
+                    n4 = np.sum((labels1[inds2use]==1) & (labels2[inds2use]==1))
+                    nsamp = np.array([n1,n2,n3,n4])
+                    all_nsamp[aa1, aa2, prf_model_index, :] = nsamp
+                else:
+                    all_nsamp[aa1,aa2,prf_model_index,0] = np.sum(inds2use)
+                    
                 if prf_model_index==0:
                     print('processing %s vs. %s'%(discrim_type_list[aa1],discrim_type_list[aa2]))
 
-                if (len(np.unique(labels1[inds2use]))==2) and (len(np.unique(labels2[inds2use]))==2):
-
+                if ((len(np.unique(labels1[inds2use]))==n_levels[aa1]) and \
+                    (len(np.unique(labels2[inds2use]))==n_levels[aa2])):
                     all_corrs[aa1, aa2, prf_model_index ] = stats_utils.numpy_corrcoef_warn(\
                                                             labels1[inds2use],labels2[inds2use])[0,1]
                 else:

@@ -11,6 +11,8 @@ from scipy import stats
 import scipy.stats
 from einops import rearrange, reduce, repeat
 
+import torch
+
 import itertools
 import os
 import sys
@@ -18,6 +20,7 @@ import glob
 import warnings
 import tqdm
 import copy
+import time
 
 from PIL import Image
 
@@ -27,11 +30,23 @@ from utils import default_paths, nsd_utils, texture_utils
 from model_fitting import initialize_fitting
 from feature_extraction import fwrf_features
 
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
+print('Found device:')
+print(device)
+
 class bent_gabor_feature_bank():
     
-    def __init__(self, freq_values=None, bend_values=None, orient_values=None, image_size=128):
+    def __init__(self, freq_values=None, bend_values=None, orient_values=None, \
+                 image_size=128, device=None):
         
         self.image_size = image_size;
+        if device is None:
+            self.device = 'cpu:0'
+        else:
+            self.device = device
  
         self.__set_kernel_params__(freq_values, bend_values, orient_values)
         self.__generate_kernels__()
@@ -225,6 +240,9 @@ class bent_gabor_feature_bank():
         self.rect_kernel_pars = rect_kernel_pars
         self.curv_kernel_pars = curv_kernel_pars
         self.lin_kernel_pars = lin_kernel_pars
+        self.n_rect_filters = self.rect_kernel_pars.shape[0]
+        self.n_curv_filters = self.curv_kernel_pars.shape[0]      
+        self.n_lin_filters = self.lin_kernel_pars.shape[0]
         
     def plot_kernel_bends(self, ori_ind=0, scale_ind=0):
 
@@ -298,6 +316,54 @@ class bent_gabor_feature_bank():
         all_conved_images = all_conved_images/all_kernels_power[np.newaxis, np.newaxis,:,np.newaxis]
     
         return np.fft.fftshift(all_conved_images, axes=(0,1))
+    
+    
+    def filter_image_batch_pytorch(self, image_batch, which_kernels='curv', to_numpy=True):
+
+        if which_kernels=='curv':
+            kernel_list = self.kernels['curv_freq']
+        elif which_kernels=='rect':
+            kernel_list = self.kernels['rect_freq']
+        elif which_kernels=='linear':
+            kernel_list = self.kernels['lin_freq']
+        elif which_kernels=='all':
+            kernel_list = self.kernels['curv_freq']+self.kernels['rect_freq']+self.kernels['lin_freq']
+        else:
+            raise ValueError('which_kernels must be one of [curv, rect, linear, all]')
+
+        # stack all the filters together, [self.kernel_size, self.kernel_size, n_filters]
+        # and send to specified device.
+        all_kernels = np.dstack(kernel_list)
+        all_kernels_tensor = torch.complex(torch.Tensor(np.real(all_kernels)), \
+                                           torch.Tensor(np.imag(all_kernels)))
+        
+        # Compute power of each kernel, will use to normalize the convolution result.
+        all_kernels_power =  torch.sum(torch.sum(torch.pow(torch.abs(all_kernels_tensor), 2), \
+                                                 axis=0), axis=0)
+        all_kernels_power =  torch.sqrt(all_kernels_power)
+
+        # send image batch to device [self.image_size, self.image_size, n_images]
+        image_batch_tensor = torch.Tensor(image_batch).to(self.device)
+        # get frequency domain representation of images
+        image_batch_fft = torch.fft.fftn(image_batch_tensor, dim=(0,1))
+
+        # apply the filters by multiplying all at once
+        mult = image_batch_fft.view([self.image_size, self.image_size,1,-1]) * \
+                all_kernels_tensor.view([self.image_size, self.image_size,-1,1])
+        # back to spatial domain 
+        all_conved_images = torch.abs(torch.fft.ifftn(mult,dim=(0,1)))
+        # power correction
+        all_conved_images = torch.pow(all_conved_images,1/2) 
+        all_conved_images = all_conved_images/ \
+                    all_kernels_power.view([1,1,all_kernels_power.shape[0],1])
+        
+        # shift back to original spatial configuration
+        all_conved_images = torch.fft.fftshift(all_conved_images, dim=(0,1))
+
+        if to_numpy:
+            all_conved_images = all_conved_images.detach().cpu().numpy()
+            
+        return all_conved_images
  
             
 def measure_curvrect_stats(bank, image_brick, batch_size=20, \
@@ -318,13 +384,12 @@ def measure_curvrect_stats(bank, image_brick, batch_size=20, \
     assert(np.all(image_size==np.array(image_brick.shape[1:3])))
     assert(np.mod(image_brick.shape[1],2)==0) # must have even n pixels
     
-    curv_score_overall = np.zeros((n_images,))
-    curv_score_each_bend = np.zeros((n_images, len(bend_values)-1))
-    curv_score_each_scale = np.zeros((n_images, len(scale_values)))
-    rect_score_overall = np.zeros((n_images,))
-    rect_score_each_bend = np.zeros((n_images, len(bend_values)-1))
-    rect_score_each_scale = np.zeros((n_images, len(scale_values)))
-    lin_score_overall = np.zeros((n_images,))
+    curv_score_method1 = np.zeros((n_images,))
+    lin_score_method1 = np.zeros((n_images,))   
+    
+    curv_score_method2 = np.zeros((n_images,))
+    rect_score_method2 = np.zeros((n_images,))
+    lin_score_method2 = np.zeros((n_images,))
     
     n_feats = (len(bend_values)-1)*len(scale_values)*len(bank.orient_values)
     mean_curv_over_space = np.zeros((n_images,n_feats))
@@ -337,52 +402,37 @@ def measure_curvrect_stats(bank, image_brick, batch_size=20, \
 
         image_batch = np.moveaxis(image_brick[batch_inds,:,:], [0,1,2], [2,0,1])
         
-#         file_list_batch = np.array(file_list)[batch_inds]
-#         image_list = []
-#         print('loading images, batch %d of %d'%(bb, n_batches))
-
-#         for fi, filename in enumerate(file_list_batch):
-
-#             image_raw = skio.imread(filename)
-            
-#             if crop_one:
-#                 # this means that original image size was odd, so will trim off one row of pixels.
-#                 assert(image_raw.shape[0]==(image_size+1) and image_raw.shape[1]==(image_size+1))
-#                 image_raw = image_raw[0:image_size, 0:image_size]
-                
-#             if resize:
-#                 image_resized = resize(image_raw, [image_size, image_size])
-#             else:
-#                 assert(image_raw.shape[0]==image_size and image_raw.shape[1]==image_size)
-#                 image_resized = image_raw
-                
-#             if len(image_resized.shape)>2:              
-#                 image_gray = rgb2gray(image_resized)
-#             else:
-#                 image_gray = image_resized
-                
-#             if patchnorm:
-#                 image_normed = patchnorm(image_gray)
-#             else:
-#                 image_normed = image_gray
-            
-                
-#             image_list.append(image_normed)
-
-#         image_batch = np.dstack(image_list)
-
         print('processing images w filter bank')
         sys.stdout.flush()
-        all_curv_filt_coeffs = bank.filter_image_batch(image_batch, which_kernels='curv')
-        all_rect_filt_coeffs = bank.filter_image_batch(image_batch, which_kernels='rect')
-        all_lin_filt_coeffs = bank.filter_image_batch(image_batch, which_kernels='linear')
+        st = time.time()
+        all_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='all')
+        elapsed = time.time() - st
+        print('took %.5f sec to process batch of %d images (image size %d pix)'\
+                  %(elapsed, len(batch_inds), image_batch.shape[2]))
+        nc, nr, nl = [bank.n_curv_filters, bank.n_rect_filters, bank.n_lin_filters]
+        all_curv_filt_coeffs = all_filt_coeffs[:,:,0:nc,:]
+        all_rect_filt_coeffs = all_filt_coeffs[:,:,nc:nc+nr,:]
+        all_lin_filt_coeffs = all_filt_coeffs[:,:,nc+nr:nc+nr+nl,:]
 
         print('computing summary stats')
         # Compute some summary stats (trying to give many options here)
         max_curv_images = np.max(all_curv_filt_coeffs, axis=2)
         max_rect_images = np.max(all_rect_filt_coeffs, axis=2)
         max_lin_images = np.max(all_lin_filt_coeffs, axis=2)
+        
+        # method 1 - compare curved filters vs linear filters.
+        unique_curv_inds = max_curv_images>max_lin_images
+        unique_lin_inds = max_lin_images>max_curv_images
+        
+        unique_curv_ims = copy.deepcopy(max_curv_images)
+        unique_curv_ims[~unique_curv_inds] = 0.0        
+        unique_lin_ims = copy.deepcopy(max_lin_images)
+        unique_lin_ims[~unique_lin_inds] = 0.0
 
+        curv_score_method1[batch_inds] = np.mean(np.mean(unique_curv_ims, axis=0), axis=0);
+        lin_score_method1[batch_inds] = np.mean(np.mean(unique_lin_ims, axis=0), axis=0);
+        
+        # method 2 - compare curved against both angular (rect) and linear filters.
         unique_curv_inds = ((max_curv_images>max_rect_images) & (max_curv_images>max_lin_images))
         unique_rect_inds = ((max_rect_images>max_curv_images) & (max_rect_images>max_lin_images))
         unique_lin_inds = ((max_lin_images>max_curv_images) & (max_lin_images>max_rect_images))
@@ -394,98 +444,23 @@ def measure_curvrect_stats(bank, image_brick, batch_size=20, \
         unique_lin_ims = copy.deepcopy(max_lin_images)
         unique_lin_ims[~unique_lin_inds] = 0.0
 
-        curv_score_overall[batch_inds] = np.mean(np.mean(unique_curv_ims, axis=0), axis=0);
-        rect_score_overall[batch_inds] = np.mean(np.mean(unique_rect_ims, axis=0), axis=0);
-        lin_score_overall[batch_inds] = np.mean(np.mean(unique_lin_ims, axis=0), axis=0);
+        curv_score_method2[batch_inds] = np.mean(np.mean(unique_curv_ims, axis=0), axis=0);
+        rect_score_method2[batch_inds] = np.mean(np.mean(unique_rect_ims, axis=0), axis=0);
+        lin_score_method2[batch_inds] = np.mean(np.mean(unique_lin_ims, axis=0), axis=0);
 
-
-        
-        for bb,bend in enumerate(bank.bend_values[1:]):
-
-            kernel_inds = bank.curv_kernel_pars[:,1]==bend
-
-            max_curv_images = np.max(all_curv_filt_coeffs[:,:,kernel_inds,:], axis=2)
-            max_rect_images = np.max(all_rect_filt_coeffs[:,:,kernel_inds,:], axis=2)
-            max_lin_images = np.max(all_lin_filt_coeffs, axis=2)
-        
-            unique_curv_inds = ((max_curv_images>max_rect_images) & (max_curv_images>max_lin_images))
-            unique_rect_inds = ((max_rect_images>max_curv_images) & (max_rect_images>max_lin_images))
-
-            unique_curv_ims = copy.deepcopy(max_curv_images)
-            unique_curv_ims[~unique_curv_inds] = 0.0
-            unique_rect_ims = copy.deepcopy(max_rect_images)
-            unique_rect_ims[~unique_rect_inds] = 0.0
-
-            curv_score_each_bend[batch_inds,bb] = np.mean(np.mean(unique_curv_ims, axis=0), axis=0);
-            rect_score_each_bend[batch_inds,bb] = np.mean(np.mean(unique_rect_ims, axis=0), axis=0);
-
-
-        for sc,scale in enumerate(bank.scale_values):
-
-            kernel_inds = bank.curv_kernel_pars[:,0]==bank.kA[sc]
-
-            max_curv_images = np.max(all_curv_filt_coeffs[:,:,kernel_inds,:], axis=2)
-            max_rect_images = np.max(all_rect_filt_coeffs[:,:,kernel_inds,:], axis=2)
-
-            lin_kernel_inds = bank.lin_kernel_pars[:,0]==bank.kA[sc]
-
-            max_lin_images = np.max(all_lin_filt_coeffs[:,:,lin_kernel_inds,:], axis=2)
-
-            unique_curv_inds = ((max_curv_images>max_rect_images) & (max_curv_images>max_lin_images))
-            unique_rect_inds = ((max_rect_images>max_curv_images) & (max_rect_images>max_lin_images))
-
-            unique_curv_ims = copy.deepcopy(max_curv_images)
-            unique_curv_ims[~unique_curv_inds] = 0.0
-            unique_rect_ims = copy.deepcopy(max_rect_images)
-            unique_rect_ims[~unique_rect_inds] = 0.0
-
-            curv_score_each_scale[batch_inds,sc] = np.mean(np.mean(unique_curv_ims, axis=0), axis=0);
-            rect_score_each_scale[batch_inds,sc] = np.mean(np.mean(unique_rect_ims, axis=0), axis=0);
-
-        # averaging over image dimensions        
-        mean_curv_over_space[batch_inds] = np.mean(np.mean(all_curv_filt_coeffs, axis=0), axis=0).T
-        mean_rect_over_space[batch_inds] = np.mean(np.mean(all_rect_filt_coeffs, axis=0), axis=0).T
-        mean_lin_over_space[batch_inds] = np.mean(np.mean(all_lin_filt_coeffs, axis=0), axis=0).T
+        # averaging power over image dimensions        
+        mean_curv_over_space[batch_inds,:] = np.mean(np.mean(all_curv_filt_coeffs, axis=0), axis=0).T
+        mean_rect_over_space[batch_inds,:] = np.mean(np.mean(all_rect_filt_coeffs, axis=0), axis=0).T
+        mean_lin_over_space[batch_inds,:] = np.mean(np.mean(all_lin_filt_coeffs, axis=0), axis=0).T
  
-    best_curv_kernel = np.argmax(mean_curv_over_space, axis=1)
-    best_rect_kernel = np.argmax(mean_rect_over_space, axis=1)
-    best_lin_kernel = np.argmax(mean_lin_over_space, axis=1)
-    
-    curv_z = scipy.stats.zscore(mean_curv_over_space, axis=0)
-    rect_z = scipy.stats.zscore(mean_rect_over_space, axis=0)
-    lin_z = scipy.stats.zscore(mean_lin_over_space, axis=0)
-    
-    best_curv_kernel_z = np.argmax(curv_z, axis=1)
-    best_rect_kernel_z = np.argmax(rect_z, axis=1)
-    best_lin_kernel_z = np.argmax(lin_z, axis=1)
-    
-    mean_curv_z = np.mean(curv_z, axis=1)
-    mean_rect_z = np.mean(rect_z, axis=1)
-    mean_lin_z = np.mean(lin_z, axis=1)
-    
-    curv_rect_index = (mean_curv_z - mean_rect_z - mean_lin_z) / \
-                      (mean_curv_z + mean_rect_z + mean_lin_z)
-
-    curvrect = {'curv_score_overall': curv_score_overall, 
-                 'rect_score_overall': rect_score_overall, 
-                 'curv_score_each_bend': curv_score_each_bend, 
-                 'rect_score_each_bend': rect_score_each_bend, 
-                 'curv_score_each_scale': curv_score_each_scale, 
-                 'rect_score_each_scale': rect_score_each_scale,
-                 'lin_score_overall': lin_score_overall, 
+    curvrect = {'curv_score_method1': curv_score_method1, 
+                'lin_score_method1': lin_score_method1, 
+                'curv_score_method2': curv_score_method2, 
+                 'rect_score_method2': rect_score_method2, 
+                 'lin_score_method2': lin_score_method2,                 
                  'mean_curv_over_space': mean_curv_over_space,
                  'mean_rect_over_space': mean_rect_over_space,
                  'mean_lin_over_space': mean_lin_over_space,  
-                 'mean_curv_z': mean_curv_z,
-                 'mean_rect_z': mean_rect_z,
-                 'mean_lin_z': mean_lin_z,  
-                 'best_curv_kernel': best_curv_kernel, 
-                 'best_rect_kernel': best_rect_kernel, 
-                 'best_lin_kernel': best_lin_kernel, 
-                 'best_curv_kernel_z': best_curv_kernel_z, 
-                 'best_rect_kernel_z': best_rect_kernel_z, 
-                 'best_lin_kernel_z': best_lin_kernel_z, 
-                 'curv_rect_index': curv_rect_index,
                  'curv_kernel_pars': bank.curv_kernel_pars, 
                  'rect_kernel_pars': bank.rect_kernel_pars, 
                  'lin_kernel_pars': bank.lin_kernel_pars}
@@ -522,7 +497,10 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
     bend_values = [0, 0.04, 0.08, 0.16, 0.32, 0.64]
     orient_values = np.linspace(0,np.pi*2, 9)[0:8]
     
-    subjects = np.arange(1,9)
+    if debug:
+        subjects = [1]
+    else:
+        subjects = np.arange(1,9)
     path_to_load = default_paths.sketch_token_feat_path
     feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                 which_prf_grid=which_prf_grid, \
@@ -544,19 +522,16 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
     prf_models = initialize_fitting.get_prf_models(which_prf_grid)
     n_prfs = prf_models.shape[0]
     
-    
-#     folder2load = os.path.join(default_paths.sketch_token_feat_path, 'top_im_patches')
-    fn2save = os.path.join(default_paths.sketch_token_feat_path, 'feature_curvrect_stats.npy')
+    fn2save = os.path.join(default_paths.sketch_token_feat_path, 'Sketch_token_feature_curvrect_stats.npy')
     
     top_n_images = 96;
-    subjects = np.arange(1,9)
     top_n_each_subj = int(np.ceil(top_n_images/len(subjects)))
-    
-#     sublist = np.repeat(subjects, top_n_each_subj)
-#     ranklist = np.tile(np.arange(top_n_each_subj), [len(subjects),])
-    
-#     n_features = 150
-    curv_rect_index = np.zeros((top_n_images, n_prfs, n_features))
+ 
+    curv_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
+    lin_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
+    curv_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
+    rect_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
+    lin_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
     
     mean_curv = np.zeros((top_n_images, n_prfs, n_features))
     mean_rect = np.zeros((top_n_images, n_prfs, n_features))
@@ -564,11 +539,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
     mean_curv_z = np.zeros((top_n_images, n_prfs, n_features))
     mean_rect_z = np.zeros((top_n_images, n_prfs, n_features))
     mean_lin_z = np.zeros((top_n_images, n_prfs, n_features))
-    
-    curv_score_overall = np.zeros((top_n_images, n_prfs, n_features))
-    rect_score_overall = np.zeros((top_n_images, n_prfs, n_features))
-    lin_score_overall = np.zeros((top_n_images, n_prfs, n_features))
-    
+
     best_curv_kernel = np.zeros((top_n_images, n_prfs, n_features))    
     best_rect_kernel = np.zeros((top_n_images, n_prfs, n_features))    
     best_lin_kernel = np.zeros((top_n_images, n_prfs, n_features))    
@@ -576,26 +547,40 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
     best_rect_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     best_lin_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     
-      
+    curv_rect_index = np.zeros((top_n_images, n_prfs, n_features))
+          
     for mm in range(n_prfs):
         
-        if debug and mm>1:
-            continue
-            
         print('Processing pRF %d of %d'%(mm, n_prfs))
-        
+        st = time.time()
 
         bbox = texture_utils.get_bbox_from_prf(prf_models[mm,:], \
                                    image_size, n_prf_sd_out=2, \
                                    min_pix=None, verbose=False, \
-                                   force_square=False)
+                                   force_square=True)
 
+        cropped_size = bbox[1]-bbox[0]
+        if np.mod(cropped_size,2)!=0:
+            # needs to be even n pixels, so shave one pixel off if needed
+            cropped_size-=1
+            bbox[1] = bbox[1]-1
+            bbox[3] = bbox[3]-1
+            
+        # adjusting the freqs so that they are constant cycles/pixel. 
+        # since these images were cropped out of larger images at a fixed size, 
+        # want this to be as if we filtered the entire image and then cropped.
+        # but it should be faster just to filter the crops.
+        freq_values_cyc_per_image = np.array(freq_values_cyc_per_pix)*cropped_size
+        bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
+                                       bend_values = bend_values, \
+                                       orient_values = orient_values, \
+                                       image_size=cropped_size)
+        
         for ff in range(n_features):
             
             if debug and ff>1:
                 continue
             print('Processing feature %d of %d'%(ff, n_features))
-            
             
             # making a stack of images to analyze, across all subs
             top_images_cropped = []
@@ -620,61 +605,74 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
             top_images_cropped = np.concatenate(top_images_cropped, axis=0)
                 
             assert(top_images_cropped.shape[0]==top_n_images)
-            cropped_size = top_images_cropped.shape[2]
-            if np.mod(cropped_size,2)!=0:
-                cropped_size-=1
-                top_images_cropped = top_images_cropped[:,0:cropped_size, 0:cropped_size]  
-       
-            # adjusting the freqs so that they are constant cycles/pixel. 
-            # since these images were cropped out of larger images at a fixed size, 
-            # want this to be as if we filtered the entire image and then cropped.
-            # but it should be faster just to filter the crops.
-            freq_values_cyc_per_image = np.array(freq_values_cyc_per_pix)*cropped_size
-            bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
-                                           bend_values = bend_values, \
-                                           orient_values = orient_values, \
-                                           image_size=cropped_size)
-    
+            assert(top_images_cropped.shape[2]==cropped_size)
+          
             curvrect = measure_curvrect_stats(bank, image_brick=top_images_cropped, \
                                               batch_size=20, \
                                               resize=False, patchnorm=False)
           
-            curv_rect_index[:,mm,ff] = curvrect['curv_rect_index']
+            curv_score_method1[:,mm,ff] = curvrect['curv_score_method1']
+            lin_score_method1[:,mm,ff] = curvrect['lin_score_method1']
+            
+            curv_score_method2[:,mm,ff] = curvrect['curv_score_method2']
+            rect_score_method2[:,mm,ff] = curvrect['rect_score_method2']
+            lin_score_method2[:,mm,ff] = curvrect['lin_score_method2']
+            
             mean_curv[:,mm,ff] = np.mean(curvrect['mean_curv_over_space'], axis=1)
             mean_rect[:,mm,ff] = np.mean(curvrect['mean_rect_over_space'], axis=1)
             mean_lin[:,mm,ff] = np.mean(curvrect['mean_lin_over_space'], axis=1)
-            mean_curv_z[:,mm,ff] = curvrect['mean_curv_z']
-            mean_rect_z[:,mm,ff] = curvrect['mean_rect_z']
-            mean_lin_z[:,mm,ff] = curvrect['mean_lin_z']
-            curv_score_overall[:,mm,ff] = curvrect['curv_score_overall']
-            rect_score_overall[:,mm,ff] = curvrect['rect_score_overall']
-            lin_score_overall[:,mm,ff] = curvrect['lin_score_overall']
-            best_curv_kernel[:,mm,ff] = curvrect['best_curv_kernel']
-            best_rect_kernel[:,mm,ff] = curvrect['best_rect_kernel']
-            best_lin_kernel[:,mm,ff] = curvrect['best_lin_kernel']
-            best_curv_kernel_z[:,mm,ff] = curvrect['best_curv_kernel_z']
-            best_rect_kernel_z[:,mm,ff] = curvrect['best_rect_kernel_z']
-            best_lin_kernel_z[:,mm,ff] = curvrect['best_lin_kernel_z']
+            
+            best_curv_kernel[:,mm,ff] = np.argmax(curvrect['mean_curv_over_space'], axis=1)
+            best_rect_kernel[:,mm,ff] = np.argmax(curvrect['mean_rect_over_space'], axis=1)
+            best_lin_kernel[:,mm,ff] = np.argmax(curvrect['mean_lin_over_space'], axis=1)
+
+            curv_z = scipy.stats.zscore(curvrect['mean_curv_over_space'], axis=0)
+            rect_z = scipy.stats.zscore(curvrect['mean_rect_over_space'], axis=0)
+            lin_z = scipy.stats.zscore(curvrect['mean_lin_over_space'], axis=0)
+ 
+            mcz = np.mean(curv_z, axis=1)
+            mrz = np.mean(rect_z, axis=1)
+            mlz  = np.mean(lin_z, axis=1)
+
+            curv_rect_index[:,mm,ff] = (mcz - mrz - mlz) / \
+                                       (mcz + mrz + mlz)
+
+            mean_curv_z[:,mm,ff] = mcz
+            mean_rect_z[:,mm,ff] = mrz
+            mean_lin_z[:,mm,ff] = mlz
+            
+            best_curv_kernel_z[:,mm,ff] = np.argmax(curv_z, axis=1)
+            best_rect_kernel_z[:,mm,ff] = np.argmax(rect_z, axis=1)
+            best_lin_kernel_z[:,mm,ff] = np.argmax(lin_z, axis=1)
+        
+        elapsed = time.time() - st;
+        print('\nTook %.5f sec to do pRF %d (patch size %d pix)\n'%(elapsed, cropped_size))
             
             
-            
-    dict2save = {'curv_rect_index': curv_rect_index, \
+    dict2save = {'curv_score_method1': curv_score_method1, \
+                 'lin_score_method1': lin_score_method1, \
+                 'curv_score_method2': curv_score_method2, \
+                 'rect_score_method2': rect_score_method2, \
+                 'lin_score_method2': lin_score_method2, \
+
                  'mean_curv': mean_curv, \
                  'mean_rect': mean_rect, \
                  'mean_lin': mean_lin, \
                  'mean_curv_z': mean_curv_z, \
                  'mean_rect_z': mean_rect_z, \
                  'mean_lin_z': mean_lin_z, \
-                 'curv_score_overall': curv_score_overall, \
-                 'rect_score_overall': rect_score_overall, \
-                 'lin_score_overall': lin_score_overall, \
+                 
                  'best_curv_kernel': best_curv_kernel, \
                  'best_rect_kernel': best_rect_kernel, \
                  'best_lin_kernel': best_lin_kernel, \
                  'best_curv_kernel_z': best_curv_kernel_z, \
                  'best_rect_kernel_z': best_rect_kernel_z, \
                  'best_lin_kernel_z': best_lin_kernel_z, \
+                                  
+                 'curv_rect_index': curv_rect_index, \
+                 
                 }
+    
     print('saving to %s'%fn2save)
     np.save(fn2save, dict2save)   
 

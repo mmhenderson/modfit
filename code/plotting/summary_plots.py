@@ -323,8 +323,9 @@ def plot_r2_vs_nc(fitting_type, out, roi_def, skip_inds=None, \
     if sub_colors is not None:
         assert(sub_colors.shape[0]==n_subs)
     else:
-        sub_colors = cm.Set2(np.linspace(0,1,n_subs))
-        sub_colors[:,3] = 0.1 # make each set of points transparent
+#         sub_colors = cm.Set2(np.linspace(0,1,n_subs))
+        colors = cm.tab10(np.linspace(0,1,n_subs))
+#         sub_colors[:,3] = 0.1 # make each set of points transparent
         
     noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
         

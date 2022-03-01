@@ -14,18 +14,23 @@ def set_all_font_sizes(fs):
     plt.rc('figure', titlesize=fs)  # fontsize of the figure title
 
 def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
-                        group_color_inds=None, skip_inds=None, suptitle=None, \
+                        subject_inds=None,skip_inds=None, suptitle=None, \
                         label_just_corner=True, figsize=None):
 
     """
     Create a grid of subplots for each ROI in our dataset.
     
-    data: array [n_voxels x n_features]
-    inds2use: mask for which of n_voxels to use (based on e.g. R2 threshold)
+    data: array [n_voxels x n_measures] where n_measures can be encoding model performance, 
+        unique variance explained by a set of features, etc.
+    inds2use: list or 1D array, a boolean mask for which of n_voxels to use 
+        (based on for example R2 threshold)
     single_plot_object: either a scatter_plot, violin_plot, or bar_plot (see below)
     roi_def: roi definition object, from roi_utils.nsd_roi_def()
-    group_color_inds: for scatter plots only, do you want to assign different colors to 
-        subsets of the points? For example for different subjects.
+    subject_inds: optional, list or 1D array as long as n_voxels, indicates which subject
+        the voxels are each from. If making a scatter plots, this will control what color 
+        the points are each plotted. If making a bar plot, this will control how voxels are
+        averaged (first within subject, then across). If making a violin plot, this does 
+        nothing currently.
     skip_inds: which of the n_rois in roi_def do you want to skip?
     suptitle: optional string for a sup-title
     label_just_corner: boolean, want to add axis labels just to the lower left plot?
@@ -38,7 +43,14 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
    
     if skip_inds is None:
         skip_inds = []
-   
+        
+    if subject_inds is not None:
+        assert(len(subject_inds)==data.shape[0])
+        un_subs = np.unique(subject_inds)
+        n_subjects = len(un_subs)
+    else:
+        n_subjects = 1
+        
     if figsize==None:
         figsize=(24,20)
     plt.figure(figsize=figsize)
@@ -58,10 +70,10 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
             inds_this_roi = roi_def.get_indices(rr)
 
             data_this_roi = data[inds2use & inds_this_roi,:]
-            if group_color_inds is not None:
-                group_color_inds_this_roi = group_color_inds[inds2use & inds_this_roi]
+            if subject_inds is not None:
+                subject_inds_this_roi = subject_inds[inds2use & inds_this_roi]
             else:   
-                group_color_inds_this_roi = None
+                subject_inds_this_roi = None
                 
             pi = pi+1
             plt.subplot(npx, npy, pi)
@@ -74,15 +86,22 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
             if hasattr(single_plot_object, 'plot_errorbars'):
                 # bar plot case, take mean and sem over all pts.
                 if data_this_roi.shape[0]>0:
-                    mean_this_roi = np.mean(data_this_roi, axis=0)
-                    err_this_roi = np.std(data_this_roi, axis=0)/np.sqrt(data_this_roi.shape[0])
+                    if n_subjects>1:
+                        # >1 subject, average +/- SEM over subjects
+                        mean_each_subj = np.array([np.mean(data_this_roi[subject_inds_this_roi==si,:], axis=0) \
+                                          for si in un_subs])
+                        mean_this_roi = np.mean(mean_each_subj, axis=0)
+                        err_this_roi = np.std(mean_each_subj, axis=0)/np.sqrt(n_subjects)
+                    else:
+                        # one subject, average +/- SEM over voxels
+                        mean_this_roi = np.mean(data_this_roi, axis=0)
+                        err_this_roi = np.std(data_this_roi, axis=0)/np.sqrt(data_this_roi.shape[0])
                     single_plot_object.create(mean_this_roi, err_data=err_this_roi, new_fig=False, \
-                                              minimal_labels=minimal_labels, \
-                                              group_color_inds=group_color_inds_this_roi)
+                                              minimal_labels=minimal_labels)
             else:
                 # other plot types, passing in raw data.
                 single_plot_object.create(data_this_roi, new_fig=False, minimal_labels=minimal_labels, \
-                                      group_color_inds=group_color_inds_this_roi)
+                                      subject_inds=subject_inds_this_roi)
 
     if suptitle is not None:
         plt.suptitle(suptitle)
@@ -208,7 +227,7 @@ class scatter_plot:
     
     Use "create" method to pass in data and make the plot.
     data: [n_samples x 2], or [xvals, yvals] 
-    group_color_inds: [n_samples,], provides index into self.colors for each point.
+    subject_inds: [n_samples,], provides index into self.colors for each point.
     new_fig: boolean, if True create a new figure, if False assume we already have a figure open.
     figsize: optional figure size
     minimal_labels: boolean, if True the plot will not have xticks/yticks/xlims/ylims
@@ -239,17 +258,17 @@ class scatter_plot:
                 figsize=(10,10)
             plt.figure(figsize=figsize)
             
-        group_color_inds = kwargs['group_color_inds'] if 'group_color_inds' in kwargs.keys() else None
-        if group_color_inds is not None:
-            group_color_inds = copy.deepcopy(group_color_inds).astype('int')
-            assert(np.all(group_color_inds>=0))
-            n_color_groups = np.max(group_color_inds)+1
+        subject_inds = kwargs['subject_inds'] if 'subject_inds' in kwargs.keys() else None
+        if subject_inds is not None:
+            subject_inds = copy.deepcopy(subject_inds).astype('int')
+            assert(np.all(subject_inds>=0))
+            n_color_groups = np.max(subject_inds)+1
         else:
-            group_color_inds = np.zeros((data.shape[0],))
+            subject_inds = np.zeros((data.shape[0],))
             n_color_groups = 1
             
         if self.color is None:
-            if group_color_inds is not None:
+            if subject_inds is not None:
                 color = cm.tab10(np.linspace(0,1,n_color_groups))
             else:
                 color = [0.29803922, 0.44705882, 0.69019608, 1]
@@ -260,7 +279,7 @@ class scatter_plot:
             color = self.color
             
         for gg in range(n_color_groups):
-            inds = (group_color_inds==gg);
+            inds = (subject_inds==gg);
             plt.plot(data[inds,0], data[inds,1],'.',color=color[gg,:])
                                 
         if self.square==True:
@@ -378,60 +397,102 @@ class violin_plot:
         if self.ylims is not None:
             plt.ylim(self.ylims)
             
-            
-def plot_multi_bars(mean_data, err_data=None, colors=None, space=0.3, \
-                    xticklabels=None, ylabel=None, ylim=None, \
-                    horizontal_line_pos=None,
-                    title=None, legend_labels=None, \
-                    legend_overlaid=False, legend_separate=True, \
-                    fig_size=(12,6)):
-    
+
+def plot_multi_bars(
+    mean_data,
+    err_data=None,
+    colors=None,
+    space=0.3,
+    xticklabels=None,
+    ylabel=None,
+    ylim=None,
+    horizontal_line_pos=0,
+    title=None,
+    legend_labels=None,
+    legend_overlaid=False,
+    legend_separate=True,
+    add_brackets=None,
+    bracket_text=None,
+    fig_size=(12, 6),
+):
+
+    """Function to create a bar plot with multiple series of data next to each other.
+    Allows adding error bars to each bar and adding significance brackets.
+
+    Args:
+        mean_data (array): heights of bars to plot; shape [nlevels1 x nlevels2]
+            where nlevels1 is the length of each series (i.e. number of clusters of bars),
+            and nlevels2 is the number of series (i.e. number of bars per cluster).
+
+        err_data (array, optional): symmetrical error bar lengths, should be same
+            size as mean_data.
+        colors (array, optional): list of colors, [nlevels2 x 3] (or [nlevels2 x 4]
+            if alpha channel)
+        space (float, optional): how big of a space between each bar cluster? max is 0.45.
+        xticklabels (1d array or list list, optional): name for each bar "cluster",
+            should be [nlevels1] in length.
+        ylabel (string, optional): yaxis label
+        ylim (2-tuple, optional): yaxis limits
+        horizontal_line_pos (float, optional): position to draw a horizontal line on plot.
+        title (string, optional): title
+        legend_labels (list of strings, optional): labels for each series in the
+            plot, [nlevels2] length
+        legend_overlaid (boolean, optional): want legend drawn windowed on top of the plot?
+        legend_separate (boolean, optional): want legend as a separate axis?
+        add_brackets (1d array or list of bools, optional): want to draw brackets over each
+            pair of bars? This only applies if nlevels2==2. Must be [nlevels1] in length.
+        bracket_text (1d array or list of strings, optional): text to draw over
+            each bracket (if drawing brackets.) Must be [nlevels1] in length.
+        fig_size (2-tuple, optional): size to draw the entire figure
+
     """
-    Create a bar plot with multiple series of data next to each other.
-    Plots error bars if desired.
-    
-    mean_data: heights of bars to plot; shape [nlevels1 x nlevels2] 
-        where nlevels1 is the number of clusters of bars, and nlevels2 
-        is the number of bars per cluster.
-    err_data: symmetrical error bar lengths, should be same size as mean_data.
-    colors: list of colors, [nlevels2 x 3]
-    space: how big of a space between each bar cluster? max is 0.45.
-    xticklabels: name for each bar "cluster", should be [nlevels1] in length.
-    ylabel: optional yaxis label
-    horizontal_line_pos: optional position to draw a horizontal line on plot.
-    ylim: optional yaxis limits
-    title: optional title
-    legend_labels: labels for each series in the plot, [nlevels2] in length
-    legend_overlaid: want a legend drawn on top of the plot?
-    legend_separate: want legend as a separate axis?
-    
-    """
-    assert(space<0.45 and space>0)
-    assert(len(mean_data.shape)==2)
+    assert space < 0.45 and space > 0
+    assert len(mean_data.shape) == 2
     nlevels1, nlevels2 = mean_data.shape
-    
-    offsets = np.linspace(-0.5+space, 0.5-space, nlevels2)
-    bw = np.min([(offsets[1] - offsets[0]), space*2])
+    if err_data is not None and len(err_data) == 0:
+        err_data = None
+
+    edge_pos = [-0.5 + space, 0.5 - space]
+    bar_width = (edge_pos[1] - edge_pos[0]) / nlevels2
+    offsets = np.linspace(
+        edge_pos[0] + bar_width / 2, edge_pos[1] - bar_width / 2, nlevels2
+    )
     if colors is None:
-        colors = cm.Dark2(np.linspace(0,1,nlevels2))
-        
-    plt.figure(figsize=fig_size)
-    
+        colors = cm.tab10(np.linspace(0, 1, nlevels2))
+
+    fh = plt.figure(figsize=fig_size)
+    ax = plt.subplot(1, 1, 1)
     lh = []
     for ll in range(nlevels2):
-        
-        h = plt.bar(np.arange(nlevels1)+offsets[ll], mean_data[:,ll], \
-                width=bw, color=colors[ll,:])
+
+        h = plt.bar(
+            np.arange(nlevels1) + offsets[ll],
+            mean_data[:, ll],
+            width=bar_width,
+            color=colors[ll, :],
+        )
         lh.append(h)
         if err_data is not None:
-            plt.errorbar(np.arange(nlevels1)+offsets[ll], \
-                     mean_data[:,ll], err_data[:,ll], \
-                     ecolor='k',zorder=10, ls='none')
-    
-    if xticklabels is not None:                                          
-        plt.xticks(np.arange(nlevels1), xticklabels, \
-               rotation=45,ha='right',rotation_mode='anchor')
-    if ylim is not None:
+            assert err_data.shape[0] == nlevels1 and err_data.shape[1] == nlevels2
+            plt.errorbar(
+                np.arange(nlevels1) + offsets[ll],
+                mean_data[:, ll],
+                err_data[:, ll],
+                ecolor="k",
+                zorder=10,
+                ls="none",
+            )
+
+    if xticklabels is not None:
+        assert len(xticklabels) == nlevels1
+        plt.xticks(
+            np.arange(nlevels1),
+            xticklabels,
+            rotation=45,
+            ha="right",
+            rotation_mode="anchor",
+        )
+    if ylim is not None and ylim != []:
         plt.ylim(ylim)
     if ylabel is not None:
         plt.ylabel(ylabel)
@@ -439,14 +500,58 @@ def plot_multi_bars(mean_data, err_data=None, colors=None, space=0.3, \
         plt.axhline(horizontal_line_pos, color=[0.8, 0.8, 0.8])
     if title is not None:
         plt.title(title)
-        
+
     if legend_overlaid and legend_labels is not None:
-        ax = plt.gca()
+        assert len(legend_labels) == nlevels2
         ax.legend(lh, legend_labels)
- 
+
+    if add_brackets is not None and nlevels2 == 2:
+        assert len(add_brackets) == nlevels1
+        assert bracket_text is None or len(bracket_text) == nlevels1
+        orig_ylim = ax.get_ylim()
+        vert_space = 0.02 * (orig_ylim[1] - orig_ylim[0])
+        ymax = orig_ylim[1]
+
+        for xx in np.where(add_brackets)[0]:
+
+            # vertical position of the label is always above the bars,
+            # or above the x-axis if bars are negative.
+            if err_data is not None:
+                max_ht = np.max([np.max(mean_data[xx, :] + err_data[xx, :]), 0])
+            else:
+                max_ht = np.max([np.max(mean_data[xx, :]), 0])
+            brack_bottom = max_ht + vert_space * 2
+            brack_top = max_ht + vert_space * 3
+            text_lab_ht = max_ht + vert_space * 4
+            ymax = np.max([ymax, text_lab_ht + vert_space * 3])
+
+            plt.plot(
+                [xx + offsets[0], xx + offsets[0], xx + offsets[1], xx + offsets[1]],
+                [brack_bottom, brack_top, brack_top, brack_bottom],
+                "-",
+                color="k",
+            )
+
+            if bracket_text is not None:
+                ax.annotate(
+                    bracket_text[xx],
+                    xy=(xx, text_lab_ht),
+                    zorder=10,
+                    color="k",
+                    ha="center",
+                    fontsize=12,
+                )
+
+        if ylim is None or ylim == []:
+            # adjust max y limit so text doesn't get cut off.
+            plt.ylim([orig_ylim[0], ymax])
+
     if legend_separate and legend_labels is not None:
-        plt.figure();
+        assert len(legend_labels) == nlevels2
+        plt.figure()
         for ll in range(nlevels2):
-            plt.plot(0,ll,'-',color=colors[ll,:],linewidth=15)
+            plt.plot(0, ll, "-", color=colors[ll, :], linewidth=15)
         plt.legend(legend_labels)
-    
+
+    return fh
+       

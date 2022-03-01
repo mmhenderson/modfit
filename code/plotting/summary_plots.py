@@ -345,7 +345,7 @@ def plot_r2_vs_nc(fitting_type, out, roi_def, skip_inds=None, \
         fig_size = (16,16)
 
     plot_utils.create_roi_subplots(dat2plot, inds2use, sp, roi_def, \
-                                   group_color_inds=group_color_inds, \
+                                   subject_inds=group_color_inds, \
                                    skip_inds=skip_inds, \
                                    suptitle=suptitle, \
                                    label_just_corner=True, \

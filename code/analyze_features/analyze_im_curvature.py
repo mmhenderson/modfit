@@ -408,7 +408,7 @@ def measure_curvrect_stats(bank, image_brick, batch_size=20, \
         all_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='all')
         elapsed = time.time() - st
         print('took %.5f sec to process batch of %d images (image size %d pix)'\
-                  %(elapsed, len(batch_inds), image_batch.shape[2]))
+                  %(elapsed, len(batch_inds), image_batch.shape[0]))
         nc, nr, nl = [bank.n_curv_filters, bank.n_rect_filters, bank.n_lin_filters]
         all_curv_filt_coeffs = all_filt_coeffs[:,:,0:nc,:]
         all_rect_filt_coeffs = all_filt_coeffs[:,:,nc:nc+nr,:]
@@ -491,7 +491,7 @@ def patchnorm(image):
     return local_normed_image
 
     
-def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
+def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_size=40):
     
     freq_values_cyc_per_pix = [0.5, 0.25, 0.125, 0.0625, 0.03125]
     bend_values = [0, 0.04, 0.08, 0.16, 0.32, 0.64]
@@ -608,7 +608,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
             assert(top_images_cropped.shape[2]==cropped_size)
           
             curvrect = measure_curvrect_stats(bank, image_brick=top_images_cropped, \
-                                              batch_size=20, \
+                                              batch_size=batch_size, \
                                               resize=False, patchnorm=False)
           
             curv_score_method1[:,mm,ff] = curvrect['curv_score_method1']
@@ -646,7 +646,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5):
             best_lin_kernel_z[:,mm,ff] = np.argmax(lin_z, axis=1)
         
         elapsed = time.time() - st;
-        print('\nTook %.5f sec to do pRF %d (patch size %d pix)\n'%(elapsed, cropped_size))
+        print('\nTook %.5f sec to do pRF %d (patch size %d pix)\n'%(elapsed, mm, cropped_size))
             
             
     dict2save = {'curv_score_method1': curv_score_method1, \

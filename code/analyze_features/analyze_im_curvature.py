@@ -47,6 +47,8 @@ class bent_gabor_feature_bank():
             self.device = 'cpu:0'
         else:
             self.device = device
+            
+        print('initialized feature bank, device is: %s'%self.device)
  
         self.__set_kernel_params__(freq_values, bend_values, orient_values)
         self.__generate_kernels__()
@@ -335,8 +337,8 @@ class bent_gabor_feature_bank():
         # and send to specified device.
         all_kernels = np.dstack(kernel_list)
         all_kernels_tensor = torch.complex(torch.Tensor(np.real(all_kernels)), \
-                                           torch.Tensor(np.imag(all_kernels)))
-        
+                                           torch.Tensor(np.imag(all_kernels))).to(self.device)
+
         # Compute power of each kernel, will use to normalize the convolution result.
         all_kernels_power =  torch.sum(torch.sum(torch.pow(torch.abs(all_kernels_tensor), 2), \
                                                  axis=0), axis=0)
@@ -491,7 +493,7 @@ def patchnorm(image):
     return local_normed_image
 
     
-def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_size=40):
+def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_size=20):
     
     freq_values_cyc_per_pix = [0.5, 0.25, 0.125, 0.0625, 0.03125]
     bend_values = [0, 0.04, 0.08, 0.16, 0.32, 0.64]
@@ -574,7 +576,8 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
         bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
                                        bend_values = bend_values, \
                                        orient_values = orient_values, \
-                                       image_size=cropped_size)
+                                       image_size=cropped_size, \
+                                       device = device)
         
         for ff in range(n_features):
             

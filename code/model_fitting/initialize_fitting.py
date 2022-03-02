@@ -8,6 +8,7 @@ import time
 import os
 import numpy as np
 import pandas as pd
+from datetime import datetime
 
 # import custom modules
 from feature_extraction import gabor_feature_extractor
@@ -123,20 +124,33 @@ def get_save_path(model_name, args):
     if args.random_voxel_data==True:
         model_name = model_name + '_RANDOMVOXELDATA'
     
-    if (args.date_str=='') or (args.date_str=='0'):
+    save_fits_path = default_paths.save_fits_path
+    if args.volume_space:
+        subject_dir = os.path.join(save_fits_path, 'S%02d'%args.subject)
+    else:
+        subject_dir = os.path.join(save_fits_path,'S%02d_surface'%args.subject)
+    
+    if args.from_scratch:
         timestamp = time.strftime('%b-%d-%Y_%H%M_%S', time.localtime())
         make_new_folder = True
+    elif (args.date_str=='') or (args.date_str=='0'):
+        # load most recent file
+        files_in_dir = os.listdir(os.path.join(subject_dir, model_name))       
+        my_dates = [f for f in files_in_dir if 'ipynb' not in f and 'DEBUG' not in f]
+        try:
+            my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M_%S"))
+        except:
+            my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M"))
+        most_recent_date = my_dates[-1]
+        timestamp = most_recent_date
+        make_new_folder = False
     else:
         # if you specified an existing timestamp, then won't try to make new folder, need to find existing one.
         timestamp = args.date_str
         make_new_folder = False
         
     print ("Time Stamp: %s" % timestamp)  
-    save_fits_path = default_paths.save_fits_path
-    if args.volume_space:
-        subject_dir = os.path.join(save_fits_path, 'S%02d'%args.subject)
-    else:
-        subject_dir = os.path.join(save_fits_path,'S%02d_surface'%args.subject)
+    
     if args.debug==True:
         output_dir = os.path.join(subject_dir,model_name,'%s_DEBUG/'%timestamp)
     else:

@@ -354,6 +354,7 @@ class bent_gabor_feature_bank():
                 all_kernels_tensor.view([self.image_size, self.image_size,-1,1])
         # back to spatial domain 
         all_conved_images = torch.abs(torch.fft.ifftn(mult,dim=(0,1)))
+
         # power correction
         all_conved_images = torch.pow(all_conved_images,1/2) 
         all_conved_images = all_conved_images/ \
@@ -407,15 +408,14 @@ def measure_curvrect_stats(bank, image_brick, batch_size=20, \
         print('processing images w filter bank')
         sys.stdout.flush()
         st = time.time()
-        all_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='all')
+        all_curv_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='curv')
+        all_rect_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='rect')
+        all_lin_filt_coeffs = bank.filter_image_batch_pytorch(image_batch, which_kernels='linear')
+        
         elapsed = time.time() - st
         print('took %.5f sec to process batch of %d images (image size %d pix)'\
                   %(elapsed, len(batch_inds), image_batch.shape[0]))
-        nc, nr, nl = [bank.n_curv_filters, bank.n_rect_filters, bank.n_lin_filters]
-        all_curv_filt_coeffs = all_filt_coeffs[:,:,0:nc,:]
-        all_rect_filt_coeffs = all_filt_coeffs[:,:,nc:nc+nr,:]
-        all_lin_filt_coeffs = all_filt_coeffs[:,:,nc+nr:nc+nr+nl,:]
-
+ 
         print('computing summary stats')
         # Compute some summary stats (trying to give many options here)
         max_curv_images = np.max(all_curv_filt_coeffs, axis=2)
@@ -522,6 +522,9 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
         ims_list.append(images)
 
     prf_models = initialize_fitting.get_prf_models(which_prf_grid)
+    if debug:
+        prf_models = np.flipud(prf_models);
+        
     n_prfs = prf_models.shape[0]
     
     fn2save = os.path.join(default_paths.sketch_token_feat_path, 'Sketch_token_feature_curvrect_stats.npy')

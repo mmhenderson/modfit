@@ -260,3 +260,145 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
                 
     return sem_discrim_each_axis, sem_corr_each_axis, n_samp_each_axis, mean_each_sem_level
 
+
+def get_semantic_discrim_balanced(best_params, labels_all, axes_to_balance, unique_labels_each, \
+                                  val_voxel_data_pred, n_samp_iters=1000, debug=False):
+   
+    """
+    Measure how well voxels' predicted responses distinguish between image patches with 
+    different semantic content.
+    Balance the number of trials across levels of every column in labels_all.
+    """
+    
+    best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
+    n_voxels = val_voxel_data_pred.shape[1]
+
+    _, _, n_prfs = labels_all.shape
+    
+    assert(len(axes_to_balance[0])==2)
+    n_axes_pairs = len(axes_to_balance)
+    n_sem_axes = 2;
+    
+    sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes, n_axes_pairs))
+    sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes, n_axes_pairs))
+    mean_each_sem_level = np.zeros((n_voxels, n_sem_axes, 2, n_axes_pairs))
+    min_samp = np.zeros((n_voxels, n_axes_pairs))
+
+    # elements of axes_to_balance are pairs of axes that we will do resampling to balance.
+    # looping over the pairs now.
+    for pi, axes in enumerate(axes_to_balance):
+
+        print('Balancing over axes:')
+        print(axes)
+        
+        # only going to work with the axes specified in axes here
+        labels_balance = labels_all[:,axes,:]
+        unique_labels_balance = [unique_labels_each[aa] for aa in axes]
+
+        # must both be binary for this to work
+        assert(np.all([len(un)==2 for un in unique_labels_balance]))
+        assert(np.all([(un==[0,1]) for un in unique_labels_balance]))
+
+        # define the groups of labels we are balancing over
+        n_bal_groups = 2**len(axes)
+        combs = np.array([np.repeat([0,1],2),np.tile([0,1],2)]).T
+        
+        # first find out how many trials of each label combination we have here    
+        counts_all = np.zeros((n_prfs,n_bal_groups))
+        for mm in range(n_prfs):
+            counts = [len(np.where(np.all(labels_balance[:,:,mm]==combs[cc,:], axis=1))[0]) \
+                              for cc in range(n_bal_groups)]
+            counts_all[mm,:] = counts
+        # print some summary stats as a check (median across pRFs)
+        print('median counts each group:')
+        print(np.median(counts_all, axis=0))
+        print('number pRFs with count<10:')
+        print(np.sum(counts_all<10, axis=0))
+
+        # Now looping over pRFs, doing balancing separately in each pRF
+        for mm in range(n_prfs):
+
+            if debug and mm>1:
+                continue
+
+            print('Computing balanced semantic discriminability, processing pRF %d of %d'%(mm, n_prfs))
+
+            # which voxels had this as their pRF?    
+            vox2do = np.where(best_model_inds[:,0]==mm)[0]
+            if len(vox2do)==0:
+                continue
+
+            min_count = int(np.min(counts_all[mm,:]))
+            if min_count==0:
+                sem_discrim_each_axis[vox2do,:] = np.nan
+                sem_corr_each_axis[vox2do,:] = np.nan
+                mean_each_sem_level[vox2do,:,:] = np.nan
+                min_samp[vox2do] = 0
+                continue
+
+            min_samp[vox2do] = min_count
+
+            # define a set of trial indices to use for re-sampling
+            trial_inds_resample = np.zeros((n_samp_iters, min_count*n_bal_groups),dtype=int)
+            for gg in range(n_bal_groups):
+                # find actual list of trials with this label combination
+                trial_inds_this_comb = np.where(np.all(labels_balance[:,:,mm]==combs[gg,:], axis=1))[0]
+                samp_inds = np.arange(gg*min_count, (gg+1)*min_count)
+                for ii in range(n_samp_iters):
+                    # sample without replacement from the full set of trials.
+                    # if this is the smallest group, this means taking all the trials.
+                    # otherwise it is a sub-set of the trials.
+                    trial_inds_resample[ii,samp_inds] = np.random.choice(trial_inds_this_comb, \
+                                                                         min_count, \
+                                                                         replace=False)
+
+            # loop over every voxel, resample the data, and compute discrimination measures
+            for vi, vv in enumerate(vox2do):
+
+                resamp_discrim = np.zeros((n_samp_iters, n_sem_axes))
+                resamp_corrs = np.zeros((n_samp_iters, n_sem_axes))
+                resamp_means = np.zeros((n_samp_iters, n_sem_axes,2))
+
+                resp = val_voxel_data_pred[:,vv,0] 
+
+                for ii in range(n_samp_iters):          
+
+                    # get the re-sampled response for this voxel
+                    resp_resamp = resp[trial_inds_resample[ii,:]]
+                    # and the corresponding re-sampled labels
+                    labels_resamp = labels_balance[trial_inds_resample[ii,:],:,mm]
+
+                    # double check to make sure counts are right
+                    check_counts = [len(np.where(np.all(labels_resamp==combs[cc,:], axis=1))[0]) \
+                                    for cc in range(n_bal_groups)]
+                    assert(np.all(np.array(check_counts)==min_count))
+
+                    for aa in range(n_sem_axes):
+
+                        labels = labels_resamp[:,aa]
+                        assert(not np.any(np.isnan(labels)))
+                        assert(np.sum(labels==0)==min_count*2 and np.sum(labels==1)==min_count*2)
+
+                        # separate trials into those with the different labels for this semantic axis.
+                        group_inds = [(labels==ll) for ll in [0,1]]
+                        groups = [resp_resamp[gi] for gi in group_inds]
+
+                        # use t-statistic as a measure of discriminability
+                        # larger pos value means resp[label==1] > resp[label==0]
+                        resamp_discrim[ii,aa] = stats_utils.ttest_warn(groups[1],groups[0]).statistic
+
+                        # also computing a correlation coefficient between semantic label/voxel response
+                        # sign is consistent with t-statistic
+                        resamp_corrs[ii,aa] = stats_utils.numpy_corrcoef_warn(resp_resamp,labels)[0,1]
+                        
+                        for gi, gg in enumerate(groups):
+                            # mean within each label group 
+                            resamp_means[ii,aa,gi] = np.mean(gg)
+
+                # averaging over the iterations of resampling, to get a final measure.
+                sem_discrim_each_axis[vi,:,pi] = np.mean(resamp_discrim, axis=0)
+                sem_corr_each_axis[vi,:,pi] = np.mean(resamp_corrs, axis=0)
+                mean_each_sem_level[vi,:,:,pi] = np.mean(resamp_means, axis=0)
+
+    return sem_discrim_each_axis, sem_corr_each_axis, min_samp, mean_each_sem_level
+

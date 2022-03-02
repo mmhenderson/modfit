@@ -83,6 +83,11 @@ def fit_fwrf(args):
             'discrim_type_list': discrim_type_list,
             'n_sem_samp_each_axis': n_sem_samp_each_axis,
             'mean_each_sem_level': mean_each_sem_level,
+            'axes_to_balance': axes_to_balance,
+            'sem_discrim_each_axis_balanced': sem_discrim_each_axis_balanced,
+            'sem_corr_each_axis_balanced': sem_corr_each_axis_balanced,           
+            'n_sem_samp_each_axis_balanced': n_sem_samp_each_axis_balanced,
+            'mean_each_sem_level_balanced': mean_each_sem_level_balanced,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -121,9 +126,7 @@ def fit_fwrf(args):
         print(dict2save.keys())
         np.save(fn2save, dict2save, allow_pickle=True)
 
-    if (args.from_scratch==False) and (args.date_str==0 or args.date_str=='0' or args.date_str==''):
-        raise ValueError('if --from_scratch=False, must specify the date when training result was saved (--date_str).')
-    elif (args.from_scratch) and not (args.date_str==0 or args.date_str=='0' or args.date_str==''):
+    if (args.from_scratch) and not (args.date_str==0 or args.date_str=='0' or args.date_str==''):
         raise ValueError('if --from_scratch=True, should specify --date_str=0 (rather than entering a date)')    
     if (args.do_sem_disc or args.do_tuning) and not args.do_val:
         raise ValueError('to do tuning analysis or semantic discriminability, need to run validation (--do_val=True)')       
@@ -136,11 +139,18 @@ def fit_fwrf(args):
     val_cc = None;
     
     corr_each_feature = None
+    
     sem_discrim_each_axis = None
     sem_corr_each_axis = None
     discrim_type_list = None
     n_sem_samp_each_axis = None
     mean_each_sem_level = None
+    
+    axes_to_balance = None
+    sem_discrim_each_axis_balanced = None
+    sem_corr_each_axis_balanced = None
+    n_sem_samp_each_axis_balanced = None
+    mean_each_sem_level_balanced = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
@@ -251,6 +261,12 @@ def fit_fwrf(args):
                 discrim_type_list = last_saved['discrim_type_list']
                 n_sem_samp_each_axis = last_saved['n_sem_samp_each_axis']
                 mean_each_sem_level = last_saved['mean_each_sem_level']
+                
+                axes_to_balance = last_saved['axes_to_balance']
+                sem_discrim_each_axis_balanced = last_saved['sem_discrim_each_axis_balanced']
+                sem_corr_each_axis_balanced = last_saved['sem_corr_each_axis_balanced']               
+                n_sem_samp_each_axis_balanced = last_saved['n_sem_samp_each_axis_balanced']
+                mean_each_sem_level_balanced = last_saved['mean_each_sem_level_balanced']
             else:
                 voxel_subset_is_done_val = np.zeros(np.shape(voxel_subset_is_done_val), dtype=bool)
         else:
@@ -560,6 +576,42 @@ def fit_fwrf(args):
                 sem_corr_each_axis[voxel_subset_mask,:] = corr_tmp
                 n_sem_samp_each_axis[voxel_subset_mask,:,:] = n_samp_tmp
                 mean_each_sem_level[voxel_subset_mask,:,:] = mean_tmp
+#                 voxel_subset_is_done_val[vi] = True
+                save_all(fn2save)
+           
+                # Now computing semantic discriminability for a sub-set of the axes of interest, 
+                # using resampling to balance trial counts in each grouping.
+                print('\nStarting balanced semantic discriminability analysis (voxel subset %d of %d)...\n'\
+                      %(vi, len(voxel_subset_masks)))
+                sys.stdout.flush()
+                
+                axes_to_balance=[[0,2],[0,3],[2,3]]
+            
+                print('Going to compute balanced semantic discriminability, for these pairs of axes:')
+                for axes in axes_to_balance:
+                    print([discrim_type_list[aa] for aa in axes])
+                
+                discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
+                        fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
+                                                          labels_all, axes_to_balance, unique_labs_each, \
+                                                          val_voxel_data_pred,\
+                                                          debug=args.debug)
+                if vi==0:
+                    sem_discrim_each_axis_balanced = np.zeros((n_voxels, discrim_tmp.shape[1],\
+                                                               discrim_tmp.shape[2]), \
+                                                               dtype=discrim_tmp.dtype) 
+                    sem_corr_each_axis_balanced = np.zeros((n_voxels, corr_tmp.shape[1],\
+                                                            corr_tmp.shape[2]), \
+                                                            dtype=corr_tmp.dtype)
+                    n_sem_samp_each_axis_balanced = np.zeros((n_voxels,n_samp_tmp.shape[1]), \
+                                                     dtype=n_samp_tmp.dtype)
+                    mean_each_sem_level_balanced = np.zeros((n_voxels, mean_tmp.shape[1], \
+                                                             mean_tmp.shape[2],mean_tmp.shape[3]), \
+                                                             dtype=mean_tmp.dtype)
+                sem_discrim_each_axis_balanced[voxel_subset_mask,:,:] = discrim_tmp
+                sem_corr_each_axis_balanced[voxel_subset_mask,:,:] = corr_tmp
+                n_sem_samp_each_axis_balanced[voxel_subset_mask,:] = n_samp_tmp
+                mean_each_sem_level_balanced[voxel_subset_mask,:,:,:] = mean_tmp
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
             

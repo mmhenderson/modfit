@@ -594,7 +594,7 @@ def fit_fwrf(args):
                 discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
                         fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
                                                           labels_all, axes_to_balance, unique_labs_each, \
-                                                          val_voxel_data_pred,\
+                                                          val_voxel_data_pred,n_samp_iters=10,\
                                                           debug=args.debug)
                 if vi==0:
                     sem_discrim_each_axis_balanced = np.zeros((n_voxels, discrim_tmp.shape[1],\

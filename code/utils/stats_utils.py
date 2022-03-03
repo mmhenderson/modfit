@@ -170,7 +170,7 @@ def ttest_warn(a,b):
             warnings.filterwarnings('ignore')
             ttest_out = scipy.stats.ttest_ind(a,b)
     
-    if np.isnan(ttest_out.statistic):
+    if np.any(np.isnan(ttest_out.statistic)):
         print('nans in t-test result')
            
     return ttest_out

@@ -354,7 +354,7 @@ def get_semantic_discrim_balanced(best_params, labels_all, axes_to_balance, uniq
                                                                          replace=False)
 
             # loop over every voxel, resample the data, and compute discrimination measures
-            for vi, vv in enumerate(vox2do):
+            for vv in vox2do:
 
                 resp = val_voxel_data_pred[:,vv,0] 
 
@@ -387,20 +387,20 @@ def get_semantic_discrim_balanced(best_params, labels_all, axes_to_balance, uniq
                     d = stats_utils.ttest_warn(groups[1],groups[0]).statistic
                     assert(len(d)==n_samp_iters)
                     # averaging over the iterations of resampling, to get a final measure.
-                    sem_discrim_each_axis[vi,aa,pi] = np.mean(d)
+                    sem_discrim_each_axis[vv,aa,pi] = np.mean(d)
                     
                     # also computing a correlation coefficient between semantic label/voxel response
                     # sign is consistent with t-statistic
                     c = stats_utils.numpy_corrcoef_warn(resp_resamp.T,labels.T)
                     c_vals = np.diag(c[0:n_samp_iters, n_samp_iters:])
                     assert(len(c_vals)==n_samp_iters)
-                    sem_corr_each_axis[vi,aa,pi] = np.mean(c_vals)
+                    sem_corr_each_axis[vv,aa,pi] = np.mean(c_vals)
                     
                     for gi, gg in enumerate(groups):
                         # mean within each label group 
                         m = np.mean(gg, axis=0)
                         assert(len(m)==n_samp_iters)
-                        mean_each_sem_level[vi,aa,gi,pi] = np.mean(m)
+                        mean_each_sem_level[vv,aa,gi,pi] = np.mean(m)
                    
     return sem_discrim_each_axis, sem_corr_each_axis, min_samp, mean_each_sem_level
 

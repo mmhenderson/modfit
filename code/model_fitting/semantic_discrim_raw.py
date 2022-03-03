@@ -167,7 +167,7 @@ def get_discrim(args):
             fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
                                               labels_all, axes_to_balance, unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
-                                              n_samp_iters=10,\
+                                              n_samp_iters=1000,\
                                               debug=args.debug)
 
     save_all(fn2save)

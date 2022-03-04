@@ -322,6 +322,9 @@ class bent_gabor_feature_bank():
     
     def filter_image_batch_pytorch(self, image_batch, which_kernels='curv', to_numpy=True):
 
+        # This should behave like filter_image_batch, but is much faster when using 
+        # a GPU (specify in self.device)
+        
         if which_kernels=='curv':
             kernel_list = self.kernels['curv_freq']
         elif which_kernels=='rect':
@@ -521,11 +524,23 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
         images = nsd_utils.image_uncolorize_fn(images)
         ims_list.append(images)
 
-    prf_models = initialize_fitting.get_prf_models(which_prf_grid)
-    if debug:
-        prf_models = np.flipud(prf_models);
-        
-    n_prfs = prf_models.shape[0]
+    prf_models = initialize_fitting.get_prf_models(which_prf_grid) 
+
+    # compute bounding boxes for each pRF
+    bboxes = np.array([ texture_utils.get_bbox_from_prf(prf_models[mm,:], \
+                                   image_size, n_prf_sd_out=2, \
+                                   min_pix=None, verbose=False, \
+                                   force_square=True) \
+                for mm in range(prf_models.shape[0]) ])
+    # some pRFs might have the exact same bounding box as others, even if they
+    # are not totally identical. Get rid of duplicate bounding boxes now.
+    bboxes = np.unique(bboxes, axis=0)
+    # put the biggest pRFs first, in case they cause out of memory errors 
+    bboxes = bboxes[np.flip(np.argsort(bboxes[:,1]-bboxes[:,0])),:]
+    n_prfs = bboxes.shape[0]
+    
+    print(bboxes)
+    print(n_prfs)
     
     fn2save = os.path.join(default_paths.sketch_token_feat_path, 'Sketch_token_feature_curvrect_stats.npy')
     
@@ -534,6 +549,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
  
     curv_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
     lin_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
+    
     curv_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
     rect_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
     lin_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
@@ -544,6 +560,13 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
     mean_curv_z = np.zeros((top_n_images, n_prfs, n_features))
     mean_rect_z = np.zeros((top_n_images, n_prfs, n_features))
     mean_lin_z = np.zeros((top_n_images, n_prfs, n_features))
+    
+    max_curv = np.zeros((top_n_images, n_prfs, n_features))
+    max_rect = np.zeros((top_n_images, n_prfs, n_features))
+    max_lin = np.zeros((top_n_images, n_prfs, n_features))
+    max_curv_z = np.zeros((top_n_images, n_prfs, n_features))
+    max_rect_z = np.zeros((top_n_images, n_prfs, n_features))
+    max_lin_z = np.zeros((top_n_images, n_prfs, n_features))
 
     best_curv_kernel = np.zeros((top_n_images, n_prfs, n_features))    
     best_rect_kernel = np.zeros((top_n_images, n_prfs, n_features))    
@@ -551,19 +574,15 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
     best_curv_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     best_rect_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
     best_lin_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
-    
-    curv_rect_index = np.zeros((top_n_images, n_prfs, n_features))
           
     for mm in range(n_prfs):
         
-        print('Processing pRF %d of %d'%(mm, n_prfs))
+        print('Processing pRF %d of %d\n'%(mm, n_prfs))
+        
         st = time.time()
 
-        bbox = texture_utils.get_bbox_from_prf(prf_models[mm,:], \
-                                   image_size, n_prf_sd_out=2, \
-                                   min_pix=None, verbose=False, \
-                                   force_square=True)
-
+        bbox = bboxes[mm,:]
+        
         cropped_size = bbox[1]-bbox[0]
         if np.mod(cropped_size,2)!=0:
             # needs to be even n pixels, so shave one pixel off if needed
@@ -571,10 +590,14 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
             bbox[1] = bbox[1]-1
             bbox[3] = bbox[3]-1
             
+        print(bbox)
+        print(cropped_size)
+        print('\n')
+        
         # adjusting the freqs so that they are constant cycles/pixel. 
         # since these images were cropped out of larger images at a fixed size, 
         # want this to be as if we filtered the entire image and then cropped.
-        # but it should be faster just to filter the crops.
+        # but it is faster just to filter the crops.
         freq_values_cyc_per_image = np.array(freq_values_cyc_per_pix)*cropped_size
         bank = bent_gabor_feature_bank(freq_values = freq_values_cyc_per_image, \
                                        bend_values = bend_values, \
@@ -628,24 +651,26 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
             mean_rect[:,mm,ff] = np.mean(curvrect['mean_rect_over_space'], axis=1)
             mean_lin[:,mm,ff] = np.mean(curvrect['mean_lin_over_space'], axis=1)
             
+            max_curv[:,mm,ff] = np.max(curvrect['mean_curv_over_space'], axis=1)
+            max_rect[:,mm,ff] = np.max(curvrect['mean_rect_over_space'], axis=1)
+            max_lin[:,mm,ff] = np.max(curvrect['mean_lin_over_space'], axis=1)
+
             best_curv_kernel[:,mm,ff] = np.argmax(curvrect['mean_curv_over_space'], axis=1)
             best_rect_kernel[:,mm,ff] = np.argmax(curvrect['mean_rect_over_space'], axis=1)
             best_lin_kernel[:,mm,ff] = np.argmax(curvrect['mean_lin_over_space'], axis=1)
 
+            # try z-scoring, see if stats make more sense
             curv_z = scipy.stats.zscore(curvrect['mean_curv_over_space'], axis=0)
             rect_z = scipy.stats.zscore(curvrect['mean_rect_over_space'], axis=0)
             lin_z = scipy.stats.zscore(curvrect['mean_lin_over_space'], axis=0)
  
-            mcz = np.mean(curv_z, axis=1)
-            mrz = np.mean(rect_z, axis=1)
-            mlz  = np.mean(lin_z, axis=1)
-
-            curv_rect_index[:,mm,ff] = (mcz - mrz - mlz) / \
-                                       (mcz + mrz + mlz)
-
-            mean_curv_z[:,mm,ff] = mcz
-            mean_rect_z[:,mm,ff] = mrz
-            mean_lin_z[:,mm,ff] = mlz
+            mean_curv_z[:,mm,ff] = np.mean(curv_z, axis=1)
+            mean_rect_z[:,mm,ff] = np.mean(rect_z, axis=1)
+            mean_lin_z[:,mm,ff] = np.mean(lin_z, axis=1)
+            
+            max_curv_z[:,mm,ff] = np.max(curv_z, axis=1)
+            max_rect_z[:,mm,ff] = np.max(rect_z, axis=1)
+            max_lin_z[:,mm,ff] = np.max(lin_z, axis=1)
             
             best_curv_kernel_z[:,mm,ff] = np.argmax(curv_z, axis=1)
             best_rect_kernel_z[:,mm,ff] = np.argmax(rect_z, axis=1)
@@ -657,6 +682,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
             
     dict2save = {'curv_score_method1': curv_score_method1, \
                  'lin_score_method1': lin_score_method1, \
+                 
                  'curv_score_method2': curv_score_method2, \
                  'rect_score_method2': rect_score_method2, \
                  'lin_score_method2': lin_score_method2, \
@@ -668,15 +694,20 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
                  'mean_rect_z': mean_rect_z, \
                  'mean_lin_z': mean_lin_z, \
                  
+                 'max_curv': max_curv, \
+                 'max_rect': max_rect, \
+                 'max_lin': max_lin, \
+                 'max_curv_z': max_curv_z, \
+                 'max_rect_z': max_rect_z, \
+                 'max_lin_z': max_lin_z, \
+                 
                  'best_curv_kernel': best_curv_kernel, \
                  'best_rect_kernel': best_rect_kernel, \
                  'best_lin_kernel': best_lin_kernel, \
                  'best_curv_kernel_z': best_curv_kernel_z, \
                  'best_rect_kernel_z': best_rect_kernel_z, \
                  'best_lin_kernel_z': best_lin_kernel_z, \
-                                  
-                 'curv_rect_index': curv_rect_index, \
-                 
+                   
                 }
     
     print('saving to %s'%fn2save)

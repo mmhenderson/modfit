@@ -14,7 +14,7 @@ PCA is done separately within each pRF position, and the results for all pRFs ar
 """
 
 def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_retain=150, \
-                            debug=False, zscore_first=False, which_prf_grid=1, \
+                            debug=False, which_prf_grid=1, \
                             save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.pyramid_texture_feat_path
@@ -109,8 +109,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
             print('Processing %s, size of array before PCA:'%feature_type_name)
             print(features_in_prf.shape)
 
-            _, wts, pre_mean, ev = do_pca(features_in_prf[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                          zscore_first=zscore_first)
+            _, wts, pre_mean, ev = do_pca(features_in_prf[trninds,:], max_pc_to_retain=max_pc_to_retain)
             feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
             scores = feat_submean @ wts.T
 
@@ -152,7 +151,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
 
         
         
-def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=False, zscore_first=False, which_prf_grid=1, \
+def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=False, which_prf_grid=1, \
                           save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.sketch_token_feat_path
@@ -211,8 +210,7 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
         print(np.any(np.isnan(features_in_prf_z)))
         
         # finding pca solution for just training data
-        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=zscore_first)
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
@@ -254,7 +252,8 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
     print('Took %.5f sec to write file'%elapsed)
 
     
-def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, which_prf_grid=1, save_dtype=np.float32, compress=True):
+def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, \
+                    which_prf_grid=1, save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.alexnet_feat_path
 
@@ -336,8 +335,7 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
         print(np.any(np.isnan(features_in_prf_z)))
         
         # finding pca solution for just training data
-        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=zscore_first)
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
@@ -380,7 +378,7 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
     print('Took %.5f sec to write file'%elapsed)
 
 
-def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, zscore_first=False, \
+def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, debug=False, \
                      which_prf_grid=1, save_dtype=np.float32, compress=True):
 
     path_to_load = default_paths.clip_feat_path
@@ -468,8 +466,7 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         print('any nans in array')
         print(np.any(np.isnan(features_in_prf_z)))
         # finding pca solution for just training data
-        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain,\
-                                                      zscore_first=zscore_first)
+        _, wts, pre_mean, ev = do_pca(features_in_prf_z[trninds,:], max_pc_to_retain=max_pc_to_retain)
 
         # now projecting all the data incl. val into same subspace
         feat_submean = features_in_prf_z - np.tile(pre_mean[np.newaxis,:], [features_in_prf_z.shape[0],1])
@@ -512,7 +509,9 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
 
     print('Took %.5f sec to write file'%elapsed)
     
-def do_pca(values, max_pc_to_retain=None, zscore_first=False):
+
+
+def do_pca(values, max_pc_to_retain=None):
     """
     Apply PCA to the data, return reduced dim data as well as weights, var explained.
     """
@@ -523,14 +522,7 @@ def do_pca(values, max_pc_to_retain=None, zscore_first=False):
         n_comp = np.min([np.min([max_pc_to_retain, n_features_actual]), n_trials])
     else:
         n_comp = np.min([n_features_actual, n_trials])
-        
-    if zscore_first:
-        # zscore each column (optional)
-        vals_m = np.mean(values, axis=0, keepdims=True) 
-        vals_s = np.std(values, axis=0, keepdims=True)         
-        values -= vals_m
-        values /= vals_s 
-        
+         
     print('Running PCA: original size of array is [%d x %d]'%(n_trials, n_features_actual))
     t = time.time()
     pca = decomposition.PCA(n_components = n_comp, copy=False)
@@ -584,25 +576,25 @@ if __name__ == '__main__':
     if args.type=='sketch_tokens':
         run_pca_sketch_tokens(subject=args.subject, min_pct_var=args.min_pct_var, \
                               max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
-                              zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+                              which_prf_grid=args.which_prf_grid)
     elif args.type=='texture_pyramid':
         n_ori=4
         n_sf=4
         run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, \
                                 min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain,\
-                                debug=args.debug==1, zscore_first=args.zscore==1, \
+                                debug=args.debug==1,  \
                                 which_prf_grid=args.which_prf_grid)
     elif args.type=='alexnet':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         for layer in layers:
             run_pca_alexnet(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, \
                             max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
-                            zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)
+                            which_prf_grid=args.which_prf_grid)
     elif args.type=='clip':
         layers = ['block%d'%(ll) for ll in range(16)]
         for layer in layers:
             run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, \
                          max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
-                         zscore_first=args.zscore==1, which_prf_grid=args.which_prf_grid)    
+                         which_prf_grid=args.which_prf_grid)    
     else:
         raise ValueError('--type %s is not recognized'%args.type)

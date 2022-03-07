@@ -534,54 +534,55 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
                 for mm in range(prf_models.shape[0]) ])
     # some pRFs might have the exact same bounding box as others, even if they
     # are not totally identical. Get rid of duplicate bounding boxes now.
-    bboxes = np.unique(bboxes, axis=0)
+    bboxes_unique, unique_inds = np.unique(bboxes, axis=0, return_index=True)
     # put the biggest pRFs first, in case they cause out of memory errors 
-    bboxes = bboxes[np.flip(np.argsort(bboxes[:,1]-bboxes[:,0])),:]
-    n_prfs = bboxes.shape[0]
+    unique_inds = np.flip(np.sort(unique_inds))
+    n_prfs_unique = len(unique_inds)
     
-    print(bboxes)
-    print(n_prfs)
+    print('There are %d unique pRF bounding boxes'%n_prfs_unique)
+    print('First 5 bboxes are:')
+    print(bboxes[unique_inds[0:5],:])
     
     fn2save = os.path.join(default_paths.sketch_token_feat_path, 'Sketch_token_feature_curvrect_stats.npy')
     
     top_n_images = 96;
     top_n_each_subj = int(np.ceil(top_n_images/len(subjects)))
  
-    curv_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
-    lin_score_method1 = np.zeros((top_n_images, n_prfs, n_features))
+    curv_score_method1 = np.zeros((top_n_images, n_prfs_unique, n_features))
+    lin_score_method1 = np.zeros((top_n_images, n_prfs_unique, n_features))
     
-    curv_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
-    rect_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
-    lin_score_method2 = np.zeros((top_n_images, n_prfs, n_features))
+    curv_score_method2 = np.zeros((top_n_images, n_prfs_unique, n_features))
+    rect_score_method2 = np.zeros((top_n_images, n_prfs_unique, n_features))
+    lin_score_method2 = np.zeros((top_n_images, n_prfs_unique, n_features))
     
-    mean_curv = np.zeros((top_n_images, n_prfs, n_features))
-    mean_rect = np.zeros((top_n_images, n_prfs, n_features))
-    mean_lin = np.zeros((top_n_images, n_prfs, n_features))
-    mean_curv_z = np.zeros((top_n_images, n_prfs, n_features))
-    mean_rect_z = np.zeros((top_n_images, n_prfs, n_features))
-    mean_lin_z = np.zeros((top_n_images, n_prfs, n_features))
+    mean_curv = np.zeros((top_n_images, n_prfs_unique, n_features))
+    mean_rect = np.zeros((top_n_images, n_prfs_unique, n_features))
+    mean_lin = np.zeros((top_n_images, n_prfs_unique, n_features))
+    mean_curv_z = np.zeros((top_n_images, n_prfs_unique, n_features))
+    mean_rect_z = np.zeros((top_n_images, n_prfs_unique, n_features))
+    mean_lin_z = np.zeros((top_n_images, n_prfs_unique, n_features))
     
-    max_curv = np.zeros((top_n_images, n_prfs, n_features))
-    max_rect = np.zeros((top_n_images, n_prfs, n_features))
-    max_lin = np.zeros((top_n_images, n_prfs, n_features))
-    max_curv_z = np.zeros((top_n_images, n_prfs, n_features))
-    max_rect_z = np.zeros((top_n_images, n_prfs, n_features))
-    max_lin_z = np.zeros((top_n_images, n_prfs, n_features))
+    max_curv = np.zeros((top_n_images, n_prfs_unique, n_features))
+    max_rect = np.zeros((top_n_images, n_prfs_unique, n_features))
+    max_lin = np.zeros((top_n_images, n_prfs_unique, n_features))
+    max_curv_z = np.zeros((top_n_images, n_prfs_unique, n_features))
+    max_rect_z = np.zeros((top_n_images, n_prfs_unique, n_features))
+    max_lin_z = np.zeros((top_n_images, n_prfs_unique, n_features))
 
-    best_curv_kernel = np.zeros((top_n_images, n_prfs, n_features))    
-    best_rect_kernel = np.zeros((top_n_images, n_prfs, n_features))    
-    best_lin_kernel = np.zeros((top_n_images, n_prfs, n_features))    
-    best_curv_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
-    best_rect_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
-    best_lin_kernel_z = np.zeros((top_n_images, n_prfs, n_features))    
+    best_curv_kernel = np.zeros((top_n_images, n_prfs_unique, n_features))    
+    best_rect_kernel = np.zeros((top_n_images, n_prfs_unique, n_features))    
+    best_lin_kernel = np.zeros((top_n_images, n_prfs_unique, n_features))    
+    best_curv_kernel_z = np.zeros((top_n_images, n_prfs_unique, n_features))    
+    best_rect_kernel_z = np.zeros((top_n_images, n_prfs_unique, n_features))    
+    best_lin_kernel_z = np.zeros((top_n_images, n_prfs_unique, n_features))    
           
-    for mm in range(n_prfs):
-        
-        print('Processing pRF %d of %d\n'%(mm, n_prfs))
+    for mm, prf_model_index in enumerate(unique_inds):
+       
+        print('Processing pRF %d (loop iter %d of %d)\n'%(prf_model_index, mm, n_prfs_unique))
         
         st = time.time()
 
-        bbox = bboxes[mm,:]
+        bbox = bboxes[prf_model_index,:]
         
         cropped_size = bbox[1]-bbox[0]
         if np.mod(cropped_size,2)!=0:
@@ -617,7 +618,7 @@ def measure_sketch_tokens_top_ims_curvrect(debug=False, which_prf_grid=5, batch_
             for si, ss in enumerate(subjects):
 
                 # get sketch tokens model response to each image at this pRF position
-                feat, _ = feat_loaders[si].load(trninds_ss, prf_model_index=mm)
+                feat, _ = feat_loaders[si].load(trninds_ss, prf_model_index=prf_model_index)
                 assert(feat.shape[0]==ims_list[si].shape[0])
 
                 # sort in descending order, to get top n images

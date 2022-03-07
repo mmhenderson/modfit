@@ -114,7 +114,9 @@ class gabor_extractor_multi_scale(nn.Module):
                          
         # What are the sizes the images must be resampled to, to achieve filtering at each desired scale?
         self.sizes_to_resample_each_scale = np.round(sfs_cyc_per_stim * self.pix_per_cycle).astype('int')
-
+        # after the rounding step above, these are the actual frequencies (very close to input)
+        sfs_cyc_per_stim_actual = self.sizes_to_resample_each_scale/self.pix_per_cycle
+        
         if not self.complex_cell:
             self.n_phases = 2
             phases = [0, np.pi/2]
@@ -123,7 +125,7 @@ class gabor_extractor_multi_scale(nn.Module):
             phases = [0]
 
         # Creating a grid of all the sfs/orients we would like to sample
-        sf_list = np.repeat(sfs_cyc_per_stim, self.n_ori*self.n_phases)
+        sf_list = np.repeat(sfs_cyc_per_stim_actual, self.n_ori*self.n_phases)
         self.size_list = np.repeat(self.sizes_to_resample_each_scale, self.n_ori*self.n_phases)
         self.ori_list_rad = np.tile(np.repeat(self.orients_rad_unique, self.n_phases), self.n_sf)
         ori_list_deg = self.ori_list_rad*180/np.pi

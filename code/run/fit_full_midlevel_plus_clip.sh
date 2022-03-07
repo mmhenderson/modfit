@@ -1,18 +1,19 @@
 #!/bin/bash
-#SBATCH --partition=gpu
+#SBATCH --partition=tarrq
 #SBATCH --gres=gpu:1
 #SBATCH --mem=48G
 #SBATCH --exclude=mind-1-23
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
-#SBATCH --time=8-00:00:00
+#SBATCH --time=30-00:00:00
 
 source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(2 3 4 5 6 7 8)
+# subjects=(3)
+subjects=(4 5 6 7 8)
 
 debug=0
 up_to_sess=40

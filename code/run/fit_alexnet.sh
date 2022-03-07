@@ -14,7 +14,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(2 3 4 5 6 7 8)
+# subjects=(1 2 3 4 5 6 7 8)
 subjects=(1)
 
 debug=0
@@ -27,9 +27,9 @@ ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
 # from_scratch=1
-# date_str=0
+date_str=0
 from_scratch=0
-date_str=Feb-05-2022_2058_32
+# date_str=Feb-05-2022_2058_32
 overwrite_sem_disc=1
 do_val=1
 do_tuning=1

@@ -11,7 +11,11 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1 2 3 4 5 6 7 8)
+subjects=(1)
+# subjects=(1 2 3 4 5 6 7 8)
+
+# debug=1
+# up_to_sess=1
 
 debug=0
 up_to_sess=40
@@ -30,7 +34,9 @@ do_sem_disc=0
 
 fitting_type=semantic
 
-semantic_feature_sets=(coco_things_categ all_coco_categ all_coco)
+semantic_feature_sets=(coco_things_categ_pca coco_stuff_categ_pca)
+
+# semantic_feature_sets=(coco_things_categ all_coco_categ all_coco)
 
 for subject in ${subjects[@]}
 do

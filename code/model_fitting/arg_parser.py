@@ -29,10 +29,7 @@ def get_args():
     parser.add_argument("--fitting_type3", type=str,default='',
                     help="additional fitting type, for variance partition?")
     
-    parser.add_argument("--semantic_feature_set", type=str,default='',
-                    help="if semantic model, what dimension?")
-    
-    
+   
     parser.add_argument("--ridge", type=nice_str2bool, default=True,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=nice_str2bool, default=True,
@@ -75,7 +72,7 @@ def get_args():
                     help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
    
 
-    # Stuff that is specific to 'gabor' or 'texture' models
+    # Stuff that is specific to 'gabor' models
     parser.add_argument("--n_ori_gabor", type=int,default=4,
                     help="number of orientation channels to use")
     parser.add_argument("--n_sf_gabor", type=int,default=4,
@@ -115,6 +112,9 @@ def get_args():
     parser.add_argument("--use_pca_clip_feats", type=nice_str2bool, default=True, 
                        help="use reduced-dim version of clip features?")
 
+    # Specific to semantic models
+    parser.add_argument("--semantic_feature_set", type=str,default='',
+                    help="if semantic model, what dimension?")
     
     args = parser.parse_args()
     

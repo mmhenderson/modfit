@@ -12,7 +12,8 @@ class semantic_feature_loader:
         self.feature_set = feature_set  
         self.which_prf_grid = which_prf_grid
         self.remove_missing = kwargs['remove_missing'] if 'remove_missing' in kwargs.keys() else False
-
+        self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False
+        
         self.get_categ_exclude()
       
         if self.feature_set=='indoor_outdoor':
@@ -20,29 +21,42 @@ class semantic_feature_loader:
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
             self.n_features = 2
+            
+        elif self.use_pca_feats:
+            self.labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d_PCA'%(self.subject, self.which_prf_grid))
+            self.same_labels_all_prfs=False
+            self.features_file = os.path.join(self.labels_folder, \
+                          'S%d_%s_prf0_PCA.csv'%(self.subject, self.feature_set))
+            if self.feature_set=='coco_things_categ':
+                self.n_features = 80
+            elif self.feature_set=='coco_stuff_categ':
+                self.n_features = 92   
+                
         else:
+
             self.labels_folder = os.path.join(default_paths.stim_labels_root, \
                                          'S%d_within_prf_grid%d'%(self.subject, self.which_prf_grid))
             self.same_labels_all_prfs=False
-            if feature_set=='natural_humanmade':            
+            if self.feature_set=='natural_humanmade':            
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_natural_humanmade_prf0.csv'%(self.subject))          
                 self.n_features = 2
-            elif feature_set=='real_world_size':            
+            elif self.feature_set=='real_world_size':            
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_realworldsize_prf0.csv'%(self.subject))          
                 self.n_features = 3
-            elif 'coco_things' in feature_set:
+            elif 'coco_things' in self.feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
-                if 'supcateg' in feature_set:                    
+                if 'supcateg' in self.feature_set:                    
                     self.n_features = 12
                 else:
                     self.n_features = 80
-            elif 'coco_stuff' in feature_set:
+            elif 'coco_stuff' in self.feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_stuff_binary_prf0.csv'%(self.subject))
-                if 'supcateg' in feature_set:                    
+                if 'supcateg' in self.feature_set:                    
                     self.n_features = 16
                 else:
                     self.n_features = 92           
@@ -84,7 +98,7 @@ class semantic_feature_loader:
     def get_partial_versions(self):
 
         partial_version_names = ['full_model']
-        masks = np.ones([1,self.n_features])
+        masks = np.ones([1,self.max_features])
 
         return masks, partial_version_names
 
@@ -94,7 +108,16 @@ class semantic_feature_loader:
             print('Loading pre-computed features from %s'%self.features_file)        
             coco_df = pd.read_csv(self.features_file, index_col=0)
             labels = np.array(coco_df)
-            colnames = list(coco_df.keys())           
+            colnames = list(coco_df.keys())  
+            
+        elif self.use_pca_feats:            
+            self.features_file = os.path.join(self.labels_folder, \
+                          'S%d_%s_prf%d_PCA.csv'%(self.subject, self.feature_set, prf_model_index))
+            print('Loading pre-computed features from %s'%self.features_file)
+            pca_df = pd.read_csv(self.features_file, index_col=0, dtype=np.float32)
+            labels = np.array(pca_df)
+            colnames = ['pc%d'%pc for pc in range(labels.shape[1])]
+            
         else:
             if self.feature_set=='natural_humanmade':
                 self.features_file = os.path.join(self.labels_folder, \
@@ -153,11 +176,14 @@ class semantic_feature_loader:
                     labels = np.concatenate([label1, label2], axis=1)
                     colnames = ['has_%s'%self.feature_set, 'has_other']
                     
-        print('using feature set: %s'%self.feature_set)
-        assert(labels.shape[1]==self.n_features)
+        print('using feature set: %s'%self.feature_set)        
         print(colnames)
 
-        if self.remove_missing:
+        if self.use_pca_feats:
+            self.is_defined_in_prf = np.zeros((self.max_features,),dtype=bool)
+            self.is_defined_in_prf[0:labels.shape[1]] = 1;
+        elif self.remove_missing:
+            assert(labels.shape[1]==self.max_features)
             if self.feature_set=='coco_things_categ':
                 labels = labels[:,~self.things_inds_exclude]
                 missing = self.things_inds_exclude
@@ -166,21 +192,22 @@ class semantic_feature_loader:
                 missing = self.stuff_inds_exclude
             self.is_defined_in_prf = ~missing  
         else:
-            self.is_defined_in_prf = np.ones((self.n_features,),dtype=bool)
+            assert(labels.shape[1]==self.max_features)
+            self.is_defined_in_prf = np.ones((self.max_features,),dtype=bool)
 
         labels = labels[image_inds,:].astype(np.float32)           
         self.features_in_prf = labels;
         
         # print counts to verify things are working ok
-        if self.n_features==2 and labels.shape[1]==2:
+        if self.max_features==2 and labels.shape[1]==2:
             print('num 1/1, 1/0, 0/1, 0/0:')
             print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
                    np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
                    np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
                    np.sum((labels[:,0]==0) & (labels[:,1]==0))])
         else:
-            print('num each column:')
-            print(np.sum(labels, axis=0).astype(int))
+            print('sum each column:')
+            print(np.sum(labels, axis=0))
             
         print('Size of features array for this image set is:')
         print(self.features_in_prf.shape)
@@ -193,8 +220,9 @@ class semantic_feature_loader:
         
         features = self.features_in_prf
         feature_inds_defined = self.is_defined_in_prf
-        assert(len(feature_inds_defined)==self.n_features)
         
+        assert(len(feature_inds_defined)==self.max_features)
+        assert(np.sum(feature_inds_defined)==features.shape[1])        
         assert(features.shape[0]==len(image_inds))
         print('Final size of feature matrix is:')
         print(features.shape)

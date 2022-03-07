@@ -7,6 +7,7 @@ from model_fitting import initialize_fitting
 from feature_extraction import texture_statistics_pyramid
 from sklearn import decomposition
 import argparse
+import pandas as pd
 
 """
 Code to perform PCA on features within a given feature space (texture or contour etc).
@@ -508,7 +509,97 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
     elapsed = time.time() - t
 
     print('Took %.5f sec to write file'%elapsed)
+
     
+def run_pca_semantic(subject, semantic_feature_set, min_pct_var=95, max_pc_to_retain=92, debug=False,\
+                     which_prf_grid=1, save_dtype=np.float32):
+
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    path_to_save = os.path.join(default_paths.stim_labels_root, \
+                                         'S%d_within_prf_grid%d_PCA'%(subject, which_prf_grid))
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+        
+    if semantic_feature_set=='coco_things_categ':
+        features_file = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf0.csv'%(subject))
+        n_features_orig = 80
+    elif semantic_feature_set=='coco_stuff_categ':
+        features_file = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_stuff_binary_prf0.csv'%(subject)) 
+        n_features_orig = 92
+    else:
+        raise ValueError('feature set %s not recognized'%semantic_feature_set)
+    
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for raw semantic features, not found.'%features_file)
+      
+    
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
+    n_prfs = models.shape[0]
+   
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+    n_trials = len(trninds)
+    
+    for prf_model_index in range(n_prfs):
+
+        if debug and prf_model_index>1:
+            continue
+
+        print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        
+        fn2save = os.path.join(path_to_save, 'S%d_%s_prf%d_PCA.csv'%(subject, semantic_feature_set, prf_model_index))
+
+        if 'stuff' in semantic_feature_set:
+            features_file = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_stuff_binary_prf%d.csv'%(subject, prf_model_index))
+            print('Loading pre-computed features from %s'%features_file)
+            coco_df = pd.read_csv(features_file, index_col=0)
+            labels = np.array(coco_df)[:,16:108]  
+        else:
+            features_file = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
+            print('Loading pre-computed features from %s'%features_file)
+            coco_df = pd.read_csv(features_file, index_col=0)
+            labels = np.array(coco_df)[:,12:92]   
+           
+        features_in_prf = labels.astype(np.float32)
+        
+        assert(features_in_prf.shape[0]==n_trials)
+        assert(features_in_prf.shape[1]==n_features_orig)
+          
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf.shape)
+        print('any nans in array')
+        print(np.any(np.isnan(features_in_prf)))
+        print('num each column:')
+        print(np.sum(features_in_prf, axis=0).astype(int))
+        
+        # finding pca solution for just training data
+        _, wts, pre_mean, ev = do_pca(features_in_prf[trninds,:], max_pc_to_retain=max_pc_to_retain)
+
+        # now projecting all the data incl. val into same subspace
+        feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
+        scores = feat_submean @ wts.T
+        
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]+1
+        else:
+            n_comp_needed = scores.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+       
+        # save as a csv file for easy loading later on
+        scores_df = pd.DataFrame(data=scores[:,0:n_comp_needed],dtype=save_dtype)
+        
+        print('Saving to %s'%fn2save)
+        scores_df.to_csv(fn2save, header=True)
+        
 
 
 def do_pca(values, max_pc_to_retain=None):
@@ -534,16 +625,7 @@ def do_pca(values, max_pc_to_retain=None):
     ev = pca.explained_variance_
     ev = ev/np.sum(ev)*100
     pre_mean = pca.mean_
-    
-    print('First element of ev: %.2f'%ev[0])
-    # print this out as a check...if it is always 1, this can mean something is wrong w data.
-    if np.size(np.where(np.cumsum(ev)>=95))>0:
-        n_comp_needed = np.where(np.cumsum(ev)>=95)[0][0]+1
-        print('Requires %d components to explain 95 pct var'%n_comp_needed)    
-    else:
-        n_comp_needed = n_comp
-        print('Requires more than %d components to explain 95 pct var'%n_comp_needed)
-    
+  
     return scores, wts, pre_mean, ev
 
 
@@ -596,5 +678,15 @@ if __name__ == '__main__':
             run_pca_clip(subject=args.subject, layer_name=layer, min_pct_var=args.min_pct_var, \
                          max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
                          which_prf_grid=args.which_prf_grid)    
+    elif args.type=='semantic_stuff':
+        run_pca_semantic(subject=args.subject, semantic_feature_set='coco_stuff_categ', \
+                         min_pct_var=args.min_pct_var, \
+                         max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                         which_prf_grid=args.which_prf_grid)
+    elif args.type=='semantic_things':
+        run_pca_semantic(subject=args.subject, semantic_feature_set='coco_things_categ', \
+                         min_pct_var=args.min_pct_var, \
+                         max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                         which_prf_grid=args.which_prf_grid)
     else:
         raise ValueError('--type %s is not recognized'%args.type)

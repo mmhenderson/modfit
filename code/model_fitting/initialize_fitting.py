@@ -58,9 +58,13 @@ def get_full_save_name(args):
             elif args.semantic_feature_set=='all_coco_categ':
                 fitting_types += ['semantic_coco_things_categ','semantic_coco_stuff_categ']
                 model_name += 'all_coco_categ'
+            elif args.semantic_feature_set=='all_coco_categ_pca':
+                fitting_types += ['semantic_coco_things_categ_pca','semantic_coco_stuff_categ_pca']
+                model_name += 'all_coco_categ_pca'
             else:
                 fitting_types += ['semantic_%s'%args.semantic_feature_set]
                 model_name += 'semantic_%s'%args.semantic_feature_set
+                
         elif 'texture_pyramid' in ft:
             fitting_types += [ft]
             model_name += 'texture_pyramid'

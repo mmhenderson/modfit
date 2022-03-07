@@ -404,9 +404,17 @@ def fit_fwrf(args):
           
             elif 'semantic' in ft:
                 this_feature_set = ft.split('semantic_')[1]
+                if 'pca' in this_feature_set:
+                    this_feature_set = this_feature_set.split('_pca')[0]
+                    use_pca_feats=True
+                else:
+                    use_pca_feats=False
+                print('semantic feature set: %s'%this_feature_set)
+                print('use pca: %s'%use_pca_feats)
                 feat_loader = semantic_features.semantic_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_set=this_feature_set, \
+                                                                use_pca_feats=use_pca_feats, \
                                                                 remove_missing=False)
                 fe.append(feat_loader)
                 fe_names.append(ft)

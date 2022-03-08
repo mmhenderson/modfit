@@ -124,8 +124,9 @@ class gabor_extractor_multi_scale(nn.Module):
             self.n_phases = 1
             phases = [0]
 
-        # Creating a grid of all the sfs/orients we would like to sample
-        sf_list = np.repeat(sfs_cyc_per_stim_actual, self.n_ori*self.n_phases)
+        # Creating a grid of all the sfs/orients we would like to sample        
+        sf_list = np.repeat(sfs_cyc_per_stim, self.n_ori*self.n_phases)
+        sf_list_actual = np.repeat(sfs_cyc_per_stim_actual, self.n_ori*self.n_phases)
         self.size_list = np.repeat(self.sizes_to_resample_each_scale, self.n_ori*self.n_phases)
         self.ori_list_rad = np.tile(np.repeat(self.orients_rad_unique, self.n_phases), self.n_sf)
         ori_list_deg = self.ori_list_rad*180/np.pi
@@ -135,6 +136,7 @@ class gabor_extractor_multi_scale(nn.Module):
         # The order of this corresponds to the order of the features that are extracted 
         # (lowest SF to highest, with orientations and phases listed within each SF)
         self.feature_table = pd.DataFrame.from_dict({'SF: cycles per stim': sf_list, \
+                                               'SF: cycles per stim (actual)': sf_list_actual, \
                                                'Size in pixels when filtered': self.size_list, \
                                                'Orientation: radians': self.ori_list_rad, \
                                                'Orientation: degrees': ori_list_deg, \

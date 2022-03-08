@@ -101,10 +101,10 @@ class fwrf_feature_loader:
         
         if self.use_pca_feats_hl:
             # get filenames/dims of the higher-level feature groups, after PCA.
-            self.feature_names_hl = self.feature_types_include[~self.feature_is_ll]
-            self.feature_dims_hl = self.feature_type_dims_include[~self.feature_is_ll]
-            self.features_files_hl = ['' for fi in range(len(self.feature_dims_hl))]
-            self.max_pc_to_retain_hl = [0 for fi in range(len(self.feature_dims_hl))]
+            feature_dims_hl = self.feature_type_dims_include[~self.feature_is_ll]
+            self.feature_names_hl = self.feature_types_include[~self.feature_is_ll]            
+            self.features_files_hl = ['' for fi in range(len(feature_dims_hl))]
+            self.max_pc_to_retain_hl = [0 for fi in range(len(feature_dims_hl))]
             for fi, feature_type_name in enumerate(self.feature_names_hl):
                 self.features_files_hl[fi] = os.path.join(pyramid_texture_feat_path, 'PCA', \
                          'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'%\
@@ -115,7 +115,10 @@ class fwrf_feature_loader:
                     feat_shape = np.shape(file['/features'])
                     file.close()
                 n_feat_actual = feat_shape[1]
-                self.max_pc_to_retain_hl[fi] = np.min([self.feature_dims_hl[fi], n_feat_actual])        
+                self.max_pc_to_retain_hl[fi] = int(np.min([feature_dims_hl[fi], n_feat_actual]))        
+            
+            self.n_hl_feats = np.sum(self.max_pc_to_retain_hl)
+            self.feature_type_dims_include[~self.feature_is_ll] = self.max_pc_to_retain_hl
             
         # count the number of features that we are including in the model                 
         self.n_features_total = np.sum(self.feature_type_dims_include)
@@ -138,10 +141,6 @@ class fwrf_feature_loader:
                 self.feature_group_names = ['lower-level']
             elif self.include_hl:
                 self.feature_group_names = ['higher-level']
-            print('Grouping lower level features:')
-            print(np.array(self.feature_types_include)[self.feature_is_ll])
-            print('Grouping higher level features:')
-            print(np.array(self.feature_types_include)[~self.feature_is_ll])
         else:
             # otherwise treating each sub-set separately for variance partition.
             self.feature_group_names = self.feature_types_include
@@ -341,7 +340,7 @@ class fwrf_feature_loader:
                                 else self.max_pc_to_retain_hl[fi] for ni in nan_inds]
                     n_feat_each_prf=nan_inds
 
-                    start_ind = np.sum(self.feature_dims_hl[0:fi])
+                    start_ind = int(np.sum(self.max_pc_to_retain_hl[0:fi]))
                     print('start ind: %d'%start_ind)
                     for mm in range(len(self.prf_batch_inds[batch_to_use])):
                         features_each_prf_hl[:,start_ind:start_ind+n_feat_each_prf[mm],mm] = \

@@ -150,7 +150,105 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
         elapsed = time.time() - t
         print('Took %.5f sec to write file'%elapsed)
 
+
+def run_pca_gabor(subject, min_pct_var=95, max_pc_to_retain=96, debug=False, which_prf_grid=1, \
+                          save_dtype=np.float32, compress=True):
+
+    path_to_load = default_paths.gabor_texture_feat_path
+
+    n_ori=12; n_sf = 8;
+    features_file = os.path.join(path_to_load, \
+                 'S%d_features_each_prf_%dori_%dsf_gabor_solo_nonlin_grid%d.h5py'%\
+                 (subject, n_ori, n_sf, which_prf_grid))
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
+    path_to_save = os.path.join(path_to_load, 'PCA')
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
+    n_prfs = models.shape[0]
+    
+    print('Loading pre-computed features from %s'%features_file)
+    t = time.time()
+    with h5py.File(features_file, 'r') as data_set:
+        values = np.copy(data_set['/features'])
+        data_set.close() 
+    elapsed = time.time() - t
+    print('Took %.5f seconds to load file'%elapsed)
+    features_each_prf = values
+
+    # training / validation data always split the same way - shared 1000 inds are validation.
+    subject_df = nsd_utils.get_subj_df(subject)
+    valinds = np.array(subject_df['shared1000'])
+    trninds = np.array(subject_df['shared1000']==False)
+    n_trials = len(trninds)
+    
+    
+    print('Size of features array for this image set is:')
+    print(features_each_prf.shape)
+
+    scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
+    actual_max_ncomp=0
+   
+    for prf_model_index in range(n_prfs):
+
+        if debug and prf_model_index>1:
+            continue
+
+        print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
         
+        features_in_prf = features_each_prf[:,:,prf_model_index]
+        
+        print('Size of features array for this image set and prf is:')
+        print(features_in_prf.shape)
+        print('any nans in array')
+        print(np.any(np.isnan(features_in_prf)))
+        
+        # finding pca solution for just training data
+        _, wts, pre_mean, ev = do_pca(features_in_prf[trninds,:], max_pc_to_retain=max_pc_to_retain)
+
+        # now projecting all the data incl. val into same subspace
+        feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
+        scores = feat_submean @ wts.T
+        
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]+1
+        else:
+            n_comp_needed = scores.shape[1]
+        print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+        actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
+        
+        scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
+        scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
+
+    # To save space, get rid of portion of array that ended up all nans
+    if debug:
+        actual_max_ncomp=np.max([2,actual_max_ncomp])
+        assert(np.all((scores_each_prf[:,actual_max_ncomp:,:]==0) | np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    else:
+        assert(np.all(np.isnan(scores_each_prf[:,actual_max_ncomp:,:])))
+    scores_each_prf = scores_each_prf[:,0:actual_max_ncomp,:]
+    print('final size of array to save:')
+    print(scores_each_prf.shape)
+    
+    fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_nonlin_PCA_grid%d.h5py'%\
+                           (subject, n_ori, n_sf, which_prf_grid))
+    print('saving to %s'%fn2save)
+    t = time.time()
+    with h5py.File(fn2save, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores_each_prf), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores_each_prf
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
+      
         
 def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=False, which_prf_grid=1, \
                           save_dtype=np.float32, compress=True):
@@ -657,6 +755,10 @@ if __name__ == '__main__':
     
     if args.type=='sketch_tokens':
         run_pca_sketch_tokens(subject=args.subject, min_pct_var=args.min_pct_var, \
+                              max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
+                              which_prf_grid=args.which_prf_grid)
+    elif args.type=='gabor':
+        run_pca_gabor(subject=args.subject, min_pct_var=args.min_pct_var, \
                               max_pc_to_retain=args.max_pc_to_retain, debug=args.debug==1, \
                               which_prf_grid=args.which_prf_grid)
     elif args.type=='texture_pyramid':

@@ -61,6 +61,9 @@ def get_full_save_name(args):
             elif args.semantic_feature_set=='all_coco_categ_pca':
                 fitting_types += ['semantic_coco_things_categ_pca','semantic_coco_stuff_categ_pca']
                 model_name += 'all_coco_categ_pca'
+            elif args.semantic_feature_set=='highlevel_concat':
+                fitting_types += ['semantic_indoor_outdoor', 'semantic_animacy', 'semantic_real_world_size']
+                model_name += 'semantic_highlevel_concat'
             else:
                 fitting_types += ['semantic_%s'%args.semantic_feature_set]
                 model_name += 'semantic_%s'%args.semantic_feature_set
@@ -87,6 +90,8 @@ def get_full_save_name(args):
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
             if args.use_pca_gabor_feats:
                 model_name += '_pca'
+            if not args.use_precomputed_prfs:
+                model_name += '_fit_pRFs'
         elif 'sketch_tokens' in ft:      
             fitting_types += [ft]
             if args.use_pca_st_feats==True:       

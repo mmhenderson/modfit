@@ -53,6 +53,9 @@ def get_args():
                     help="want to do model validation? 1 for yes, 0 for no")
     parser.add_argument("--do_varpart", type=nice_str2bool,default=True,
                     help="want to do variance partition? 1 for yes, 0 for no")
+    parser.add_argument("--include_solo_models", type=nice_str2bool,default=True,
+                    help="in varpart, want to fit each of the component models alone? 1 for yes, 0 for no")
+    
     parser.add_argument("--do_tuning", type=nice_str2bool,default=True,
                     help="want to estimate tuning based on correlations? 1 for yes, 0 for no")
     parser.add_argument("--do_sem_disc", type=nice_str2bool,default=True,

@@ -424,13 +424,16 @@ def fit_fwrf(args):
           
         # Now combine subsets of features into a single module
         if len(fe)>1:
-            feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart)
+            feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart, \
+                                                                     include_solo_models=args.include_solo_models)
         else:
             feat_loader_full = fe[0]
         max_features = feat_loader_full.max_features 
         
         # getting info about how variance partition will be set up
-        partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()       
+        partial_masks_tmp, partial_version_names = feat_loader_full.get_partial_versions()      
+        print(partial_version_names)
+        print(np.sum(partial_masks_tmp, axis=1))
         if vi==0:
             n_partial_versions = len(partial_version_names)
             partial_masks = [[] for ii in range(len(voxel_subset_masks))] 

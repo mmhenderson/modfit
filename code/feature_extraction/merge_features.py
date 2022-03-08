@@ -6,12 +6,13 @@ Feature loader class that can merge other smaller modules (useful for variance p
 
 class combined_feature_loader:
     
-    def __init__(self, modules, module_names, do_varpart=False):
+    def __init__(self, modules, module_names, do_varpart=False, include_solo_models=True):
         
         super(combined_feature_loader, self).__init__()
         self.modules = modules
         self.module_names = module_names
         self.do_varpart = do_varpart
+        self.include_solo_models = include_solo_models
         self.max_features = np.sum(np.array([module.max_features for module in self.modules]))
     
     def clear_big_features(self):
@@ -33,13 +34,14 @@ class combined_feature_loader:
 
             for mi, module in enumerate(self.modules):
 
-                # first a version that only includes the features in current module
-                new_mask = np.zeros((1, n_total_feat), dtype=int)
-                new_mask[0,feature_start_ind:feature_start_ind+module.max_features] = 1
-                masks = np.concatenate((masks, new_mask), axis=0)
-                names += ['just_' + self.module_names[mi]]
+                if self.include_solo_models:
+                    # first a version that only includes the features in current module
+                    new_mask = np.zeros((1, n_total_feat), dtype=int)
+                    new_mask[0,feature_start_ind:feature_start_ind+module.max_features] = 1
+                    masks = np.concatenate((masks, new_mask), axis=0)
+                    names += ['just_' + self.module_names[mi]]
 
-                if len(self.modules)>2:        
+                if (len(self.modules)>2) or (not self.include_solo_models):        
                     # next a version that only everything but the features in current module
                     # (note if there are just 2 modules, this would be redundant)
                     new_mask = np.ones((1, n_total_feat), dtype=int)

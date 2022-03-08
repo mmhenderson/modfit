@@ -102,6 +102,7 @@ def fit_fwrf(args):
             'use_pca_pyr_feats_hl': args.use_pca_pyr_feats_hl,
             'pyramid_feature_info':pyramid_feature_info,
             'group_all_hl_feats': args.group_all_hl_feats,
+            'do_pyr_varpart': args.do_pyr_varpart,
             })            
         if np.any(['gabor' in ft for ft in fitting_types]):
             dict2save.update({
@@ -330,7 +331,7 @@ def fit_fwrf(args):
                                                                 n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
                                                                 include_ll=True, include_hl=True,\
                                                                 use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
-                                                                do_varpart=args.do_varpart,\
+                                                                do_varpart=args.do_pyr_varpart,\
                                                                 group_all_hl_feats=args.group_all_hl_feats)       
                 fe.append(feat_loader)
                 fe_names.append(ft)

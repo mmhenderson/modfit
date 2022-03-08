@@ -224,6 +224,7 @@ class scatter_plot:
     show_diagonal: boolean, do you want to add a diagonal line with slope 1/intercept 0?
     show_axes: boolean, do you want to draw horizontal and vertical lines at x=0, y=0?
     square: boolean, do you want to make the axes square?
+    add_best_fit_lines: do you want to perform linear regression of y onto x and plot yhat?
     
     Use "create" method to pass in data and make the plot.
     data: [n_samples x 2], or [xvals, yvals] 
@@ -236,7 +237,8 @@ class scatter_plot:
         
     def __init__(self, color=None, xlabel=None, ylabel=None, xlims=None, \
                  ylims=None, xticks=None, yticks=None, \
-                 title=None, show_diagonal=True, show_axes=True, square=True):
+                 title=None, show_diagonal=True, show_axes=True, square=True, \
+                 add_best_fit_lines=False):
 
         self.color = color
         self.xlabel = xlabel
@@ -249,6 +251,7 @@ class scatter_plot:
         self.show_diagonal = show_diagonal
         self.show_axes = show_axes   
         self.square = square
+        self.add_best_fit_lines=add_best_fit_lines
         
     def create(self, data, new_fig=True, \
                figsize=None, minimal_labels=False, **kwargs):
@@ -259,6 +262,7 @@ class scatter_plot:
             plt.figure(figsize=figsize)
             
         subject_inds = kwargs['subject_inds'] if 'subject_inds' in kwargs.keys() else None
+        
         if subject_inds is not None:
             subject_inds = copy.deepcopy(subject_inds).astype('int')
             assert(np.all(subject_inds>=0))
@@ -282,6 +286,14 @@ class scatter_plot:
             inds = (subject_inds==gg);
             plt.plot(data[inds,0], data[inds,1],'.',color=color[gg,:])
                                 
+        if self.add_best_fit_lines:
+            # quick linear regression to get a best fit line
+            X = np.concatenate([data[inds,0:1], np.ones((data.shape[0],1))], axis=1)
+            y = data[:,1:2]
+            linefit =  np.linalg.pinv(X) @ y           
+            yhat = data[:,0]*linefit[0] + linefit[1]
+            plt.plot(data[:,0], yhat, '-', color=[0.6, 0.6, 0.6])
+            
         if self.square==True:
             plt.axis('square')
         

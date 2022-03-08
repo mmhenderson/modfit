@@ -62,3 +62,18 @@ def circ_corr_coef(x, y):
     corr_coef = 4*(A*B-C*D) / np.sqrt((np.power(n,2) - np.power(E,2) - np.power(Fl,2))*(np.power(n,2) - np.power(G,2) - np.power(H,2)));
    
     return corr_coef
+
+
+def get_circ_peaks(curves):
+    
+    if len(curves.shape)==1:
+        curves = curves[np.newaxis,:]
+    circ_diffs = np.diff(np.concatenate([curves, curves[:,0:1]], axis=1), axis=1)
+    circ_diffs_shifted = np.roll(circ_diffs, shift=1, axis=1)
+    peaks = [ np.where((circ_diffs[ii,:]<0) & (circ_diffs_shifted[ii,:]>0))[0] for ii in range(curves.shape[0])]
+    
+    return peaks
+
+def get_circ_troughs(curve):
+    
+    return get_circ_peaks(curve*(-1))

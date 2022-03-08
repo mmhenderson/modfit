@@ -108,6 +108,7 @@ def fit_fwrf(args):
             'n_ori_gabor': args.n_ori_gabor,
             'n_sf_gabor': args.n_sf_gabor,
             'gabor_nonlin_fn': args.gabor_nonlin_fn,
+            'use_pca_gabor_feats': args.use_pca_gabor_feats,
             })
         if np.any(['alexnet' in ft for ft in fitting_types]):
             dict2save.update({
@@ -317,7 +318,8 @@ def fit_fwrf(args):
                                                                 which_prf_grid=args.which_prf_grid,\
                                                                 feature_type='gabor_solo',\
                                                                 n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
-                                                                nonlin_fn=args.gabor_nonlin_fn)
+                                                                nonlin_fn=args.gabor_nonlin_fn, \
+                                                                use_pca_feats=args.use_pca_gabor_feats)
         
                 fe.append(feat_loader)
                 fe_names.append(ft)
@@ -629,4 +631,4 @@ if __name__ == '__main__':
     
     args = arg_parser.get_args()
     fit_fwrf(args)
-   
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    

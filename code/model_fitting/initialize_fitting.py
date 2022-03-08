@@ -85,6 +85,8 @@ def get_full_save_name(args):
             else:
                 model_name += '_OLS'
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
+            if args.use_pca_gabor_feats:
+                model_name += '_pca'
         elif 'sketch_tokens' in ft:      
             fitting_types += [ft]
             if args.use_pca_st_feats==True:       

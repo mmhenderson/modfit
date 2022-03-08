@@ -79,7 +79,9 @@ def get_args():
                     help="number of spatial frequency channels to use")
     parser.add_argument("--gabor_nonlin_fn", type=nice_str2bool,default=True,
                     help="want to add nonlinearity to gabor features? 1 for yes, 0 for no")
-    
+    parser.add_argument("--use_pca_gabor_feats", type=nice_str2bool,default=False,
+                    help="Want to use reduced dim (PCA) version of gabor features?")
+     
     
     # Stuff that is specific to pyramid model
     parser.add_argument("--n_ori_pyr", type=int,default=4,

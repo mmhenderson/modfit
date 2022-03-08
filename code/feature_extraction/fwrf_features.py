@@ -39,20 +39,30 @@ class fwrf_feature_loader:
 
     def init_gabor_solo(self, kwargs):
         
+        self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False        
         self.n_ori = kwargs['n_ori'] if 'n_ori' in kwargs.keys() else 12
         self.n_sf = kwargs['n_sf'] if 'n_sf' in kwargs.keys() else 8
         self.nonlin_fn = kwargs['nonlin_fn'] if 'nonlin_fn' in kwargs.keys() else True
         
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path
-        self.features_file = os.path.join(gabor_texture_feat_path, \
+        if self.use_pca_feats:
+            assert(self.nonlin_fn==True)
+            self.features_file = os.path.join(gabor_texture_feat_path, 'PCA', \
+                                          'S%d_%dori_%dsf_nonlin_PCA_grid%d.h5py'\
+                                           %(self.subject, self.n_ori, self.n_sf, self.which_prf_grid))  
+            with h5py.File(self.features_file, 'r') as file:
+                feat_shape = np.shape(file['/features'])
+                file.close()
+            self.max_features = feat_shape[1]
+        else:
+            self.features_file = os.path.join(gabor_texture_feat_path, \
                       'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(self.subject, self.n_ori, self.n_sf))
-        if self.nonlin_fn:
-            self.features_file += '_nonlin'
-        self.features_file += '_grid%d.h5py'%self.which_prf_grid                                             
+            self.max_features = self.n_ori*self.n_sf             
+            if self.nonlin_fn:
+                self.features_file += '_nonlin'
+            self.features_file += '_grid%d.h5py'%self.which_prf_grid                                             
 
-        self.max_features = self.n_ori*self.n_sf       
         self.do_varpart = False
-        self.use_pca_feats = False
         self.n_feature_types=1
         
     def init_pyramid_texture(self, kwargs):

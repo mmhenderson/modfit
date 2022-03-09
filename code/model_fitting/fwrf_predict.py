@@ -261,6 +261,66 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     return sem_discrim_each_axis, sem_corr_each_axis, n_samp_each_axis, mean_each_sem_level
 
 
+def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
+                               unique_labels_each, val_voxel_data_pred, \
+                               debug=False):   
+    """
+    Measure how well voxels' predicted responses distinguish between image patches with 
+    different semantic content.
+    Computing partial correlation coefficients here - to disentangle contributions of different 
+    (possibly correlated) semantic features.
+    """
+
+    best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
+    n_trials, n_voxels = val_voxel_data_pred.shape[0:2]
+
+    n_sem_axes = len(axes_to_do)
+    labels_use = labels_all[:,axes_to_do,:]
+    
+    partial_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
+    
+    max_categ = np.max([len(unique_labels_each[aa]) for aa in axes_to_do])
+    n_samp_each_axis = np.zeros((n_voxels, n_sem_axes, max_categ),dtype=np.float32)
+   
+    for vv in range(n_voxels):
+        
+        if debug and (vv>1):
+            continue
+        print('computing semantic discriminability for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
+        
+        resp = val_voxel_data_pred[:,vv,0]
+        
+        inds2use = (np.sum(np.isnan(labels_use[:,:,best_model_inds[vv,0]]), axis=1)==0)
+        
+        for aa in range(n_sem_axes):
+            
+            other_axes = ~np.isin(np.arange(n_sem_axes), aa)
+            
+            # going to compute information about the current axis of interest, while
+            # partialling out the other axes. 
+            labels_main_axis = labels_use[:,aa,best_model_inds[vv,0]]
+            labels_other_axes = labels_use[:,other_axes,best_model_inds[vv,0]]
+
+            unique_labels_actual = np.unique(labels_main_axis[inds2use])
+            
+            if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
+                
+                partial_corr = stats_utils.compute_partial_corr(x=labels_main_axis[inds2use], y=resp[inds2use], 
+                                                               c=labels_other_axes[inds2use,:])
+                partial_sem_corr_each_axis[vv,aa] = partial_corr
+                
+                for ui, uu in enumerate(unique_labels_actual):
+                    n_samp_each_axis[vv,aa,ui] = np.sum(labels_main_axis[inds2use]==uu)
+                    
+            else:                
+                # at least one category is missing for this voxel's pRF and this semantic axis.
+                # skip it and put nans in the arrays.               
+                partial_corr_each_axis[vv,aa] = np.nan
+                n_samp_each_axis[vv,aa,:] = np.nan
+               
+    return partial_corr_each_axis, n_samp_each_axis
+
+
 def get_semantic_discrim_balanced(best_params, labels_all, axes_to_balance, unique_labels_each, \
                                   val_voxel_data_pred, n_samp_iters=1000, debug=False):
    

@@ -286,7 +286,7 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
         
         if debug and (vv>1):
             continue
-        print('computing semantic discriminability for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
+        print('computing partial correlations for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
         
         resp = val_voxel_data_pred[:,vv,0]
         

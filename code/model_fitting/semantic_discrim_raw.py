@@ -62,6 +62,9 @@ def get_discrim(args):
         'discrim_type_list': discrim_type_list,
         'n_sem_samp_each_axis': n_sem_samp_each_axis, 
         'mean_each_sem_level': mean_each_sem_level,
+        'axes_to_do': axes_to_do, 
+        'sem_partial_corrs': sem_partial_corrs, 
+        'sem_partial_n_samp': sem_partial_n_samp, 
         'sem_discrim_each_axis_balanced': sem_discrim_each_axis_balanced,
         'sem_corr_each_axis_balanced': sem_corr_each_axis_balanced,
         'axes_to_balance': axes_to_balance,
@@ -77,6 +80,10 @@ def get_discrim(args):
     discrim_type_list = None
     n_sem_samp_each_axis = None
     mean_each_sem_level = None
+    
+    axes_to_do = None
+    sem_partial_corrs = None
+    sem_partial_n_samp = None
     
     axes_to_balance = None
     sem_discrim_each_axis_balanced = None
@@ -151,26 +158,38 @@ def get_discrim(args):
     
     save_all(fn2save)
     
-    # Now computing semantic discriminability for a sub-set of the axes of interest, 
-    # using resampling to balance trial counts in each grouping.
-    print('\nStarting balanced semantic discriminability analysis ...\n')
-    sys.stdout.flush()
-
-    axes_to_balance=[[0,2],[0,3],[2,3]]
-
-    print('Going to compute balanced semantic discriminability, for these pairs of axes:')
-    for axes in axes_to_balance:
-        print([discrim_type_list[aa] for aa in axes])
-
-    sem_discrim_each_axis_balanced, sem_corr_each_axis_balanced, \
-        n_sem_samp_each_axis_balanced, mean_each_sem_level_balanced = \
-            fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
-                                              labels_all, axes_to_balance, unique_labs_each, \
+    axes_to_do = [0,2,3]
+    print('\nGoing to compute partial correlations, for these pairs of axes:')
+    print([discrim_type_list[aa] for aa in axes_to_do])
+    sem_partial_corrs, sem_partial_n_samp = \
+            fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \
+                                              labels_all, axes_to_do=axes_to_do, \
+                                              unique_labels_each=unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
-                                              n_samp_iters=1000,\
                                               debug=args.debug)
-
+    
     save_all(fn2save)
+    
+#     # Now computing semantic discriminability for a sub-set of the axes of interest, 
+#     # using resampling to balance trial counts in each grouping.
+#     print('\nStarting balanced semantic discriminability analysis ...\n')
+#     sys.stdout.flush()
+
+#     axes_to_balance=[[0,2],[0,3],[2,3]]
+
+#     print('Going to compute balanced semantic discriminability, for these pairs of axes:')
+#     for axes in axes_to_balance:
+#         print([discrim_type_list[aa] for aa in axes])
+
+#     sem_discrim_each_axis_balanced, sem_corr_each_axis_balanced, \
+#         n_sem_samp_each_axis_balanced, mean_each_sem_level_balanced = \
+#             fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
+#                                               labels_all, axes_to_balance, unique_labs_each, \
+#                                               val_voxel_data_pred=voxel_data_use,\
+#                                               n_samp_iters=1000,\
+#                                               debug=args.debug)
+
+#     save_all(fn2save)
 
     # Done!
 

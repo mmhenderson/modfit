@@ -305,8 +305,9 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
             
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
                 
-                partial_corr = stats_utils.compute_partial_corr(x=labels_main_axis[inds2use], y=resp[inds2use], 
-                                                               c=labels_other_axes[inds2use,:])
+                partial_corr = stats_utils.compute_partial_corr(x=labels_main_axis[inds2use], \
+                                                                y=resp[inds2use], \
+                                                                c=labels_other_axes[inds2use,:])
                 partial_corr_each_axis[vv,aa] = partial_corr
                 
                 for ui, uu in enumerate(unique_labels_actual):

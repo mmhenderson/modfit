@@ -606,7 +606,7 @@ def fit_fwrf(args):
     
                 # compute partial correlations for some axes 
                 axes_to_do = [0,2,3]
-                print('Going to compute partial correlations, for these pairs of axes:')
+                print('\nGoing to compute partial correlations, for these pairs of axes:')
                 print([discrim_type_list[aa] for aa in axes_to_do])
                 partial_corr_tmp, n_samp_tmp = \
                         fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \

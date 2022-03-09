@@ -83,6 +83,9 @@ def fit_fwrf(args):
             'discrim_type_list': discrim_type_list,
             'n_sem_samp_each_axis': n_sem_samp_each_axis,
             'mean_each_sem_level': mean_each_sem_level,
+            'axes_to_do': axes_to_do, 
+            'sem_partial_corrs': sem_partial_corrs, 
+            'sem_partial_n_samp': sem_partial_n_samp, 
             'axes_to_balance': axes_to_balance,
             'sem_discrim_each_axis_balanced': sem_discrim_each_axis_balanced,
             'sem_corr_each_axis_balanced': sem_corr_each_axis_balanced,           
@@ -147,6 +150,10 @@ def fit_fwrf(args):
     discrim_type_list = None
     n_sem_samp_each_axis = None
     mean_each_sem_level = None
+    
+    axes_to_do = None
+    sem_partial_corrs = None
+    sem_partial_n_samp = None
     
     axes_to_balance = None
     sem_discrim_each_axis_balanced = None
@@ -263,6 +270,10 @@ def fit_fwrf(args):
                 discrim_type_list = last_saved['discrim_type_list']
                 n_sem_samp_each_axis = last_saved['n_sem_samp_each_axis']
                 mean_each_sem_level = last_saved['mean_each_sem_level']
+                
+                axes_to_do = last_saved['axes_to_do']
+                sem_partial_corrs = last_saved['sem_partial_corrs']
+                sem_partial_n_samp = last_saved['sem_partial_n_samp']
                 
                 axes_to_balance = last_saved['axes_to_balance']
                 sem_discrim_each_axis_balanced = last_saved['sem_discrim_each_axis_balanced']
@@ -592,40 +603,60 @@ def fit_fwrf(args):
                 mean_each_sem_level[voxel_subset_mask,:,:] = mean_tmp
 #                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
-           
-                # Now computing semantic discriminability for a sub-set of the axes of interest, 
-                # using resampling to balance trial counts in each grouping.
-                print('\nStarting balanced semantic discriminability analysis (voxel subset %d of %d)...\n'\
-                      %(vi, len(voxel_subset_masks)))
-                sys.stdout.flush()
-                
-                axes_to_balance=[[0,2],[0,3],[2,3]]
-            
-                print('Going to compute balanced semantic discriminability, for these pairs of axes:')
-                for axes in axes_to_balance:
-                    print([discrim_type_list[aa] for aa in axes])
-                
-                discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
-                        fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
-                                                          labels_all, axes_to_balance, unique_labs_each, \
-                                                          val_voxel_data_pred,n_samp_iters=1000,\
+    
+                # compute partial correlations for some axes 
+                axes_to_do = [0,2,3]
+                print('Going to compute partial correlations, for these pairs of axes:')
+                print([discrim_type_list[aa] for aa in axes_to_do])
+                partial_corr_tmp, n_samp_tmp = \
+                        fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \
+                                                          labels_all, axes_to_do=axes_to_do, \
+                                                          unique_labels_each=unique_labs_each, \
+                                                          val_voxel_data_pred=val_voxel_data_pred,\
                                                           debug=args.debug)
-                if vi==0:
-                    sem_discrim_each_axis_balanced = np.zeros((n_voxels, discrim_tmp.shape[1],\
-                                                               discrim_tmp.shape[2]), \
-                                                               dtype=discrim_tmp.dtype) 
-                    sem_corr_each_axis_balanced = np.zeros((n_voxels, corr_tmp.shape[1],\
-                                                            corr_tmp.shape[2]), \
-                                                            dtype=corr_tmp.dtype)
-                    n_sem_samp_each_axis_balanced = np.zeros((n_voxels,n_samp_tmp.shape[1]), \
+                if vi==0:                 
+                    sem_partial_corrs = np.zeros((n_voxels, partial_corr_tmp.shape[1]), \
+                                                     dtype=partial_corr_tmp.dtype)
+                    sem_partial_n_samp = np.zeros((n_voxels, n_samp_tmp.shape[1], n_samp_tmp.shape[2]), \
                                                      dtype=n_samp_tmp.dtype)
-                    mean_each_sem_level_balanced = np.zeros((n_voxels, mean_tmp.shape[1], \
-                                                             mean_tmp.shape[2],mean_tmp.shape[3]), \
-                                                             dtype=mean_tmp.dtype)
-                sem_discrim_each_axis_balanced[voxel_subset_mask,:,:] = discrim_tmp
-                sem_corr_each_axis_balanced[voxel_subset_mask,:,:] = corr_tmp
-                n_sem_samp_each_axis_balanced[voxel_subset_mask,:] = n_samp_tmp
-                mean_each_sem_level_balanced[voxel_subset_mask,:,:,:] = mean_tmp
+
+                sem_partial_corrs[voxel_subset_mask,:] = partial_corr_tmp
+                sem_partial_n_samp[voxel_subset_mask,:,:] = n_samp_tmp
+                
+#                 # Now computing semantic discriminability for a sub-set of the axes of interest, 
+#                 # using resampling to balance trial counts in each grouping.
+#                 print('\nStarting balanced semantic discriminability analysis (voxel subset %d of %d)...\n'\
+#                       %(vi, len(voxel_subset_masks)))
+#                 sys.stdout.flush()
+                
+#                 axes_to_balance=[[0,2],[0,3],[2,3]]
+            
+#                 print('Going to compute balanced semantic discriminability, for these pairs of axes:')
+#                 for axes in axes_to_balance:
+#                     print([discrim_type_list[aa] for aa in axes])
+                
+#                 discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
+#                         fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
+#                                                           labels_all, axes_to_balance, unique_labs_each, \
+#                                                           val_voxel_data_pred,n_samp_iters=1000,\
+#                                                           debug=args.debug)
+#                 if vi==0:
+#                     sem_discrim_each_axis_balanced = np.zeros((n_voxels, discrim_tmp.shape[1],\
+#                                                                discrim_tmp.shape[2]), \
+#                                                                dtype=discrim_tmp.dtype) 
+#                     sem_corr_each_axis_balanced = np.zeros((n_voxels, corr_tmp.shape[1],\
+#                                                             corr_tmp.shape[2]), \
+#                                                             dtype=corr_tmp.dtype)
+#                     n_sem_samp_each_axis_balanced = np.zeros((n_voxels,n_samp_tmp.shape[1]), \
+#                                                      dtype=n_samp_tmp.dtype)
+#                     mean_each_sem_level_balanced = np.zeros((n_voxels, mean_tmp.shape[1], \
+#                                                              mean_tmp.shape[2],mean_tmp.shape[3]), \
+#                                                              dtype=mean_tmp.dtype)
+#                 sem_discrim_each_axis_balanced[voxel_subset_mask,:,:] = discrim_tmp
+#                 sem_corr_each_axis_balanced[voxel_subset_mask,:,:] = corr_tmp
+#                 n_sem_samp_each_axis_balanced[voxel_subset_mask,:] = n_samp_tmp
+#                 mean_each_sem_level_balanced[voxel_subset_mask,:,:,:] = mean_tmp
+
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
             

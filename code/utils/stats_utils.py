@@ -35,6 +35,74 @@ def get_corrcoef(actual,predicted,dtype=np.float32):
         vals_cc[vv] = numpy_corrcoef_warn(actual[:,vv], predicted[:,vv])[0,1] 
     return vals_cc
 
+
+def compute_partial_corr(x, y, c):
+
+    """
+    Compute the partial correlation coefficient between x and y, 
+    controlling for the variables in covariates "c". 
+    Uses linear regression based method.
+    Inputs: 
+        x [n_samples,] or [n_samples,1]
+        y [n_samples,] or [n_samples,1]
+        c [n_samples,] or [n_samples,n_covariates]
+        
+    Outputs:
+        partial_corr, a single value for the partial correlation coefficient.
+    """
+    
+    if len(x.shape)==1:
+        x = x[:,np.newaxis]        
+    if len(y.shape)==1:
+        y = y[:,np.newaxis]
+    if len(c.shape)==1:
+        c = c[:,np.newaxis]
+    n_trials = x.shape[0]
+    assert(y.shape[0]==n_trials and c.shape[0]==n_trials)
+    
+    # first predict x from the other vars
+    model1_preds = np.concatenate([c, np.ones((n_trials,1))], axis=1)
+    model1_coeffs = np.linalg.pinv(model1_preds) @ x
+    model1_yhat = model1_preds @ model1_coeffs
+    model1_resids = model1_yhat - x
+   
+    # then predict y from the other vars
+    model2_preds = np.concatenate([c, np.ones((n_trials,1))], axis=1)
+    model2_coeffs = np.linalg.pinv(model2_preds) @ y
+    model2_yhat = model2_preds @ model2_coeffs
+    model2_resids = model2_yhat - y
+
+    # correlate the residuals to get partial correlation.
+    partial_corr = numpy_corrcoef_warn(model1_resids[:,0], model2_resids[:,0])[0,1]
+   
+    return partial_corr
+
+def compute_partial_corr_formula(x,y,c):
+ 
+    """
+    Code to compute the partial correlation between x and y, controlling
+    for covariate c. 
+    Based on the correlation coefficients between each pair of variables.
+    Also computes estimated standardized beta weight. 
+    """
+    x = np.squeeze(x); 
+    y = np.squeeze(y);
+    c = np.squeeze(c);
+    ryx = np.corrcoef(x,y)[0,1]
+    ryc = np.corrcoef(c,y)[0,1]
+    rxc = np.corrcoef(x,c)[0,1]
+
+    # partial correlation coefficient
+    partial_corr = (ryx - ryc*rxc)/np.sqrt((1-ryc**2)*(1-rxc**2))
+  
+    # equivalent to standardized beta weight from a multiple linear regression
+    # would be set up like [x, c, intercept] @ w = y
+    # this is the weight for x.
+    beta = (ryx - ryc*rxc)/(1-rxc**2)
+    
+    return partial_corr, beta
+
+
 # Some functions that wrap basic numpy/scipy functions, but will print 
 # more useful warnings when a problem arises
 

@@ -172,7 +172,7 @@ def anova_oneway_warn(groups):
             warnings.filterwarnings('ignore')
             anova_out = scipy.stats.f_oneway(*groups)
     
-    if np.isnan(anova_out.statistic):
+    if np.any(np.isnan(anova_out.statistic)):
         print('nans in anova result')
            
     return anova_out

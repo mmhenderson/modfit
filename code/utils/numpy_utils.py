@@ -134,7 +134,8 @@ def bytes_to_gb(bytes_size):
     
     return gib, gb
 
-def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True, return_edges=False):
+def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True, \
+                       return_edges=False, return_std = False):
            
     if len(xdata.shape)>1:
         xdata = np.squeeze(xdata)
@@ -154,6 +155,7 @@ def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True,
 
     xbinned = np.zeros((n_bins,))
     ybinned = np.zeros((n_bins,))
+    ybin_std = np.zeros((n_bins,))
     used_yet = np.zeros((len(xdata),))
     for bb in range(n_bins):
         inds = (xdata>=bin_edges[bb]) & (xdata<bin_edges[bb+1])
@@ -161,16 +163,26 @@ def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True,
         if np.sum(inds)>0:
             used_yet[inds] += 1
             ybinned[bb] = np.mean(ydata[inds])
+            ybin_std[bb] = np.std(ydata[inds])
         else:
             ybinned[bb] = np.nan
+            ybin_std[bb] = np.nan
+            
     assert(np.all(used_yet)==1)
    
     if remove_nans:
-        xbinned=xbinned[~np.isnan(ybinned)] 
-        bin_edges=np.concatenate([bin_edges[0:-1][~np.isnan(ybinned)], [bin_edges[-1]]], axis=0)
-        ybinned=ybinned[~np.isnan(ybinned)]
+        good = ~np.isnan(ybinned)
+        xbinned=xbinned[good] 
+        bin_edges=np.concatenate([bin_edges[0:-1][good], [bin_edges[-1]]], axis=0)
+        ybinned=ybinned[good]
+        ybin_std=ybin_std[good]
         
+    to_return = xbinned, ybinned
+    
     if return_edges:
-        return xbinned, ybinned, bin_edges
-    else:
-        return xbinned, ybinned
+        to_return += bin_edges,
+    
+    if return_std:
+        to_return += ybin_std,
+        
+    return to_return

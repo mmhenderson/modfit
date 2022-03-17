@@ -329,3 +329,32 @@ def get_prf_mask(center, sd, patch_size):
                                    spaces_pad:spaces_pad+patch_size]
         
     return prf_mask
+
+
+def pol_to_cart(angle_deg, eccen_deg):
+    """
+    Convert from polar angle coordinates (angle, eccentricity)
+    to cartesian coordinates (x,y)
+    Inputs and outputs in units of degrees.
+    """
+    angle_rad = angle_deg*np.pi/180
+    x_deg = eccen_deg*np.cos(angle_rad)
+    y_deg = eccen_deg*np.sin(angle_rad)
+    
+    return x_deg, y_deg
+
+def cart_to_pol(x_deg, y_deg):
+    """
+    Convert from cartesian coordinates (x,y)
+    to polar angle coordinates (angle, eccentricity)
+    Inputs and outputs in units of degrees.
+    """
+    x_rad = x_deg/180*np.pi
+    y_rad = y_deg/180*np.pi
+    angle_rad = np.mod(np.arctan2(y_rad,x_rad), 2*np.pi)
+    angle_deg = angle_rad*180/np.pi
+    
+    eccen_deg = np.sqrt(x_deg**2+y_deg**2)
+    
+    return angle_deg, eccen_deg
+    

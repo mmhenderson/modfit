@@ -11,8 +11,11 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1)
+subjects=(2 3 4 5 6 7 8)
 
+# debug=1
+# up_to_sess=1
 debug=0
 up_to_sess=40
 
@@ -28,16 +31,19 @@ do_val=1
 do_tuning=0
 do_sem_disc=0
 
+include_solo_models=0
+
 fitting_type=semantic
 
-semantic_feature_sets=(real_world_size indoor_outdoor natural_humanmade animacy)
+semantic_feature_sets=(highlevel_concat)
+# semantic_feature_sets=(real_world_size indoor_outdoor natural_humanmade animacy)
 
 for subject in ${subjects[@]}
 do
     for semantic_feature_set in ${semantic_feature_sets[@]}
     do
 
-        python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --semantic_feature_set $semantic_feature_set
+        python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --semantic_feature_set $semantic_feature_set --include_solo_models $include_solo_models
         
     done
 

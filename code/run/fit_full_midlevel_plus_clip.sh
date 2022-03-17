@@ -13,7 +13,10 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/model_fitting
 
 # subjects=(3)
-subjects=(4 5 6 7 8)
+subjects=(5 6 7 8)
+# subjects=(1)
+# debug=1
+# up_to_sess=1
 
 debug=0
 up_to_sess=40
@@ -39,6 +42,7 @@ fitting_type=full_midlevel
 n_ori_gabor=12
 n_sf_gabor=8
 gabor_nonlin_fn=1
+use_pca_gabor_feats=0
 
 n_ori_pyr=4
 n_sf_pyr=4
@@ -52,9 +56,12 @@ clip_layer_name=best_layer
 clip_model_architecture=RN50
 use_pca_clip_feats=1
 
+do_varpart=1
+include_solo_models=0
+do_pyr_varpart=0
 
 for subject in ${subjects[@]}
 do
-    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --use_pca_st_feats $use_pca_st_feats --fitting_type2 $fitting_type2 --clip_layer_name $clip_layer_name --clip_model_architecture $clip_model_architecture --use_pca_clip_feats $use_pca_clip_feats 
+    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --use_pca_gabor_feats $use_pca_gabor_feats --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --use_pca_st_feats $use_pca_st_feats --fitting_type2 $fitting_type2 --clip_layer_name $clip_layer_name --clip_model_architecture $clip_model_architecture --use_pca_clip_feats $use_pca_clip_feats --do_varpart $do_varpart --include_solo_models $include_solo_models --do_pyr_varpart $do_pyr_varpart
 
 done

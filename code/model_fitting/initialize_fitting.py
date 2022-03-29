@@ -194,6 +194,10 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
             # small value for lambda rather than zero, to prevent issues with inverse.
             lambdas[lambdas==0] = 10e-9
 
+        if np.any(['clip' in ft for ft in fitting_types]):
+            
+            lambdas = np.logspace(np.log(0.01),np.log(10**10+0.01),20, dtype=np.float32, base=np.e) - 0.01
+            
     print('\nPossible lambda values are:')
     print(lambdas)
 

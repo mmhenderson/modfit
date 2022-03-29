@@ -12,4 +12,6 @@ cd /user_data/mmhender/imStat/code/analyze_features
 
 debug=0
 
-python3 analyze_im_curvature.py --debug $debug
+python3 analyze_st_cluster_ims.py --debug $debug
+
+# python3 analyze_im_curvature.py --debug $debug

@@ -13,8 +13,8 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/model_fitting
 
 # subjects=(3)
-subjects=(5 6 7 8)
-# subjects=(1)
+# subjects=(1 2 3 4)
+subjects=(1)
 # debug=1
 # up_to_sess=1
 
@@ -56,7 +56,7 @@ clip_layer_name=best_layer
 clip_model_architecture=RN50
 use_pca_clip_feats=1
 
-do_varpart=1
+do_varpart=0
 include_solo_models=0
 do_pyr_varpart=0
 

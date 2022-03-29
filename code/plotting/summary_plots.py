@@ -29,6 +29,41 @@ def get_substr(out):
             
     return substr
 
+def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.15], nc_thresh=0.01):
+    
+    n_subjects = len(out)
+    n_rois = roi_def.n_rois
+    roi_names = roi_def.roi_names
+
+    vals = np.zeros((n_subjects, n_rois, 1))
+
+    for si in range(n_subjects):
+
+        val_r2 = out[si]['val_r2']    
+        nc = nsd_utils.ncsnr_to_nc(out[si]['voxel_ncsnr'][out[si]['voxel_mask']])/100
+        inds2use = nc>nc_thresh
+
+        for ri in range(n_rois):
+
+            inds_this_roi = roi_def.ss_roi_defs[si].get_indices(ri) & inds2use
+            assert(np.sum(inds_this_roi)>0)
+            vals[si,ri,:] = np.mean(val_r2[inds_this_roi,0], axis=0)
+
+    mean_vals = np.mean(vals, axis=0)
+    sem_vals = np.std(vals, axis=0) / np.sqrt(n_subjects)
+
+    title='%s\n%s\nShowing all voxels with noise ceiling R2>%.2f'%(get_substr(out), \
+                                                                           fitting_type, nc_thresh)
+
+    plot_utils.set_all_font_sizes(fs = 16)
+    plot_utils.plot_multi_bars(mean_data=mean_vals, err_data=sem_vals, colors=None, space=0.2, \
+                    xticklabels=roi_names, ylabel='R2', \
+                    ylim=ylims, title=title, horizontal_line_pos=0,\
+                    legend_labels=None, \
+                    legend_overlaid=False, legend_separate=False, \
+                    fig_size=(16,4))
+
+
 def plot_perf_summary(fitting_type, out, fig_save_folder=None):
     """
     Plot some general metrics of fit performance, across all voxels.

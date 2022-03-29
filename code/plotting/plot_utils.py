@@ -51,6 +51,14 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
     else:
         n_subjects = 1
         
+    if hasattr(single_plot_object, 'plot_counts') and single_plot_object.plot_counts:
+        plot_counts=True
+        single_plot_object.plot_counts = False 
+        if single_plot_object.groups is None:
+            single_plot_object.groups = np.unique(data)  
+    else:
+        plot_counts=False
+        
     if figsize==None:
         figsize=(24,20)
     plt.figure(figsize=figsize)
@@ -60,7 +68,7 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
     if label_just_corner:
         pi2label = [(npx-1)*npy+1]
     else:
-        pi2label = np.arange(npx*npy)
+        pi2label = np.arange(npx*npy+1)
         
     pi = 0
     for rr in range(n_rois):
@@ -84,18 +92,30 @@ def create_roi_subplots(data, inds2use, single_plot_object, roi_def, \
             else:
                 minimal_labels=True
             if hasattr(single_plot_object, 'plot_errorbars'):
-                # bar plot case, take mean and sem over all pts.
+                # bar plot case
                 if data_this_roi.shape[0]>0:
-                    if n_subjects>1:
-                        # >1 subject, average +/- SEM over subjects
-                        mean_each_subj = np.array([np.mean(data_this_roi[subject_inds_this_roi==si,:], axis=0) \
-                                          for si in un_subs])
-                        mean_this_roi = np.mean(mean_each_subj, axis=0)
-                        err_this_roi = np.std(mean_each_subj, axis=0)/np.sqrt(n_subjects)
+                    if plot_counts:  
+                        # compute number of voxels in each group
+                        counts_each_subj = np.array([[np.sum(data_this_roi==gg) \
+                                                      for gg in single_plot_object.groups] \
+                                                      for si in un_subs])
+                        mean_this_roi = np.mean(counts_each_subj, axis=0)
+                        if n_subjects>1:                           
+                            err_this_roi = np.std(counts_each_subj, axis=0)/np.sqrt(n_subjects)
+                        else:
+                            err_this_roi = np.zeros(np.shape(mean_this_roi))
                     else:
-                        # one subject, average +/- SEM over voxels
-                        mean_this_roi = np.mean(data_this_roi, axis=0)
-                        err_this_roi = np.std(data_this_roi, axis=0)/np.sqrt(data_this_roi.shape[0])
+                        # take mean and sem over all pts.
+                        if n_subjects>1:
+                            # >1 subject, average +/- SEM over subjects
+                            mean_each_subj = np.array([np.mean(data_this_roi[subject_inds_this_roi==si,:], axis=0) \
+                                              for si in un_subs])
+                            mean_this_roi = np.mean(mean_each_subj, axis=0)
+                            err_this_roi = np.std(mean_each_subj, axis=0)/np.sqrt(n_subjects)
+                        else:
+                            # one subject, average +/- SEM over voxels
+                            mean_this_roi = np.mean(data_this_roi, axis=0)
+                            err_this_roi = np.std(data_this_roi, axis=0)/np.sqrt(data_this_roi.shape[0])
                     single_plot_object.create(mean_this_roi, err_data=err_this_roi, new_fig=False, \
                                               minimal_labels=minimal_labels)
             else:
@@ -413,6 +433,7 @@ class violin_plot:
 def plot_multi_bars(
     mean_data,
     err_data=None,
+    point_data=None,
     colors=None,
     space=0.3,
     xticklabels=None,
@@ -463,6 +484,9 @@ def plot_multi_bars(
     nlevels1, nlevels2 = mean_data.shape
     if err_data is not None and len(err_data) == 0:
         err_data = None
+    if point_data is not None:
+        assert(point_data.shape[1]==nlevels1)
+        assert(point_data.shape[2]==nlevels2)
 
     edge_pos = [-0.5 + space, 0.5 - space]
     bar_width = (edge_pos[1] - edge_pos[0]) / nlevels2
@@ -494,6 +518,10 @@ def plot_multi_bars(
                 zorder=10,
                 ls="none",
             )
+        if point_data is not None:
+            for pp in range(point_data.shape[0]):
+                plt.plot(np.arange(nlevels1) + offsets[ll], point_data[pp,:,ll], \
+                         '.', color=[0.8, 0.8, 0.8], zorder=15)
 
     if xticklabels is not None:
         assert len(xticklabels) == nlevels1

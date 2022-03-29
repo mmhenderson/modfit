@@ -23,15 +23,31 @@ class nsd_roi_def():
     you would like to skip here. Will reduce the total n_rois.
     """
     
-    def __init__(self, subject, volume_space=True, skip_areas=[]):
+    def __init__(self, subject, volume_space=True, use_default_areas = True, \
+                 skip_areas = [],\
+                 remove_ret_overlap = False, remove_categ_overlap=False):
         
         self.subject=subject
         self.volume_space=volume_space
-       
+
         self.__init_names__()        
         self.__init_labels__()
-        if len(skip_areas)>0:
+
+        if use_default_areas:
+            # convenience option, these are the areas we generally want to use
+            skip_areas = [4, 5, 6, 7, 11, 12, 19, 20, 22, 23, 24]
             self.__remove_skipped__(skip_areas)
+            # combining these sub-regions to make larger areas, for simplicity
+            self.merge_two_areas('IPS0-1', 'IPS2-5', 'IPS')
+            self.merge_two_areas('FFA-1', 'FFA-2', 'FFA')
+        elif len(skip_areas)>0:
+            # otherwise, can ignore a custom set of areas.
+            self.__remove_skipped__(skip_areas)
+  
+        if remove_ret_overlap:
+            self.__remove_ret_overlap__()
+        if remove_categ_overlap:
+            self.__remove_categ_overlap__()
             
     def __init_names__(self):
         
@@ -42,7 +58,7 @@ class nsd_roi_def():
         self.ret_names = copy.deepcopy(ret_group_names)
 
         self.__combine_names__()
-        
+       
     def __combine_names__(self):
         
         self.nret = len(self.ret_names)
@@ -117,7 +133,66 @@ class nsd_roi_def():
                 bc+=1
             
         self.__combine_names__()
-                
+        
+    def __remove_ret_overlap__(self):
+    
+        self.retlabs[self.facelabs>-1] = -1
+        self.retlabs[self.placelabs>-1] = -1
+        self.retlabs[self.bodylabs>-1] = -1
+        
+    def __remove_categ_overlap__(self):
+
+        self.placelabs[self.facelabs>-1] = -1
+        self.bodylabs[self.facelabs>-1] = -1
+        self.bodylabs[self.placelabs>-1] = -1
+       
+    def merge_two_areas(self, roi_name1, roi_name2, roi_name_combined):
+        
+        if np.any([name==roi_name1 for name in self.roi_names]):
+            rr1 = np.where([name==roi_name1 for name in self.roi_names])[0][0]
+        else:
+            raise ValueError('%s not in list of ROIs, see self.roi_names for options.'%roi_name1)
+        
+        if np.any([name==roi_name2 for name in self.roi_names]):
+            rr2 = np.where([name==roi_name2 for name in self.roi_names])[0][0]
+        else:
+            raise ValueError('%s not in list of ROIs, see self.roi_names for options.'%roi_name2)
+            
+        if self.is_ret[rr1]:
+            assert(self.is_ret[rr2])
+            ind1 = rr1
+            ind2 = rr2
+            self.ret_names[ind1] = roi_name_combined
+            self.ret_names.remove(self.ret_names[ind2])
+            self.retlabs[self.retlabs==ind2] = ind1
+            self.retlabs[self.retlabs>ind2] -= 1
+        elif self.is_place[rr1]:
+            assert(self.is_place[rr2])
+            ind1 = rr1-self.nret
+            ind2 = rr2-self.nret
+            self.place_names[ind1] = roi_name_combined
+            self.place_names.remove(self.place_names[ind2])
+            self.placelabs[self.placelabs==ind2] = ind1
+            self.placelabs[self.placelabs>ind2] -= 1
+        elif self.is_face[rr1]:
+            assert(self.is_face[rr2])
+            ind1 = rr1-self.nret-self.nplace
+            ind2 = rr2-self.nret-self.nplace
+            self.face_names[ind1] = roi_name_combined
+            self.face_names.remove(self.face_names[ind2])
+            self.facelabs[self.facelabs==ind2] = ind1
+            self.facelabs[self.facelabs>ind2] -= 1
+        else:
+            assert(self.is_body[rr1] and self.is_body[rr2])
+            ind1 = rr1-self.nret-self.nplace-self.nface
+            ind2 = rr2-self.nret-self.nplace-self.nface
+            self.body_names[ind1] = roi_name_combined
+            self.body_names.remove(self.body_names[ind2])
+            self.bodylabs[self.bodylabs==ind2] = ind1
+            self.bodylabs[self.bodylabs>ind2] -= 1
+        
+        self.__combine_names__()
+        
     def get_indices_from_name(self, roi_name):
         
         if np.any([name==roi_name for name in self.roi_names]):
@@ -180,19 +255,32 @@ class multi_subject_roi_def(nsd_roi_def):
     concatenating the property of interest for analysis.
     """
     
-    def __init__(self, subjects, volume_space=True, skip_areas=[]):
+    def __init__(self, subjects, volume_space=True, use_default_areas=True, skip_areas=[], \
+                remove_ret_overlap = False, remove_categ_overlap=False):
      
         # first initialize object with just first subject, most of
         # the properties are same for all subs (ROI names etc.)
-        super().__init__(subject=subjects[0], volume_space=volume_space, skip_areas=skip_areas)
+        super().__init__(subject=subjects[0], \
+                         volume_space=volume_space, \
+                         use_default_areas=use_default_areas, \
+                         skip_areas=skip_areas, \
+                         remove_ret_overlap = remove_ret_overlap, \
+                         remove_categ_overlap=remove_categ_overlap)
         
         self.subjects = subjects
         
         # now getting subject-specific properties, labels for each voxel.
-        self.ss_roi_defs = [nsd_roi_def(ss, volume_space=volume_space, skip_areas=skip_areas) \
+        self.ss_roi_defs = [nsd_roi_def(subject=ss, \
+                                        volume_space=volume_space, \
+                                        use_default_areas=use_default_areas, \
+                                        skip_areas=skip_areas, \
+                                        remove_ret_overlap = remove_ret_overlap, \
+                                        remove_categ_overlap=remove_categ_overlap) \
                             for ss in self.subjects]
         
         self.__concat_labels__()
+        
+        self.merge_two_areas = self.__merge_two_areas__
         
     def __concat_labels__(self):
 
@@ -206,7 +294,21 @@ class multi_subject_roi_def(nsd_roi_def):
         self.voxel_mask = [roi.voxel_mask for roi in self.ss_roi_defs]
         self.nii_shape = [roi.nii_shape for roi in self.ss_roi_defs]
         
-
+        self.roi_names = self.ss_roi_defs[0].roi_names
+        self.place_names = self.ss_roi_defs[0].place_names
+        self.face_names = self.ss_roi_defs[0].face_names        
+        self.body_names = self.ss_roi_defs[0].body_names
+        
+    def __merge_two_areas__(self, roi_name1, roi_name2, roi_name_combined):
+        
+        for roi_def in self.ss_roi_defs:
+            roi_def.merge_two_areas(roi_name1, roi_name2, roi_name_combined)
+            
+        self.__concat_labels__()
+        self.__combine_names__()
+        
+        
+        
 def load_roi_label_mapping(subject):
     """
     Load files (ctab) that describe the mapping from numerical labels to text labels.

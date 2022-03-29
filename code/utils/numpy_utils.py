@@ -68,20 +68,26 @@ def double_sort(array, sort_by1, sort_by2):
     Sort an array twice, first along one dimension and then by another dimension
     (i.e. within levels of the first dim)
     """
-    array_orig = np.squeeze(array)
-    assert(len(np.shape(array))==1)
-    sort_by1 = np.squeeze(sort_by1)
-    assert(len(np.shape(sort_by1))==1)
-    sort_by2 = np.squeeze(sort_by2)
-    assert(len(np.shape(sort_by2))==1)
+    if len(array)>1:
+        array_orig = np.squeeze(array)
+        assert(len(np.shape(array))==1)
+        sort_by1 = np.squeeze(sort_by1)
+        assert(len(np.shape(sort_by1))==1)
+        sort_by2 = np.squeeze(sort_by2)
+        assert(len(np.shape(sort_by2))==1)
+    else:
+        return array, [[0]]
     
     new_order = np.zeros(np.shape(array))
-    n1 = len(np.unique(sort_by1))
     vals1 = np.unique(sort_by1)
-    n2 = len(np.unique(sort_by2))
-    for ni in range(n1):
-        orig_inds = np.where(np.array(sort_by1)==vals1[ni])[0];
-        new_inds = np.arange(ni*n2, (ni+1)*n2)
+    start_ind=0
+    for v1 in vals1:
+        
+        orig_inds = np.where(np.array(sort_by1)==v1)[0];
+        
+        new_inds = np.arange(start_ind, start_ind+len(orig_inds))
+        start_ind+=len(orig_inds)
+        
         sorder = np.argsort(np.array(sort_by2)[orig_inds])
         new_order[new_inds] = orig_inds[sorder]
         

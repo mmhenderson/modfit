@@ -50,8 +50,9 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
         n_subjects = 1
     else:
         n_subjects = len(subject)
-        assert(subject_map_inds is not None)
-        assert(len(np.unique(subject_map_inds))==n_subjects)
+        if len(maps)>0:
+            assert(subject_map_inds is not None)
+            assert(len(np.unique(subject_map_inds))==n_subjects)
         
     
     if roi_def is not None:

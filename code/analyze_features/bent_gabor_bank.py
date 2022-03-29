@@ -30,6 +30,9 @@ class bent_gabor_feature_bank():
         
         freq_values: freq of filters, cyc/image
         orient_values: orientation of filters, 0-2pi
+            Orientation axis starts at vertical==0 and rotates counter-clockwise.
+            Orientations span a full 0-360 space, because the bend values make them asymmetric. 
+            For linear kernels, the filters 180 deg apart are identical.
         bend_values: control bending of filters
         """
         

@@ -29,7 +29,7 @@ def get_substr(out):
             
     return substr
 
-def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.15], nc_thresh=0.01):
+def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.20], nc_thresh=0.01):
     
     n_subjects = len(out)
     n_rois = roi_def.n_rois
@@ -56,14 +56,26 @@ def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.15], nc_thresh=
                                                                            fitting_type, nc_thresh)
 
     plot_utils.set_all_font_sizes(fs = 16)
-    plot_utils.plot_multi_bars(mean_data=mean_vals, err_data=sem_vals, colors=None, space=0.2, \
+    fh = plot_utils.plot_multi_bars(mean_data=mean_vals, err_data=sem_vals, colors=np.array([[0.8, 0.8, 0.8]]), space=0.2, \
                     xticklabels=roi_names, ylabel='R2', \
                     ylim=ylims, title=title, horizontal_line_pos=0,\
                     legend_labels=None, \
                     legend_overlaid=False, legend_separate=False, \
                     fig_size=(16,4))
 
+    # now adding single subjects to the plot too
+    subcolors = cm.viridis(np.linspace(0,1,n_subjects))
+    for ss in range(n_subjects):
+        plt.plot(np.arange(n_rois), vals[ss,:,0],'.',markersize=10, markeredgecolor='none', \
+                 markerfacecolor=subcolors[ss,:], zorder=15)
+     
+    plt.figure();
+    for ss in range(n_subjects):
+        plt.plot(0,ss,'.',markersize=10, markeredgecolor='none', \
+                 markerfacecolor=subcolors[ss,:], )
+    plt.legend(['S%d'%(ss+1) for ss in range(n_subjects)])
 
+    
 def plot_perf_summary(fitting_type, out, fig_save_folder=None):
     """
     Plot some general metrics of fit performance, across all voxels.

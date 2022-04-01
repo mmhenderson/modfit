@@ -43,6 +43,7 @@ def fit_fwrf(args):
         'volume_space': args.volume_space,
         'fitting_types': fitting_types, 
         'voxel_mask': voxel_mask,
+        'average_image_reps': args.average_image_reps, 
         'brain_nii_shape': brain_nii_shape,
         'image_order': image_order,
         'voxel_index': voxel_index,
@@ -185,13 +186,14 @@ def fit_fwrf(args):
     else:
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
-    trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
+    trn_voxel_data, val_voxel_data, \
     image_order, trn_image_order, val_image_order = \
                                 nsd_utils.get_data_splits(args.subject, \
-                                sessions=sessions, image_inds_only = True, \
+                                sessions=sessions, \
                                 voxel_mask=voxel_mask, volume_space=args.volume_space, \
                                 zscore_betas_within_sess=True, \
-                                shuffle_images=args.shuffle_images, random_images=args.random_images, \
+                                shuffle_images=args.shuffle_images,\
+                                average_image_reps=args.average_image_reps, \
                                 random_voxel_data=args.random_voxel_data)
     n_voxels = trn_voxel_data.shape[1]   
 

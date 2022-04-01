@@ -17,6 +17,9 @@ def get_args():
                     help="analyze sessions 1-#")
     parser.add_argument("--single_sess", type=int, default=0,
                     help="analyze just this one session (enter integer)")
+    parser.add_argument("--average_image_reps", type=nice_str2bool, default=0,
+                    help="average over trial repetitions of same image?")
+    
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")

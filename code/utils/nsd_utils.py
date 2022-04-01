@@ -177,8 +177,8 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
 def get_concat_betas(subject, debug=False):
     
     print('\nProcessing subject %d\n'%subject)
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = roi_utils.get_voxel_roi_info(subject, \
-                                                    volume_space=True, include_all=True, include_body=True)    
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                roi_utils.get_voxel_roi_info(subject,volume_space=True)    
     if debug:
         sessions = [0]
     else:
@@ -202,27 +202,38 @@ def get_concat_betas(subject, debug=False):
     elapsed = time.time() - t
     print('took %.5f sec'%elapsed)
     
-def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=None, zscore_betas_within_sess=True, volume_space=True, \
-                    shuffle_images=False, random_images=False, random_voxel_data=False):
+def average_image_repetitions(voxel_data, image_order):
+    
+    n_trials = voxel_data.shape[0]
+    n_voxels = voxel_data.shape[1]
+
+    unique_ims = np.unique(image_order)
+    n_unique_ims = len(unique_ims)
+    avg_dat_each_image = np.zeros((n_unique_ims, n_voxels))
+    for uu, im in enumerate(unique_ims):
+        inds = image_order==im;
+        avg_dat_each_image[uu,:] = np.mean(voxel_data[inds,:], axis=0)
+        
+    return avg_dat_each_image, unique_ims
+    
+def get_data_splits(subject, sessions=[0], voxel_mask=None, \
+                    zscore_betas_within_sess=True, volume_space=True, \
+                    average_image_reps = False, \
+                    shuffle_images=False, random_voxel_data=False):
 
     """
-    Gather training/testing images and voxel data for one NSD subject.
+    Gather voxel data and the indices of training/testing images, for one NSD subject.
+    Not actually loading images here, because all image features are pre-computed. 
     Always leaving out the "shared1000" image subset as my validation set, and training within the rest of the data.
     Can specify a list of sessions to work with (don't have to be contiguous).
     Can specify whether to work in volume or surface space (set volume_space to True or False).
-    Can also choose to shuffle images, generate random images, or generate random voxel data at this stage.
+    Can also choose to shuffle images or generate random voxel data at this stage if desired.
     """
-    
-    # First load all the images, full brick of 10,000 images. Not in order yet.
-    if not image_inds_only:
-        image_data = get_image_data(subject, random_images)
-        image_data = image_uncolorize_fn(image_data)
-    else:
-        image_data = None
-    # Load the experiment design file that defines actual order.
+
+    # Load the experiment design file that defines full image order over 30,000 trials
     image_order = get_master_image_order()
     
-    # Choosing which sessions we're analyzing now - same sessions as the voxel data that will be loaded.
+    # Decide which sessions to work with here
     session_inds = get_session_inds_full()
     if np.isscalar(sessions):
         sessions = [sessions]
@@ -230,66 +241,61 @@ def get_data_splits(subject, sessions=[0], image_inds_only=False, voxel_mask=Non
     if np.any((sessions+1)>max_sess_each_subj[subject-1]):
         # adjust the session list that was entered, if the subject is missing some sessions.
         # will alter the list for both images and voxel data.
-        print('subject %d only has up to session %d, will load these sessions:'%(subject, max_sess_each_subj[subject-1]))
+        print('subject %d only has up to session %d, will load these sessions:'%\
+              (subject, max_sess_each_subj[subject-1]))
         sessions = sessions[(sessions+1)<=max_sess_each_subj[subject-1]]
         print(sessions+1)
         assert(len(sessions)>0)
         
     inds2use = np.isin(session_inds, sessions)
     image_order = image_order[inds2use]
-    
-    if shuffle_images:
-        shuff_order = np.arange(0,np.shape(image_order)[0])
-        np.random.shuffle(shuff_order)
-        print('\nShuffling image data...')
-        print('\nShuffled order ranges from [%d to %d], first elements are:'%(np.min(shuff_order), \
-                                                                              np.max(shuff_order)))
-        print(shuff_order[0:10])        
-        print('\nOrig image order ranges from [%d to %d], first elements are:'%(np.min(image_order), \
-                                                                              np.max(image_order)))
-        print(image_order[0:10])        
-        image_order = image_order[shuff_order]
-        print('\nNew image order ranges from [%d to %d], first elements are:'%(np.min(image_order), \
-                                                                              np.max(image_order)))
-        print(image_order[0:10])
-        
-    # Now re-ordering the image data into the real sequence, for just the sessions of interest.
-    if not image_inds_only:
-        image_data_ordered = image_data[image_order]
-    
-    # Now load voxel data (preprocessed beta weights for each trial)
-    if random_voxel_data==False:
-        # actual data loading here
-        print('Loading data for sessions:')
-        print(sessions+1)
-        voxel_data = load_betas(subject, sessions, voxel_mask=voxel_mask, zscore_betas_within_sess=zscore_betas_within_sess, \
-                                volume_space=volume_space)
-        print('\nSize of full data set [nTrials x nVoxels] is:')
-        print(voxel_data.shape)
-    else:
-        print('\nCreating fake random normal data...')
-        n_voxels = 8000 # Just creating an array of random data
-        voxel_data = np.random.normal(0,1,size=(trials_per_sess*len(sessions), n_voxels))
-        print('\nSize of full data set [nTrials x nVoxels] is:')
-        print(voxel_data.shape)
 
-    # Split the data: the values in "image_order" < 1000 are the shared 1000 images, use these as validation set.
-    shared_1000_inds = image_order<1000
+    # Now load voxel data (preprocessed beta weights for each trial)
+    print('Loading data for sessions:')
+    print(sessions+1)
+    if not random_voxel_data:
+        voxel_data = load_betas(subject, sessions, voxel_mask=voxel_mask, \
+                            zscore_betas_within_sess=zscore_betas_within_sess, \
+                            volume_space=volume_space)
+    else:
+        print('creating random normally distributed data instead of loading real data')
+        if voxel_mask is not None:
+            n_voxels = np.sum(voxel_mask)
+        else:
+            n_voxels = 10000
+        voxel_data = np.random.normal(0,1,(len(image_order), n_voxels))
+        
+    print('\nSize of full data set [n_trials x n_voxels] is:')
+    print(voxel_data.shape)
+    assert(voxel_data.shape[0]==len(image_order))
+    
+    # average over repetitions of same image, if desired
+    if average_image_reps:
+        avg_dat_each_image, unique_ims = average_image_repetitions(voxel_data, image_order)
+        voxel_data = avg_dat_each_image # use average data going forward
+        image_order = unique_ims # now the unique image indices become new image order
+        # NOTE that the unique images can be fewer than 10,000 if the subject
+        # is missing some data, or if we are working w just a few sessions. 
+        print('\nAfter averaging - size of full data set [n_images x n_voxels] is:')
+        print(voxel_data.shape)
+        
+    if shuffle_images:
+        print('\nShuffling image order')
+        image_order = image_order[np.random.permutation(np.arange(len(image_order)))]
    
+    # Split into training/validation set now
+    subj_df = get_subj_df(subject)
+    is_shared_image = np.array(subj_df['shared1000'])
+    shared_1000_inds = is_shared_image[image_order]
+
     val_voxel_data = voxel_data[shared_1000_inds,:]
     trn_voxel_data = voxel_data[~shared_1000_inds,:]
-
-    if not image_inds_only:
-        val_stim_data = image_data_ordered[shared_1000_inds,:,:,:]
-        trn_stim_data = image_data_ordered[~shared_1000_inds,:,:,:]
-    else:
-        val_stim_data = None
-        trn_stim_data = None
-        
+ 
     image_order_val = image_order[shared_1000_inds]
     image_order_trn = image_order[~shared_1000_inds]
+    
+    return trn_voxel_data, val_voxel_data, image_order, image_order_trn, image_order_val
 
-    return trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, image_order, image_order_trn, image_order_val
 
 def resize_image_tensor(x, newsize):
         tt = x.transpose((0,2,3,1))

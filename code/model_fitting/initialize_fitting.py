@@ -192,14 +192,14 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
             # will vary depending on actual feature value ranges, be sure to check the results carefully
             lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
 
+        if np.any(['clip' in ft for ft in fitting_types]) or np.any(['alexnet' in ft for ft in fitting_types]):
+            
+            lambdas = np.logspace(np.log(0.01),np.log(10**10+0.01),20, dtype=np.float32, base=np.e) - 0.01
+            
         if np.any(['semantic' in ft for ft in fitting_types]):
             # the semantic models occasionally end up with a column of all zeros, so make sure we have a 
             # small value for lambda rather than zero, to prevent issues with inverse.
             lambdas[lambdas==0] = 10e-9
-
-#         if np.any(['clip' in ft for ft in fitting_types]):
-            
-#             lambdas = np.logspace(np.log(0.01),np.log(10**10+0.01),20, dtype=np.float32, base=np.e) - 0.01
             
     print('\nPossible lambda values are:')
     print(lambdas)
@@ -408,6 +408,9 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
     
     # going to work with a subset of trials only, defined by their semantic categories
     # note these definitions will be different for different pRFs 
+    # this func will return an array [n_trials x n_prfs], masking out which trials to use
+    # for each prf.
+    # one for training trials, one for validation trials.
     
     n_prfs = prf_models.shape[0]
     
@@ -440,8 +443,9 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
                 continue
                 
             coco_things_labels_fn = os.path.join(labels_folder, \
-                                  'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index)) 
-            print('loading from %s'%coco_things_labels_fn)
+                                  'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index))
+            if prf_model_index==0:
+                print('loading from %s'%coco_things_labels_fn)
             coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
             supcat_labels = np.array(coco_things_df)[:,0:12]
             animate_supcats = [1,9]
@@ -474,7 +478,8 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
                 
             size_labels_fn = os.path.join(labels_folder, \
                                   'S%d_realworldsize_prf%d.csv'%(args.subject, prf_model_index))
-            print('loading from %s'%size_labels_fn)
+            if prf_model_index==0:
+                print('loading from %s'%size_labels_fn)
             size_df = pd.read_csv(size_labels_fn, index_col=0)
             size_df = size_df.iloc[:,[0,2]]
            

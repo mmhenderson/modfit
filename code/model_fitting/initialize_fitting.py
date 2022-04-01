@@ -117,6 +117,9 @@ def get_full_save_name(args):
         
         if fi<len(input_fitting_types)-1:
             model_name+='_plus_'
+            
+    if args.trial_subset!='all':
+        model_name += '_%s'%args.trial_subset
 
     print(fitting_types)
     print(model_name)
@@ -399,3 +402,95 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
     
 
     return labels_all, discrim_type_list, unique_labs_each
+
+
+def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
+    
+    # going to work with a subset of trials only, defined by their semantic categories
+    # note these definitions will be different for different pRFs 
+    
+    n_prfs = prf_models.shape[0]
+    
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
+                         'S%d_within_prf_grid%d'%(args.subject, args.which_prf_grid))
+    
+    if 'indoor' in args.trial_subset or 'outdoor' in args.trial_subset:
+        
+        # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
+        in_out_labels_fn = os.path.join(default_paths.stim_labels_root, \
+                                        'S%d_indoor_outdoor.csv'%args.subject)
+        print('loading from %s'%in_out_labels_fn)
+        in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
+        
+        has_one_label = np.sum(in_out_df, axis=1)==1
+        if args.trial_subset=='indoor_only':
+            trials_use = (np.array(in_out_df['has_indoor'])==1) & has_one_label
+        elif args.trial_subset=='outdoor_only':
+            trials_use = (np.array(in_out_df['has_outdoor'])==1) & has_one_label
+        
+        trials_use = np.tile(trials_use[:,np.newaxis], [1,n_prfs])
+        
+    elif 'animate' in args.trial_subset:
+        
+        trials_use = []
+        for prf_model_index in range(n_prfs):
+        
+            if args.debug and prf_model_index>1:
+                trials_use += [trials]
+                continue
+                
+            coco_things_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index)) 
+            print('loading from %s'%coco_things_labels_fn)
+            coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
+            supcat_labels = np.array(coco_things_df)[:,0:12]
+            animate_supcats = [1,9]
+            inanimate_supcats = [ii for ii in range(12)\
+                                 if ii not in animate_supcats]
+            has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                           for ii in animate_supcats]), axis=0)
+            has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                        for ii in inanimate_supcats]), axis=0)
+            has_one_label = (has_animate.astype(int) + has_inanimate.astype(int))==1
+            
+            if args.trial_subset=='animate_only':                
+                trials = has_animate & has_one_label
+            elif args.trial_subset=='inanimate_only':         
+                trials = has_inanimate & has_one_label
+                
+            trials_use += [trials]
+           
+        trials_use = np.array(trials_use).T
+        
+        
+    elif 'small' in args.trial_subset or 'large' in args.trial_subset:
+        
+        trials_use = []
+        for prf_model_index in range(n_prfs):
+        
+            if args.debug and prf_model_index>1:
+                trials_use += [trials]
+                continue
+                
+            size_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_realworldsize_prf%d.csv'%(args.subject, prf_model_index))
+            print('loading from %s'%size_labels_fn)
+            size_df = pd.read_csv(size_labels_fn, index_col=0)
+            size_df = size_df.iloc[:,[0,2]]
+           
+            has_one_label = np.sum(np.array(size_df), axis=1)==1
+            
+            if args.trial_subset=='small_only':                
+                trials = (np.array(size_df['has_small'])==1) & has_one_label
+            elif args.trial_subset=='large_only':         
+                trials = (np.array(size_df['has_large'])==1) & has_one_label
+                
+            trials_use += [trials]
+           
+        trials_use = np.array(trials_use).T
+
+    # put into correct order for different trial sets
+    trn_trials_use = trials_use[trn_image_order,:]
+    val_trials_use = trials_use[val_image_order,:]
+        
+    return trn_trials_use, val_trials_use

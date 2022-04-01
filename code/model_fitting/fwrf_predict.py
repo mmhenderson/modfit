@@ -11,6 +11,7 @@ from utils import numpy_utils, torch_utils, stats_utils
 def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
                         feature_loader, zscore=False, sample_batch_size=100, \
                         voxel_batch_size=100, debug=False, \
+                        trials_use_each_prf = None,
                         dtype=np.float32, device=None):
     
     """ 
@@ -18,8 +19,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
     Returns the trial-by-trial predictions of the encoding model for the voxels in 
     voxel_data, which can be used for further analyses (get_feature_tuning etc.),
     and computes overall val_cc and val_r2 (prediction accuracy of model).
-    Also performs variance partition analysis, by evaluating the model with different 
-    held out sets of features at a time.
+    Also completes the variance partition analysis, by evaluating the model with 
+    different held out sets of features at a time.
     """
     
     params = best_params
@@ -56,9 +57,8 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
     start_time = time.time()    
     with torch.no_grad(): # make sure local gradients are off to save memory
         
-        # First gather features for all pRFs. There are fewer pRFs than voxels, so it is faster
-        # to loop over pRFs first, then voxels.
-        
+        # First looping over pRFs - there are fewer pRFs than voxels, so this will be faster 
+        # than looping over voxels first would be.
         feature_loader.clear_big_features()
         
         for mm in range(n_prfs):
@@ -69,6 +69,11 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
             if not np.any(best_model_inds==mm):
                 print('No voxels have this pRF as their best model, skipping it.')
                 continue
+            else:
+                voxels_to_do = np.where(best_model_inds==mm)[0]
+                n_voxels_to_do = len(voxels_to_do)            
+                n_voxel_batches = int(np.ceil(n_voxels_to_do/voxel_batch_size))
+
             # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
             # feature_inds_defined is [max_features]
             all_feat_concat, feature_inds_defined = feature_loader.load(images, mm, fitting_mode=False)
@@ -81,87 +86,104 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
                 all_feat_concat = (all_feat_concat - tiled_mean)/tiled_std
                 assert(not np.any(np.isnan(all_feat_concat)) and not np.any(np.isinf(all_feat_concat)))
                         
+            # saving all these features for use later on
             features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
             feature_inds_defined_each_prf[:,mm] = feature_inds_defined
             
-        feature_loader.clear_big_features()
-        
-        # Next looping over all voxels in batches.
-        
-        vv=-1
-        for rv, lv in numpy_utils.iterate_range(0, n_voxels, voxel_batch_size):
-            vv=vv+1
-            print('Getting predictions for voxels [%d-%d] of %d'%(rv[0],rv[-1],n_voxels))
+            feature_loader.clear_big_features()
 
-            if vv>1 and debug:
-                break
+            # get data ready to do validation
+            features_full = features_each_prf[:,:,mm:mm+1]
 
-            # Looping over versions of model w different features set to zero (variance partition)
-            for pp in range(n_partial_versions):
-
-                print('\nEvaluating version %d of %d: %s'%(pp, n_partial_versions, partial_version_names[pp]))
-
-                # masks describes the indices of the features that are included in this partial model
-                # n_features_max in length
-                features_to_use = masks[:,pp]==1
-                print('Includes %d features'%np.sum(features_to_use))
-
+            if trials_use_each_prf is not None:
+                # select subset of trials to work with
+                trials_use = trials_use_each_prf[:,mm]
+                features_full = features_full[trials_use,:,:]
+                voxel_data_use = voxel_data[trials_use,:]
+            else:
+                trials_use = np.ones((n_trials,),dtype=bool)
+                voxel_data_use = voxel_data
                 
-                # here is where we choose the right set of features for each voxel, based
-                # on its fitted prf.
-                # [trials x features x voxels]
-                features_full = features_each_prf[:,:,best_model_inds[rv,pp]]
+            n_trials_use = np.sum(trials_use)
+            print(n_trials_use)
+            print('prf %d: using %d validation set trials'%(mm, voxel_data_use.shape[0]))
+
+            # Next looping over all voxels with this same pRF, in batches        
+            for vv in range(n_voxel_batches):
+                    
+                vinds = np.arange(voxel_batch_size*vv, np.min([voxel_batch_size*(vv+1), n_voxels_to_do]))
+                rv = voxels_to_do[vinds]
+                lv = len(vinds)
                 
-                # Take out the relevant features now
-                features_full = features_full[:,features_to_use,:]
-                # Note there may be some zeros in this matrix, if we used fewer than the 
-                # max number of features.
-                # But they are zero in weight matrix too, so turns out ok.
+                # double check the pRF estimates are same
+                assert(np.all(best_model_inds[rv,:]==mm))
 
-                _weights = torch_utils._to_torch(weights[rv,:,pp], device=device)   
-                _weights = _weights[:, features_to_use]
-                _bias = torch_utils._to_torch(bias[rv,pp], device=device)
+                print('Getting predictions for voxels [%d-%d], batch %d of %d'%(rv[0],rv[-1],vv, n_voxel_batches))
 
-                print('number of zeros:')
-                print(np.sum(features_full[0,:,0]==0))
+                if vv>1 and debug:
+                    break
 
-                print('size of weights is:')
-                print(_weights.shape)
+                # Looping over versions of model w different features set to zero (variance partition)
+                for pp in range(n_partial_versions):
 
-                pred_block = np.full(fill_value=0, shape=(n_trials, lv), dtype=dtype)
+                    print('\nEvaluating version %d of %d: %s'%(pp, n_partial_versions, partial_version_names[pp]))
 
-                # Now looping over validation set trials in batches
-                for rt, lt in numpy_utils.iterate_range(0, n_trials, sample_batch_size):
+                    # masks describes the indices of the features that are included in this partial model
+                    # n_features_max in length
+                    features_to_use = masks[:,pp]==1
+                    print('Includes %d features'%np.sum(features_to_use))
+      
+                    # Take out the relevant features now
+                    features = np.tile(features_full[:,features_to_use,:], [1,1,lv])
+                    # Note there may be some zeros in this matrix, if we used fewer than the 
+                    # max number of features.
+                    # But they are zero in weight matrix too, so turns out ok.
 
-                    _features = torch_utils._to_torch(features_full[rt,:,:], device=device)
-                    # features is [#samples, #features, #voxels]
-                    # swap dims to [#voxels, #samples, features]
-                    _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
-                    # weights is [#voxels, #features]
-                    # _r will be [#voxels, #samples, 1] - then [#samples, #voxels]
-                    _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
+                    _weights = torch_utils._to_torch(weights[rv,:,pp], device=device)   
+                    _weights = _weights[:, features_to_use]
+                    _bias = torch_utils._to_torch(bias[rv,pp], device=device)
 
-                    if _bias is not None:
-                        _r = _r + torch.tile(torch.unsqueeze(_bias, 0), [_r.shape[0],1])
+                    print('number of zeros:')
+                    print(np.sum(features[0,:,0]==0))
 
-                    pred_block[rt] = torch_utils.get_value(_r) 
-                
-                # Making sure to save these so that we can get stacking performance later.
-                pred_voxel_data[:,rv,pp] = pred_block
-                
-                # Now for this batch of voxels and this partial version of the model, measure performance.
-                val_cc[rv,pp] = stats_utils.get_corrcoef(voxel_data[:,rv], pred_block)
-                val_r2[rv,pp] = stats_utils.get_r2(voxel_data[:,rv], pred_block)
+                    print('size of weights is:')
+                    print(_weights.shape)
 
-                sys.stdout.flush()
+                    pred_block = np.full(fill_value=0, shape=(n_trials_use, lv), dtype=dtype)
+                    
+                    # Now looping over validation set trials in batches
+                    for rt, lt in numpy_utils.iterate_range(0, n_trials_use, sample_batch_size):
 
-#     # any nans become zeros here.
-#     val_cc = np.nan_to_num(val_cc)
-#     val_r2 = np.nan_to_num(val_r2) 
-    
+                        _features = torch_utils._to_torch(features[rt,:,:], device=device)
+                        # features is [#samples, #features, #voxels]
+                        # swap dims to [#voxels, #samples, features]
+                        _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
+                        # weights is [#voxels, #features]
+                        # _r will be [#voxels, #samples, 1] - then [#samples, #voxels]
+                        _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
+
+                        if _bias is not None:
+                            _r = _r + torch.tile(torch.unsqueeze(_bias, 0), [_r.shape[0],1])
+
+                        pred_block[rt] = torch_utils.get_value(_r) 
+
+                    
+                    # Making sure to save these for use in analyses later
+                    pred_these_trials = pred_voxel_data[trials_use,:,pp]
+                    pred_these_trials[:,rv] = pred_block
+                    pred_voxel_data[trials_use,:,pp] = pred_these_trials
+
+                    # Now for this batch of voxels and this partial version of the model, measure performance.
+                    val_cc[rv,pp] = stats_utils.get_corrcoef(voxel_data_use[:,rv], pred_block)
+                    val_r2[rv,pp] = stats_utils.get_r2(voxel_data_use[:,rv], pred_block)
+
+                    sys.stdout.flush()
+
+                    
     return val_cc, val_r2, pred_voxel_data, features_each_prf
 
-def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debug=False):
+def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, \
+                       trials_use_each_prf = None, debug=False):
    
     """
     Get an approximate measure of voxels' tuning for particular features, based on how correlated 
@@ -169,6 +191,7 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
     """
     
     best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
+    n_trials = val_voxel_data_pred.shape[0]
     n_voxels = val_voxel_data_pred.shape[1]
     n_features = features_each_prf.shape[1]
     corr_each_feature = np.zeros((n_voxels, n_features))
@@ -178,11 +201,17 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
         if debug and (vv>1):
             continue
         print('computing feature tuning for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
-        
+           
         # voxel's predicted response to validation set trials, based on encoding model.
         resp = val_voxel_data_pred[:,vv,0]
         # activation in the feature of interest on each trial.
         feat_act = features_each_prf[:,:,best_model_inds[vv,0]]
+        
+        if trials_use_each_prf is not None:
+            # select subset of trials to work with
+            trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
+            resp = resp[trials_use]
+            feat_act = feat_act[trials_use]
         
         for ff in range(n_features):
             if np.var(feat_act[:,ff])>0:
@@ -193,7 +222,8 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, debu
     return corr_each_feature
 
 
-def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_data_pred, debug=False):
+def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_data_pred, \
+                         trials_use_each_prf = None, debug=False):
    
     """
     Measure how well voxels' predicted responses distinguish between image patches with 
@@ -210,10 +240,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
     max_categ = np.max([len(un) for un in unique_labels_each])
     n_samp_each_axis = np.zeros((n_voxels, n_sem_axes, max_categ),dtype=np.float32)
     mean_each_sem_level = np.zeros((n_voxels, n_sem_axes, max_categ),dtype=np.float32)
-    
-#     all categories must be binary.
-#     assert(np.all([len(un)==2 for un in unique_labels_each]))
-    
+ 
     for vv in range(n_voxels):
         
         if debug and (vv>1):
@@ -222,9 +249,18 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
         
         resp = val_voxel_data_pred[:,vv,0]
         
+        if trials_use_each_prf is not None:
+            # select subset of trials to work with
+            trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
+            resp = resp[trials_use]
+            labels_use = labels_all[trials_use,:,:]
+        else:
+            labels_use = labels_all
+       
         for aa in range(n_sem_axes):
             
-            labels = labels_all[:,aa,best_model_inds[vv,0]]
+            labels = labels_use[:,aa,best_model_inds[vv,0]]
+            
             inds2use = ~np.isnan(labels)
             
             unique_labels_actual = np.unique(labels[inds2use])
@@ -263,7 +299,7 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
 
 def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
                                unique_labels_each, val_voxel_data_pred, \
-                               debug=False):   
+                               trials_use_each_prf = None, debug=False):   
     """
     Measure how well voxels' predicted responses distinguish between image patches with 
     different semantic content.
@@ -275,7 +311,7 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
     n_trials, n_voxels = val_voxel_data_pred.shape[0:2]
 
     n_sem_axes = len(axes_to_do)
-    labels_use = labels_all[:,axes_to_do,:]
+    labels_all = labels_all[:,axes_to_do,:]
     
     partial_corr_each_axis = np.zeros((n_voxels, n_sem_axes))
     
@@ -289,6 +325,14 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
         print('computing partial correlations for voxel %d of %d, prf %d\n'%(vv, n_voxels, best_model_inds[vv,0]))
         
         resp = val_voxel_data_pred[:,vv,0]
+        
+        if trials_use_each_prf is not None:
+            # select subset of trials to work with
+            trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
+            resp = resp[trials_use]
+            labels_use = labels_all[trials_use,:,:]
+        else:
+            labels_use = labels_all
         
         inds2use = (np.sum(np.isnan(labels_use[:,:,best_model_inds[vv,0]]), axis=1)==0)
         
@@ -320,148 +364,3 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
                 n_samp_each_axis[vv,aa,:] = np.nan
                
     return partial_corr_each_axis, n_samp_each_axis
-
-
-def get_semantic_discrim_balanced(best_params, labels_all, axes_to_balance, unique_labels_each, \
-                                  val_voxel_data_pred, n_samp_iters=1000, debug=False):
-   
-    """
-    Measure how well voxels' predicted responses distinguish between image patches with 
-    different semantic content.
-    Balance the number of trials across levels of every column in labels_all.
-    """
-    
-    best_models, weights, bias, features_mt, features_st, best_model_inds = best_params
-    n_voxels = val_voxel_data_pred.shape[1]
-
-    _, _, n_prfs = labels_all.shape
-    
-    assert(len(axes_to_balance[0])==2)
-    n_axes_pairs = len(axes_to_balance)
-    n_sem_axes = 2;
-    
-    sem_discrim_each_axis = np.zeros((n_voxels, n_sem_axes, n_axes_pairs))
-    sem_corr_each_axis = np.zeros((n_voxels, n_sem_axes, n_axes_pairs))
-    mean_each_sem_level = np.zeros((n_voxels, n_sem_axes, 2, n_axes_pairs))
-    min_samp = np.zeros((n_voxels, n_axes_pairs))
-
-    # elements of axes_to_balance are pairs of axes that we will do resampling to balance.
-    # looping over the pairs now.
-    for pi, axes in enumerate(axes_to_balance):
-
-        print('Balancing over axes:')
-        print(axes)
-        
-        # only going to work with the axes specified in axes here
-        labels_balance = labels_all[:,axes,:]
-        unique_labels_balance = [unique_labels_each[aa] for aa in axes]
-
-        # must both be binary for this to work
-        assert(np.all([len(un)==2 for un in unique_labels_balance]))
-        assert(np.all([(un==[0,1]) for un in unique_labels_balance]))
-
-        # define the groups of labels we are balancing over
-        n_bal_groups = 2**len(axes)
-        combs = np.array([np.repeat([0,1],2),np.tile([0,1],2)]).T
-        
-        # first find out how many trials of each label combination we have here    
-        counts_all = np.zeros((n_prfs,n_bal_groups))
-        for mm in range(n_prfs):
-            counts = [len(np.where(np.all(labels_balance[:,:,mm]==combs[cc,:], axis=1))[0]) \
-                              for cc in range(n_bal_groups)]
-            counts_all[mm,:] = counts
-        # print some summary stats as a check (median across pRFs)
-        print('median counts each group:')
-        print(np.median(counts_all, axis=0))
-        print('number pRFs with count<10:')
-        print(np.sum(counts_all<10, axis=0))
-
-        # Now looping over pRFs, doing balancing separately in each pRF
-        for mm in range(n_prfs):
-
-            if debug and mm>1:
-                continue
-
-            print('Computing balanced semantic discriminability, processing pRF %d of %d'%(mm, n_prfs))
-            sys.stdout.flush()
-            
-            # which voxels had this as their pRF?    
-            vox2do = np.where(best_model_inds[:,0]==mm)[0]
-            if len(vox2do)==0:
-                continue
-
-            min_count = int(np.min(counts_all[mm,:]))
-            if min_count==0:
-                sem_discrim_each_axis[vox2do,:] = np.nan
-                sem_corr_each_axis[vox2do,:] = np.nan
-                mean_each_sem_level[vox2do,:,:] = np.nan
-                min_samp[vox2do] = 0
-                continue
-
-            min_samp[vox2do] = min_count
-
-            # define a set of trial indices to use for re-sampling
-            trial_inds_resample = np.zeros((n_samp_iters, min_count*n_bal_groups),dtype=int)
-            for gg in range(n_bal_groups):
-                # find actual list of trials with this label combination
-                trial_inds_this_comb = np.where(np.all(labels_balance[:,:,mm]==combs[gg,:], axis=1))[0]
-                samp_inds = np.arange(gg*min_count, (gg+1)*min_count)
-                for ii in range(n_samp_iters):
-                    # sample without replacement from the full set of trials.
-                    # if this is the smallest group, this means taking all the trials.
-                    # otherwise it is a sub-set of the trials.
-                    trial_inds_resample[ii,samp_inds] = np.random.choice(trial_inds_this_comb, \
-                                                                         min_count, \
-                                                                         replace=False)
-
-            # loop over every voxel, resample the data, and compute discrimination measures
-            for vv in vox2do:
-
-                resp = val_voxel_data_pred[:,vv,0] 
-
-                # get the re-sampled response for this voxel [n_resampled_trials x n_samp_iters]
-                resp_resamp = resp[trial_inds_resample.T]
-                # and the corresponding re-sampled labels [n_resampled_trials x n_samp_iters x 2]
-                labels_resamp = labels_balance[trial_inds_resample.T,:,mm]
-                assert(resp_resamp.shape[0]==min_count*4 and labels_resamp.shape[0]==min_count*4)
-                
-                # double check to make sure counts are right
-                check_counts = np.array([[len(np.where(np.all(labels_resamp[:,ii,:]==combs[cc,:], axis=1))[0]) \
-                                for cc in range(n_bal_groups)] for ii in range(n_samp_iters)])
-                assert(np.all(check_counts==min_count))
-
-                for aa in range(n_sem_axes):
-
-                    labels = labels_resamp[:,:,aa]
-                    assert(not np.any(np.isnan(labels)))
-                    assert(np.all(np.sum(labels==0, axis=0)==min_count*2) and \
-                           np.all(np.sum(labels==1, axis=0)==min_count*2))
-
-                    # groups is a list of 2 arrays, one for each level of this semantic axis.
-                    # each array is [n_resampled_trials/2 x n_samp_iters]
-                    groups = [ np.array([resp_resamp[labels[:,ii]==ll,ii] for ii in range(n_samp_iters)]).T \
-                              for ll in [0,1] ]
-
-                    # use t-statistic as a measure of discriminability
-                    # larger pos value means resp[label==1] > resp[label==0]
-                    # automatically goes down the 0th axis, so we get n_samp_iters tstats returned.
-                    d = stats_utils.ttest_warn(groups[1],groups[0]).statistic
-                    assert(len(d)==n_samp_iters)
-                    # averaging over the iterations of resampling, to get a final measure.
-                    sem_discrim_each_axis[vv,aa,pi] = np.mean(d)
-                    
-                    # also computing a correlation coefficient between semantic label/voxel response
-                    # sign is consistent with t-statistic
-                    c = stats_utils.numpy_corrcoef_warn(resp_resamp.T,labels.T)
-                    c_vals = np.diag(c[0:n_samp_iters, n_samp_iters:])
-                    assert(len(c_vals)==n_samp_iters)
-                    sem_corr_each_axis[vv,aa,pi] = np.mean(c_vals)
-                    
-                    for gi, gg in enumerate(groups):
-                        # mean within each label group 
-                        m = np.mean(gg, axis=0)
-                        assert(len(m)==n_samp_iters)
-                        mean_each_sem_level[vv,aa,gi,pi] = np.mean(m)
-                   
-    return sem_discrim_each_axis, sem_corr_each_axis, min_samp, mean_each_sem_level
-

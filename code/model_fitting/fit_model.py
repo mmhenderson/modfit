@@ -70,6 +70,7 @@ def fit_fwrf(args):
         'saved_best_layer_fn': saved_best_layer_fn,
         'voxel_subset_is_done_trn': voxel_subset_is_done_trn,
         'voxel_subset_is_done_val': voxel_subset_is_done_val,
+        'trial_subset': args.trial_subset, 
         }
         # Might be some more things to save, depending what kind of fitting this is
         if args.do_tuning:
@@ -193,7 +194,7 @@ def fit_fwrf(args):
                                 shuffle_images=args.shuffle_images, random_images=args.random_images, \
                                 random_voxel_data=args.random_voxel_data)
     n_voxels = trn_voxel_data.shape[1]   
-    
+
     ########## DEFINE PARAMETERS #############################################################################
     
     holdout_pct=0.10
@@ -204,6 +205,16 @@ def fit_fwrf(args):
     n_prfs = prf_models.shape[0]
     
     sys.stdout.flush()
+    
+    if args.trial_subset!='all':
+        print('choosing a subset of trials to work with: %s'%args.trial_subset) 
+        trn_trials_use, val_trials_use = \
+                initialize_fitting.get_trial_subsets(trn_image_order, val_image_order, prf_models, args)
+        print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
+        print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
+    else:
+        trn_trials_use = None
+        val_trials_use = None
    
     ########## LOAD PRECOMPUTED PRFS ##########################################################################
         
@@ -487,8 +498,7 @@ def fit_fwrf(args):
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
                 best_prf_models_tmp, features_mean_tmp, features_std_tmp, \
-                best_train_holdout_preds, holdout_trial_order = \
-                                fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
+                                = fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
                                                         feat_loader_full, prf_models, lambdas, \
                                                         best_model_each_voxel = best_model_each_voxel_use, \
                                                         zscore=args.zscore_features, \
@@ -497,6 +507,7 @@ def fit_fwrf(args):
                                                         holdout_size=holdout_size, \
                                                         shuffle=True, shuff_rnd_seed=shuff_rnd_seed, \
                                                         device=device, \
+                                                        trials_use_each_prf = trn_trials_use, \
                                                         dtype=np.float32, debug=args.debug)
             
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
@@ -542,6 +553,7 @@ def fit_fwrf(args):
                                                  sample_batch_size=args.sample_batch_size, \
                                                  voxel_batch_size=args.voxel_batch_size, \
                                                  debug=args.debug, \
+                                                 trials_use_each_prf = val_trials_use, \
                                                  dtype=np.float32, device=device)
                      
             val_cc[voxel_subset_mask,:] = val_cc_tmp
@@ -557,7 +569,9 @@ def fit_fwrf(args):
                 print('\nStarting feature tuning analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
                 sys.stdout.flush()
                 corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
-                                                                        val_voxel_data_pred, debug=args.debug)
+                                                                        val_voxel_data_pred, \
+                                                                        trials_use_each_prf = val_trials_use, \
+                                                                        debug=args.debug)
                 if vi==0:
                     corr_each_feature = np.zeros((n_voxels, corr_each_feature_tmp.shape[1]), dtype=corr_each_feature_tmp.dtype)  
                 max_features = feat_loader_full.max_features
@@ -587,6 +601,7 @@ def fit_fwrf(args):
                         fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                                           labels_all, unique_labs_each, \
                                                           val_voxel_data_pred,\
+                                                          trials_use_each_prf = val_trials_use, \
                                                           debug=args.debug)
                 if vi==0:
                     sem_discrim_each_axis = np.zeros((n_voxels, discrim_tmp.shape[1]), \
@@ -613,6 +628,7 @@ def fit_fwrf(args):
                                                           labels_all, axes_to_do=axes_to_do, \
                                                           unique_labels_each=unique_labs_each, \
                                                           val_voxel_data_pred=val_voxel_data_pred,\
+                                                          trials_use_each_prf = val_trials_use, \
                                                           debug=args.debug)
                 if vi==0:                 
                     sem_partial_corrs = np.zeros((n_voxels, partial_corr_tmp.shape[1]), \
@@ -622,41 +638,7 @@ def fit_fwrf(args):
 
                 sem_partial_corrs[voxel_subset_mask,:] = partial_corr_tmp
                 sem_partial_n_samp[voxel_subset_mask,:,:] = n_samp_tmp
-                
-#                 # Now computing semantic discriminability for a sub-set of the axes of interest, 
-#                 # using resampling to balance trial counts in each grouping.
-#                 print('\nStarting balanced semantic discriminability analysis (voxel subset %d of %d)...\n'\
-#                       %(vi, len(voxel_subset_masks)))
-#                 sys.stdout.flush()
-                
-#                 axes_to_balance=[[0,2],[0,3],[2,3]]
-            
-#                 print('Going to compute balanced semantic discriminability, for these pairs of axes:')
-#                 for axes in axes_to_balance:
-#                     print([discrim_type_list[aa] for aa in axes])
-                
-#                 discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
-#                         fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
-#                                                           labels_all, axes_to_balance, unique_labs_each, \
-#                                                           val_voxel_data_pred,n_samp_iters=1000,\
-#                                                           debug=args.debug)
-#                 if vi==0:
-#                     sem_discrim_each_axis_balanced = np.zeros((n_voxels, discrim_tmp.shape[1],\
-#                                                                discrim_tmp.shape[2]), \
-#                                                                dtype=discrim_tmp.dtype) 
-#                     sem_corr_each_axis_balanced = np.zeros((n_voxels, corr_tmp.shape[1],\
-#                                                             corr_tmp.shape[2]), \
-#                                                             dtype=corr_tmp.dtype)
-#                     n_sem_samp_each_axis_balanced = np.zeros((n_voxels,n_samp_tmp.shape[1]), \
-#                                                      dtype=n_samp_tmp.dtype)
-#                     mean_each_sem_level_balanced = np.zeros((n_voxels, mean_tmp.shape[1], \
-#                                                              mean_tmp.shape[2],mean_tmp.shape[3]), \
-#                                                              dtype=mean_tmp.dtype)
-#                 sem_discrim_each_axis_balanced[voxel_subset_mask,:,:] = discrim_tmp
-#                 sem_corr_each_axis_balanced[voxel_subset_mask,:,:] = corr_tmp
-#                 n_sem_samp_each_axis_balanced[voxel_subset_mask,:] = n_samp_tmp
-#                 mean_each_sem_level_balanced[voxel_subset_mask,:,:,:] = mean_tmp
-
+        
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
             
@@ -666,4 +648,3 @@ if __name__ == '__main__':
     
     args = arg_parser.get_args()
     fit_fwrf(args)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    

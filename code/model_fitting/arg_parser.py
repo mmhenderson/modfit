@@ -29,6 +29,8 @@ def get_args():
     parser.add_argument("--fitting_type3", type=str,default='',
                     help="additional fitting type, for variance partition?")
     
+    parser.add_argument("--trial_subset", type=str,default='all', 
+                    help="fit for a subset of trials only? default all trials")
    
     parser.add_argument("--ridge", type=nice_str2bool, default=True,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")

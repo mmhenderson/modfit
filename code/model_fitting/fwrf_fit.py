@@ -11,28 +11,66 @@ from utils import numpy_utils, torch_utils
 General code for fitting a 'feature weighted receptive field' model to fmri data - looping over many candidate pRF 
 models for each voxel, find a set of weights that best predict its responses based on feature space of interest.
 Can work for many different types of feature spaces (visual, semantic)
-
-Original source of some of this code is the github repository:
-https://github.com/styvesg/nsd
-It was modified by MH to work for this project.
 """
 
-def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best_model_each_voxel=None,\
-                   zscore=False, add_bias=False, voxel_batch_size=100, holdout_size=100, \
-                       shuffle=True, shuff_rnd_seed=0, device=None, dtype=np.float32, debug=False):
+def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, \
+                   best_model_each_voxel=None,\
+                   zscore=True, add_bias=True, \
+                   voxel_batch_size=100, holdout_size=100, \
+                   shuffle=True, shuff_rnd_seed=0, \
+                   trials_use_each_prf = None, \
+                   device=None, dtype=np.float32, debug=False):
     
     """
     Solve for FWRF encoding model weights using ridge regression.
     Will loop over candidate pRFs and fit the model in each pRF, eventually choosing the pRF that 
     gives the lowest loss on held-out data partition. 
-    Returns the parameters (prf params, weights, lambda value, etc.) associated with best fit.
-    If "best_model_each_voxel" is specified (pre-computed estimate of each voxel's best pRF as 
-    an index info prf_models), will assume a fixed pRF for each voxel instead of looping. 
-    "feature loader" should be an object that loads features from file for a given image set
-    and pRF position (see fwrf_features.py)
-    This code will also perform variance partition analysis by looping over various partial 
+       
+    code is based loosely on code from https://github.com/styvesg/nsd
+    
+    This code can also perform variance partition analysis by looping over various partial 
     versions of the model (different feature sets masked out). The definitions of these partial 
     versions is specified in the feature_loader.
+    n_partial_versions is the number of partial versions that will be done. 
+    If we're only fitting the full model, then n_partial_versions is 1
+    
+    Inputs:
+        image_inds (1D array): [n_trials,] numerical indices of the images included in training set - 
+                               index into the 10,000 long list of images shown to each subject. 
+        voxel_data (2D array): training set data, [n_trials x n_voxels]
+        feature_loader (obj):  an object that loads pre-computed features for the feature space of 
+                               interest, see "fwrf_features.py" or "semantic_features.py"
+                               will take "image_inds" as input to load correct features
+        prf_models (2D array): array of the candidate pRF parameters, [n_prfs x 3]; columns are x,y,sigma
+        best_model_each_voxel (1D array, optional): if we already computed pRF params with 
+                               another model and would like to re-use them, then this should hold the 
+                               index of the best pRF for each voxel. If not specified, then we will fit 
+                               pRFs from scratch now. default=None
+        zscore (bool, optional): want to z-score each feature across trials? default=True
+        add_bias (bool, optional): want to add intercept to the linear model? default=True
+        voxel_batch_size (int, optional): how many voxels to fit at a time in a batch? default=100
+                               Decreasing this can help with out of memory issues
+        holdout_size (int, optional): how many trials to include in nested validation set? default=100
+        shuffle (bool, optional): want to randomize the part of data that is held out? default=True
+        shuff_rnd_seed (int, optional): random seed for choosing held-out partition 
+                                (if 0, then randomly choose a new seed)
+        trials_use_each_prf (2D array of booleans, optional): if you want to choose a sub-set of trials 
+                                to fit, and choose them on a by-pRF basis. [n_trials x n_prfs]
+                                for instance if we want to fit just the trials with animate in the prf, etc.
+        device (optional): gpu or cpu device to use, default will be to use cpu
+        dtype (optional): data type, default=np.float32
+        debug (boolean, optional): want to run a fast (stop early) version of this code, to test it? 
+                                default=False
+        
+    Outputs: 
+        best_losses: [n_voxels, n_partial_versions] best loss for each voxel
+        best_lambdas: [n_voxels, n_partial_versions] best lambda for each voxel
+        best_weights: [n_voxels, max_features, n_partial_versions] best weights for each voxel
+        best_biases: [n_voxels, n_partial_versions] best bias (intercept) for each voxel
+        best_prf_models: [n_voxels, n_partial_versions] index of best pRF for each voxel
+        features_mean: [n_prfs, max_features] mean of feature columns, needed for validation
+        features_std: [n_prfs, max_features] std of feature columns, needed for validation
+        
     """
 
     if device is None:
@@ -41,7 +79,7 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
     print ('dtype = %s' % dtype)
     print ('device = %s' % device)
 
-    n_trials = len(images)
+    n_trials = len(image_inds)
     n_prfs = len(prf_models)
     n_voxels = voxel_data.shape[1]   
 
@@ -61,16 +99,21 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
         np.random.seed(shuff_rnd_seed)
         np.random.shuffle(order)
         
-    images = images[order]
+    image_inds = copy.deepcopy(image_inds[order])
+    
+    if trials_use_each_prf is not None:
+        # shuffle this the same way as images/voxel data.
+        trials_use_each_prf = copy.deepcopy(trials_use_each_prf[order,:])
     
     train_trial_order = order[:trn_size]
     holdout_trial_order = order[trn_size:]
 
+    # get train/validation data 
     trn_data = copy.deepcopy(voxel_data[train_trial_order,:])
     out_data = copy.deepcopy(voxel_data[holdout_trial_order,:])
     
-    if len(images.shape)>1:
-        image_size = images.shape[2:4]
+    if len(image_inds.shape)>1:
+        image_size = image_inds.shape[2:4]
     else:
         image_size = None
     # clear any stored features from feature loader's memory    
@@ -92,10 +135,6 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
     best_prf_models = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)   
     best_lambdas = np.full(shape=(n_voxels,n_partial_versions), fill_value=-1, dtype=int)
     best_losses = np.full(fill_value=np.inf, shape=(n_voxels,n_partial_versions), dtype=dtype)
-
-    # Initialize arrays to store the trial-wise predictions (need these for stacking)
-    # Using JUST the held out trials here so the errors are always cross-validated
-    best_train_holdout_preds = np.zeros(shape=(n_voxels, holdout_size, n_partial_versions), dtype=dtype)
 
     # Additional params that are optional
     if add_bias:
@@ -146,10 +185,10 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
             # Get features for the desired pRF, across all trn set image  
             # Features is size [ntrials x nfeatures]
             # nfeatures may be less than max_features; max_features is the largest number possible for any pRF.
-            # feature_inds_defined is length max_features, and indicated which of the features in max_features 
+            # feature_inds_defined is length max_features, and indicates which of the features in max_features 
             # are included in features.
-            features, feature_inds_defined = feature_loader.load(images, m, fitting_mode=True)
-           
+            features, feature_inds_defined = feature_loader.load(image_inds, m, fitting_mode=True)
+                      
             elapsed = time.time() - t
 
             n_features_actual = features.shape[1]
@@ -170,8 +209,20 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
             trn_features = features[:trn_size,:]
             out_features = features[trn_size:,:]
             
-            
-            
+            if trials_use_each_prf is not None:
+                # select subset of trials to work with
+                trials_use = trials_use_each_prf[:,m]
+                trn_features = trn_features[trials_use[:trn_size],:]
+                out_features = out_features[trials_use[trn_size:],:]
+                trn_data_use = trn_data[trials_use[:trn_size],:]
+                out_data_use = out_data[trials_use[trn_size:],:]
+            else:
+                trn_data_use = trn_data
+                out_data_use = out_data
+                
+            print('prf %d - using %d training trials and %d held-out trials'\
+                      %(m, trn_data_use.shape[0], out_data_use.shape[0]))
+
             # Looping over versions of model w different features set to zero (variance partition)
             for pp in range(n_partial_versions):
 
@@ -207,8 +258,8 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
                         print(rv)
                     
                     # Send matrices to gpu
-                    _vtrn = torch_utils._to_torch(trn_data[:,rv], device=device)
-                    _vout = torch_utils._to_torch(out_data[:,rv], device=device)
+                    _vtrn = torch_utils._to_torch(trn_data_use[:,rv], device=device)
+                    _vout = torch_utils._to_torch(out_data_use[:,rv], device=device)
 
                     # Here is where optimization happens - matrix math inside loss fn.
                     _betas, _loss, _pred_out = _loss_fn(_cof, _vtrn, _xout, _vout) 
@@ -259,11 +310,7 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
                         best_w_tmp[:,~nonzero_inds_full] = 0.0 # make sure to fill zeros here
                         best_w_params[arv,:,pp] = best_w_tmp
                         
-                        # Save the trialwise predictions for all trials in their original order.
-                        # Choosing predictions from whichever lambda was best.
-                        best_train_holdout_preds[arv,:,pp] = numpy_utils.select_along_axis(pred_out[:,:,imp], \
-                                                                               lambda_inds, run_axis=2, choice_axis=1).T;
-
+                       
                 vox_loop_time += (time.time() - vox_start)
                 elapsed = (time.time() - vox_start)
                 sys.stdout.flush()
@@ -287,7 +334,7 @@ def fit_fwrf_model(images, voxel_data, feature_loader, prf_models, lambdas, best
 
     sys.stdout.flush()
 
-    return best_losses, best_lambdas, best_weights, best_biases, best_prf_models, features_mean, features_std, best_train_holdout_preds, holdout_trial_order
+    return best_losses, best_lambdas, best_weights, best_biases, best_prf_models, features_mean, features_std
 
 
 

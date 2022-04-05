@@ -18,6 +18,30 @@ def get_crop_box_pixels(crop_box_raw, orig_size):
     
     return np.floor(crop_box_pixels).astype('int')
 
+def crop_to_square(image_array):
+ 
+    # crop rectangular image to a square
+    # smaller side becomes the size of final square
+    # taking an even amount off each end of the longer side.  
+    # image array should be [height, width, ...]
+    
+    orig_size = image_array.shape[0:2]
+    height, width = orig_size
+    
+    if height>width:
+        pct_crop = ((width/height)-1)/2
+        bbox_raw = [np.abs(pct_crop), np.abs(pct_crop),0,0]
+    else:
+        pct_crop = ((height/width)-1)/2
+        bbox_raw = [0,0,np.abs(pct_crop), np.abs(pct_crop)]
+
+    crop_box_pixels = get_crop_box_pixels(bbox_raw, orig_size)
+   
+    cropped = image_array[crop_box_pixels[0]:crop_box_pixels[1], \
+                                crop_box_pixels[2]:crop_box_pixels[3]]
+
+    return cropped, bbox_raw
+
 
 def apply_mask_from_poly(image, polygon_coords, mask_bg_value=0.0):
     

@@ -38,3 +38,4 @@ clip_feat_path_localnode = '/scratch/mmhender/features/CLIP/'
 # Path to the COCO API toolbox
 # https://github.com/cocodataset/cocoapi
 coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
+coco_ims_path = '/lab_data/tarrlab/common/datasets/COCO'

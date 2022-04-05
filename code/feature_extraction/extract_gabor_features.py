@@ -6,7 +6,7 @@ import time
 import h5py
 
 #import custom modules
-from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths
+from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths, coco_utils
 from model_fitting import initialize_fitting
 from feature_extraction import gabor_feature_extractor
 
@@ -24,21 +24,25 @@ def extract_features(subject, n_ori=4, n_sf=4, sample_batch_size=100, \
     else:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path
                
-    if debug:
-        fn2save = os.path.join(gabor_texture_feat_path, \
-                               'S%d_features_each_prf_%dori_%dsf_gabor_solo_DEBUG'%(subject, n_ori, n_sf))
-    else:
-        fn2save = os.path.join(gabor_texture_feat_path, \
+    # Load and prepare the image set to work with 
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        image_data = coco_utils.load_indep_coco_images(n_pix=240)
+    else: 
+        # load all images for the current subject, 10,000 ims
+        image_data = nsd_utils.get_image_data(subject)  
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+       
+    fn2save = os.path.join(gabor_texture_feat_path, \
                                'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(subject, n_ori, n_sf))
-    
+    if debug:
+        fn2save += '_DEBUG'
     if nonlin_fn:
         fn2save += '_nonlin'
+        
     fn2save += '_grid%d.h5py'%which_prf_grid   
-
-    # Load and prepare the image set to work with (all images for the current subject, 10,000 ims)
-    stim_root = default_paths.stim_root
-    image_data = nsd_utils.get_image_data(subject)  
-    image_data = nsd_utils.image_uncolorize_fn(image_data)
+        
     n_pix = image_data.shape[2]
     n_images = image_data.shape[0]
     n_batches = int(np.ceil(n_images/sample_batch_size))

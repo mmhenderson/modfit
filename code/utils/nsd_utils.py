@@ -40,7 +40,12 @@ def load_from_hdf5(hdf5_file, keyname=None):
 
 def image_uncolorize_fn(image):
     data = image.astype(np.float32) / 255
-    return (0.2126*data[:,0:1]+ 0.7152*data[:,1:2]+ 0.0722*data[:,2:3])
+    if data.shape[2]==3:
+        bw = (0.2126*data[:,:,0:1]+ 0.7152*data[:,:,1:2]+ 0.0722*data[:,:,2:3])
+    elif data.shape[1]==3:
+        bw = (0.2126*data[:,0:1]+ 0.7152*data[:,1:2]+ 0.0722*data[:,2:3])
+    
+    return bw
 
 def image_preproc_fn(image):
     data = image.astype(np.float32) / 255

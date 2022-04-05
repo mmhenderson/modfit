@@ -14,12 +14,8 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1 2 3 4 5 6 7 8)
-# subjects=(1)
-# date_str_list=(Feb-05-2022_2057_02 Feb-25-2022_1151_14 Feb-25-2022_1313_51 Feb-25-2022_1420_57 Feb-25-2022_1517_57 Feb-25-2022_1630_57 Feb-25-2022_1739_38 Feb-25-2022_1846_59)
+subjects=(5 6 7 8)
 
-# debug=1
-# up_to_sess=1
 average_image_reps=1
 debug=0
 up_to_sess=40

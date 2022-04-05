@@ -15,9 +15,7 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/model_fitting
 
 
-# subjects=(1)
-subjects=(1 2 3 4 5 6 7 8)
-# date_str_list=(Feb-05-2022_2056_56 Feb-25-2022_1149_13 Feb-25-2022_1246_33 Feb-25-2022_1332_32 Feb-25-2022_1409_50 Feb-25-2022_1459_01 Feb-25-2022_1546_29 Feb-25-2022_1632_42)
+subjects=(4 5 6 7 8)
 
 debug=0
 up_to_sess=40

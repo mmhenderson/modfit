@@ -8,7 +8,7 @@
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=30-00:00:00
 
-debug=1
+debug=0
 use_node_storage=0
 n_ori=4
 n_sf=4
@@ -17,12 +17,10 @@ which_prf_grid=5
 
 source ~/myenv/bin/activate
 
-CWD=$(pwd)
-cd ../
-ROOT=$(pwd)
-cd $ROOT/feature_extraction
+cd /user_data/mmhender/imStat/code/feature_extraction
 
-sublist=(8)
+sublist=(999)
+
 for subj in ${sublist[@]}
 do
 

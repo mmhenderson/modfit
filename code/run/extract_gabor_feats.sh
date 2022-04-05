@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
-#SBATCH --gres=gpu:0
+#SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append

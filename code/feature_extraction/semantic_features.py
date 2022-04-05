@@ -49,10 +49,27 @@ class semantic_feature_loader:
             elif 'coco_things' in self.feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_binary_prf0.csv'%(self.subject))
+                
                 if 'supcateg' in self.feature_set:                    
                     self.n_features = 12
+                elif 'material_diagnostic' in self.feature_set:
+                    # will select just a sub-set of the coco things categories, based on
+                    # whether the objects have material/color as a diagnostic feature or not
+                    assert(not self.remove_missing and not self.use_pca_feats)
+                    groups_fn = os.path.join(default_paths.stim_labels_root, \
+                                                   'Material_diagnostic_categ.npy')
+                    material_groups = np.load(groups_fn, allow_pickle=True).item()                    
+                    if 'not_material_diagnostic' in self.feature_set:
+                        self.categ_names_use = [kk for kk in material_groups.keys() \
+                                             if material_groups[kk]==0]
+                    else:
+                        self.categ_names_use = [kk for kk in material_groups.keys() \
+                                             if material_groups[kk]==1]
+                    self.n_features = len(self.categ_names_use)                    
                 else:
+                    # use all the basic-level coco things categories
                     self.n_features = 80
+                    
             elif 'coco_stuff' in self.feature_set:
                 self.features_file = os.path.join(self.labels_folder, \
                                   'S%d_cocolabs_stuff_binary_prf0.csv'%(self.subject))
@@ -78,7 +95,8 @@ class semantic_feature_loader:
             # find any features that are missing in the training set for any subject, in any pRF.
             # will choose to exclude these columns from fitting for all subjects.
             labels_folder = os.path.join(default_paths.stim_labels_root)
-            fn2load = os.path.join(labels_folder, 'Coco_label_counts_all_prf_grid%d.npy'%self.which_prf_grid)   
+            fn2load = os.path.join(labels_folder, \
+                           'Coco_label_counts_all_prf_grid%d.npy'%self.which_prf_grid)   
             counts = np.load(fn2load, allow_pickle=True).item()
             things_counts_trn = counts['things_cat_counts_trntrials']
             self.things_inds_exclude = np.any(np.any(things_counts_trn==0, axis=0), axis=0)
@@ -157,6 +175,13 @@ class semantic_feature_loader:
                 elif 'categ' in self.feature_set:
                     labels = np.array(coco_df)[:,12:92]   
                     colnames = list(coco_df.keys())[12:92]
+                    if 'material_diagnostic' in self.feature_set:
+                        colnames = [cc.split('.1')[0] for cc in colnames]
+                        columns_use = np.isin(colnames, self.categ_names_use)
+                        assert(np.sum(columns_use)==self.n_features)
+                        labels = labels[:,columns_use]
+                        colnames = np.array(colnames)[columns_use]
+                   
                 elif self.feature_set=='animacy':    
                     supcat_labels = np.array(coco_df)[:,0:12]
                     animate_supcats = [1,9]
@@ -169,6 +194,7 @@ class semantic_feature_loader:
                     labels = np.concatenate([has_animate[:,np.newaxis], \
                                              has_inanimate[:,np.newaxis]], axis=1)
                     colnames = ['has_animate','has_inanimate']
+                 
                 else:
                     has_label = np.any(np.array(coco_df)[:,0:12]==1, axis=1)
                     label1 = np.array(coco_df[self.feature_set])[:,np.newaxis]

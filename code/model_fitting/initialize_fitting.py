@@ -98,6 +98,8 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens_pca'
             else:        
                 model_name += 'sketch_tokens'
+            if not args.use_precomputed_prfs:
+                model_name += '_fit_pRFs'
         elif 'alexnet' in ft:
             fitting_types += [ft]
             if 'ReLU' in args.alexnet_layer_name:

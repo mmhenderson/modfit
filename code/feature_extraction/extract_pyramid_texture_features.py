@@ -30,10 +30,15 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
                        'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject, n_ori, n_sf, which_prf_grid))
             
     # Load and prepare the image set to work with (all images for the current subject, 10,000 ims)
-    stim_root = default_paths.stim_root
-    image_data = nsd_utils.get_image_data(subject)  
-    image_data = nsd_utils.image_uncolorize_fn(image_data)
-
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        image_data = coco_utils.load_indep_coco_images(n_pix=240)
+    else: 
+        # load all images for the current subject, 10,000 ims
+        image_data = nsd_utils.get_image_data(subject)  
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+    
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
 

@@ -11,12 +11,5 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/utils/run/
 
 debug=0
-which_prf_grid=5
 
-subjects=(999)
-# subjects=(2 3 4 5)
-for subject in ${subjects[@]}
-do
-    echo $subject
-    python3 get_binary_prf_labels.py --subject $subject --debug $debug --which_prf_grid $which_prf_grid
-done
+python3 prep_indep_coco_ims.py --debug $debug

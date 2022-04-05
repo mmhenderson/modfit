@@ -8,7 +8,7 @@ import torch.nn
 
 #import custom modules
 from utils import torch_utils,  default_paths
-from utils import nsd_utils
+from utils import nsd_utils, coco_utils
 from model_fitting import initialize_fitting
 from feature_extraction import texture_statistics_pyramid
 

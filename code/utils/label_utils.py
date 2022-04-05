@@ -14,10 +14,15 @@ def write_binary_labels_csv(subject, stuff=False):
     and supercategories in COCO.
     10,000 images long (same size as image arrays at /user_data/mmhender/nsd_stimuli/stimuli/)
     """
-    print('Gathering coco labels for subject %d'%subject)
-    subject_df = nsd_utils.get_subj_df(subject);
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        subject_df = coco_utils.load_indep_coco_info()      
+    else:
+        subject_df = nsd_utils.get_subj_df(subject);
+        
     all_coco_ids = np.array(subject_df['cocoId'])
-    
+
     if stuff:
         coco_object = coco_utils.coco_stuff_val
     else:
@@ -54,7 +59,12 @@ def write_binary_labels_csv_within_prf(subject, min_pix = 10, stuff=False, \
     10,000 images long (same size as image arrays in /nsd/stimuli/)
     """
 
-    subject_df = nsd_utils.get_subj_df(subject);
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        subject_df = coco_utils.load_indep_coco_info()      
+    else:
+        subject_df = nsd_utils.get_subj_df(subject);
  
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
@@ -738,8 +748,7 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
             discrim_type_list+=['within_%s'%scname]
 
     n_sem_axes = len(discrim_type_list)
-    subject_df = nsd_utils.get_subj_df(subject);
-    n_trials = len(subject_df)
+    n_trials = 10000
     models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
     n_prfs = models.shape[0]
 

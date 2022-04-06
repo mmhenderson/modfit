@@ -275,6 +275,7 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, \
         assert(len(sessions)>0)
         
     inds2use = np.isin(session_inds, sessions)
+    session_inds = session_inds[inds2use]
     image_order = image_order[inds2use]
 
     # Now load voxel data (preprocessed beta weights for each trial)
@@ -321,7 +322,12 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, \
     image_order_val = image_order[shared_1000_inds]
     image_order_trn = image_order[~shared_1000_inds]
     
-    return trn_voxel_data, val_voxel_data, image_order, image_order_trn, image_order_val
+    session_inds_val = session_inds[shared_1000_inds]
+    session_inds_trn = session_inds[~shared_1000_inds]
+    
+    return trn_voxel_data, val_voxel_data, image_order, \
+            image_order_trn, image_order_val, \
+            session_inds_trn, session_inds_val
 
 
 def resize_image_tensor(x, newsize):

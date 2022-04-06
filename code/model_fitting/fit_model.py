@@ -74,6 +74,11 @@ def fit_fwrf(args):
         'trial_subset': args.trial_subset, 
         }
         # Might be some more things to save, depending what kind of fitting this is
+        if args.compute_sessionwise_r2:
+            dict2save.update({
+            'val_r2_sess': val_r2_sess,
+            'val_cc_sess': val_cc_sess,
+            })
         if args.do_tuning:
             dict2save.update({
             'corr_each_feature': corr_each_feature
@@ -145,6 +150,9 @@ def fit_fwrf(args):
     val_r2 = None; 
     val_cc = None;
     
+    val_r2_sess = None;
+    val_cc_sess = None;
+    
     corr_each_feature = None
     
     sem_discrim_each_axis = None
@@ -187,7 +195,8 @@ def fit_fwrf(args):
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
     trn_voxel_data, val_voxel_data, \
-    image_order, trn_image_order, val_image_order = \
+    image_order, trn_image_order, val_image_order, \
+    session_inds_trn, session_inds_val = \
                                 nsd_utils.get_data_splits(args.subject, \
                                 sessions=sessions, \
                                 voxel_mask=voxel_mask, volume_space=args.volume_space, \
@@ -475,6 +484,8 @@ def fit_fwrf(args):
             features_std = np.zeros((n_prfs, max_features,len(voxel_subset_masks)), dtype=np.float32)
             val_cc = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
             val_r2 = np.zeros((n_voxels, n_partial_versions), dtype=np.float32) 
+            val_cc_sess = np.zeros((n_voxels, n_partial_versions, 40), dtype=np.float32)
+            val_r2_sess = np.zeros((n_voxels, n_partial_versions, 40), dtype=np.float32) 
             
         # if this current feature set has more features than the first one, 
         # might need to pad the weights array to make it fit.                 
@@ -563,6 +574,31 @@ def fit_fwrf(args):
             if (not args.do_tuning) and (not args.do_sem_disc):
                 voxel_subset_is_done_val[vi] = True
             save_all(fn2save) 
+            
+            if args.compute_sessionwise_r2:
+                for se in np.arange(40):
+                    trials_this_sess = (session_inds_val==se)                   
+                    if np.sum(trials_this_sess)==0:
+                        val_cc_sess[voxel_subset_mask,:,se] = np.nan
+                        val_r2_sess[voxel_subset_mask,:,se] = np.nan
+                    else:
+                        print('computing validation accuracy for session %d, %d trials'%(se, np.sum(trials_this_sess)))
+                        val_trials_use_this_sess = np.tile(trials_this_sess[:,np.newaxis], [1,n_prfs])
+                        val_cc_sess_tmp, val_r2_sess_tmp, _, _ = \
+                            fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
+                                                             val_voxel_data_use, val_image_order, \
+                                                             feat_loader_full, zscore=args.zscore_features, \
+                                                             sample_batch_size=args.sample_batch_size, \
+                                                             voxel_batch_size=args.voxel_batch_size, \
+                                                             debug=args.debug, \
+                                                             trials_use_each_prf = val_trials_use_this_sess, \
+                                                             dtype=np.float32, device=device)
+
+                        val_cc_sess[voxel_subset_mask,:,se] = val_cc_tmp
+                        val_r2_sess[voxel_subset_mask,:,se] = val_r2_tmp
+                if (not args.do_tuning) and (not args.do_sem_disc):
+                    voxel_subset_is_done_val[vi] = True
+                save_all(fn2save) 
 
             ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
             sys.stdout.flush()

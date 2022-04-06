@@ -22,10 +22,14 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
     # First gather all semantic labels
     trninds_list = []
     for si, ss in enumerate(subjects):
-        # training / validation data always split the same way - shared 1000 inds are validation.
-        subject_df = nsd_utils.get_subj_df(ss)
-        valinds = np.array(subject_df['shared1000'])
-        trninds = np.array(subject_df['shared1000']==False)
+        if ss==999:
+            # 999 is a code for the set of images that are independent of NSD images, 
+            # not shown to any participant.
+            trninds = np.ones((10000,),dtype=bool)
+        else:  
+            # training / validation data always split the same way - shared 1000 inds are validation.
+            subject_df = nsd_utils.get_subj_df(ss)
+            trninds = np.array(subject_df['shared1000']==False)
         trninds_list.append(trninds)
         # working only with training data here.
         labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = \

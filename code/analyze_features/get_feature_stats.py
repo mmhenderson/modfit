@@ -23,11 +23,16 @@ def get_feature_stats(subject, feature_type, which_prf_grid=5, debug=False, laye
     # get training set indices
     trninds_list = []
     for si, ss in enumerate(subjects):
-        # training / validation data always split the same way - shared 1000 inds are validation.
-        subject_df = nsd_utils.get_subj_df(ss)
-        trninds = np.array(subject_df['shared1000']==False)
+        if ss==999:
+            # 999 is a code for the set of images that are independent of NSD images, 
+            # not shown to any participant.
+            trninds = np.ones((10000,),dtype=bool)
+        else:            
+            # training / validation data always split the same way - shared 1000 inds are validation.
+            subject_df = nsd_utils.get_subj_df(ss)
+            trninds = np.array(subject_df['shared1000']==False)
         trninds_list.append(trninds)
-       
+
     # create feature loaders
     feat_loaders, path_to_load = \
         default_feature_loaders.get_feature_loaders(subjects, feature_type, which_prf_grid)

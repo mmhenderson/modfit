@@ -29,7 +29,20 @@ def get_substr(out):
             
     return substr
 
-def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.20], nc_thresh=0.01):
+def get_noise_ceiling(out):
+    
+    if 'average_image_reps' in out.keys():
+        average_image_reps=out['average_image_reps']
+    else:
+        average_image_reps=False  
+    voxel_ncsnr = out['voxel_ncsnr'][out['voxel_index']]  
+    noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr, \
+                                              average_image_reps=average_image_reps, \
+                                              subject=out['subject'])/100       
+    return noise_ceiling
+
+def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.05, 0.30], \
+                   nc_thresh=0.01):
     
     n_subjects = len(out)
     n_rois = roi_def.n_rois
@@ -39,8 +52,8 @@ def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.01, 0.20], nc_thresh=
 
     for si in range(n_subjects):
 
-        val_r2 = out[si]['val_r2']    
-        nc = nsd_utils.ncsnr_to_nc(out[si]['voxel_ncsnr'][out[si]['voxel_mask']])/100
+        val_r2 = out[si]['val_r2']  
+        nc = get_noise_ceiling(out[si])
         inds2use = nc>nc_thresh
 
         for ri in range(n_rois):
@@ -264,12 +277,12 @@ def plot_noise_ceilings(fitting_type,out, fig_save_folder=None):
     
     if hasattr(out, 'keys'):        
         # single subject case
-        voxel_ncsnr = out['voxel_ncsnr'][out['voxel_index']]       
+        noise_ceiling = get_noise_ceiling(out)
+        voxel_ncsnr = out['voxel_ncsnr'][out['voxel_index']]
     else:       
         # multi subject case, concat all voxels
+        noise_ceiling = np.concatenate([get_noise_ceiling(o) for o in out], axis=0)
         voxel_ncsnr = np.concatenate([o['voxel_ncsnr'][o['voxel_index']] for o in out], axis=0)
-    
-    noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)
 
     plt.figure(figsize=(16,4));
 
@@ -280,7 +293,7 @@ def plot_noise_ceilings(fitting_type,out, fig_save_folder=None):
 
     plt.subplot(1,2,2)
     plt.hist(noise_ceiling,100)
-    plt.xlabel('Noise ceiling (percent) for single trial estimates');
+    plt.xlabel('Noise ceiling (percent)');
     plt.ylabel('number of voxels');
     plt.axvline(0,color='k')
 
@@ -351,15 +364,14 @@ def plot_r2_vs_nc(fitting_type, out, roi_def, skip_inds=None, \
     """
   
     if hasattr(out, 'keys'):
-        # single subject case
-        voxel_ncsnr = out['voxel_ncsnr'].ravel()[out['voxel_index'][0]]
-        noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
+        noise_ceiling = get_noise_ceiling(out)
         val_r2 = out['val_r2'][:,0]       
         n_subs=1
         n_vox_each = [val_r2.shape[0]]
     else:
         # multi subject case, concat all voxels
-        voxel_ncsnr = np.concatenate([o['voxel_ncsnr'][o['voxel_index']] for o in out], axis=0)
+        noise_ceiling = np.concatenate([get_noise_ceiling(o) for o in out], axis=0)
+        # multi subject case, concat all voxels
         val_r2 = np.concatenate([o['val_r2'][:,0] for o in out], axis=0)
         # color diff subjects differently
         n_subs = len(out)
@@ -373,20 +385,18 @@ def plot_r2_vs_nc(fitting_type, out, roi_def, skip_inds=None, \
 #         sub_colors = cm.Set2(np.linspace(0,1,n_subs))
         colors = cm.tab10(np.linspace(0,1,n_subs))
 #         sub_colors[:,3] = 0.1 # make each set of points transparent
-        
-    noise_ceiling = nsd_utils.ncsnr_to_nc(voxel_ncsnr)/100
-        
+ 
     dat2plot = np.concatenate([noise_ceiling[:,np.newaxis],val_r2[:,np.newaxis]], axis=1)
     suptitle = '%s\n%s\nComparing model performance to noise ceiling'\
                            %(get_substr(out), fitting_type)
     
     inds2use = np.ones(np.shape(val_r2))==1
     if axlims is None:
-        axlims = [-0.1, 0.7]
+        axlims = [-0.1, 1.1]
 
     sp = plot_utils.scatter_plot(color=sub_colors, xlabel='Noise Ceiling', ylabel='R2', \
                                  xlims=axlims, ylims=axlims, \
-                                 xticks=[0, 0.2, 0.4, 0.6], yticks=[0, 0.2, 0.4, 0.6],\
+                                 xticks=[0, 0.5, 1.0], yticks=[0, 0.5, 1.0],\
                                  show_diagonal=True, show_axes=True);
     if fig_size is None:
         fig_size = (16,16)

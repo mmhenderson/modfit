@@ -51,12 +51,34 @@ def image_preproc_fn(image):
     data = image.astype(np.float32) / 255
     return data
 
-def ncsnr_to_nc(ncsnr, n=1):    
+def ncsnr_to_nc(ncsnr, average_image_reps=False, subject=None):    
     """
-    From Allen, E. J., St-yves, G., Wu, Y., & Kay, K. N. (2021). A massive 7T fMRI dataset to bridge cognitive and computational neuroscience. BioRxiv, 1–70.
-    Equation on page 47 of preprint.
+    From Allen (2021) nature neuroscience.    
     """   
-    noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)   
+    if not average_image_reps: 
+        # single trial data
+        n = 1
+        noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)  
+    else:
+        if subject is None:
+            # assume averaging over three reps of each image
+            n = 3
+            noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + 1/n)
+        else:
+            # for this subject, count how many reps of each image there actually were
+            # assume all available sessions are being used
+            image_order = get_master_image_order()    
+            session_inds = get_session_inds_full()
+            sessions = np.arange(max_sess_each_subj[subject-1])
+            inds2use = np.isin(session_inds, sessions)
+            image_order = image_order[inds2use]
+            unique, counts = np.unique(image_order, return_counts=True)
+            A = np.sum(counts==3)
+            B = np.sum(counts==2)
+            C = np.sum(counts==1)
+            # special version of the NC formula, from nsd data manual
+            noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + (A/3 + B/2 + C/1) / (A+B+C) )
+            
     return noise_ceiling
     
 def get_image_data(subject, random_images=False, native=False):

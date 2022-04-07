@@ -211,7 +211,7 @@ def prep_indep_coco_images(n_pix=240, debug=False):
     coco_split = []
     filenames = []
                  
-    coco_image_stack = np.zeros((n_images, 1, n_pix, n_pix))
+    coco_image_stack = np.zeros((n_images, 3, n_pix, n_pix))
     
     for ii, coco_id in enumerate(coco_ids):
         
@@ -230,14 +230,14 @@ def prep_indep_coco_images(n_pix=240, debug=False):
         # preprocess these images to be square, black and white
         # process at same size as i processed the NSD images
         cropped, bbox = segmentation_utils.crop_to_square(np.array(coco_image))
-        resized = np.array(PIL.Image.fromarray(cropped).resize([n_pix, n_pix], \
-                                                               resample=PIL.Image.BILINEAR))
-        if len(resized.shape)>2:
-            bw = nsd_utils.image_uncolorize_fn(resized)[:,:,0]
-        else:
-            bw = resized
-            
-        coco_image_stack[ii,0,:,:] = bw
+        resized = PIL.Image.fromarray(cropped).resize([n_pix, n_pix], \
+                                                       resample=PIL.Image.BILINEAR)
+        resized = np.array(resized.convert('RGB'))
+
+        # make sure this is now an RGB image, uint8 values spanning 0-255
+        assert(resized.shape[2]==3)
+        assert(resized.dtype=='uint8')
+        coco_image_stack[ii,:,:,:] = np.moveaxis(resized, [0,1,2], [1,2,0])
         
         # making these to match subject df from NSD, makes processing easier later on
         bboxes += [tuple(bbox)]
@@ -260,7 +260,7 @@ def prep_indep_coco_images(n_pix=240, debug=False):
     with h5py.File(fn2save, 'w') as hf:
         key = 'stimuli'
         val = coco_image_stack  
-        hf.create_dataset(key,data=val, dtype=np.float32)
+        hf.create_dataset(key,data=val, dtype='uint8')
         
     print('done')
 

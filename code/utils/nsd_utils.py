@@ -306,29 +306,21 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, \
         # is missing some data, or if we are working w just a few sessions. 
         print('\nAfter averaging - size of full data set [n_images x n_voxels] is:')
         print(voxel_data.shape)
+        # can't have session inds here because betas are averaged over multiple sessions
+        session_inds=None
         
     if shuffle_images:
         print('\nShuffling image order')
         image_order = image_order[np.random.permutation(np.arange(len(image_order)))]
    
-    # Split into training/validation set now
+    # Get indices to split into training/validation set now
     subj_df = get_subj_df(subject)
     is_shared_image = np.array(subj_df['shared1000'])
     shared_1000_inds = is_shared_image[image_order]
+    val_inds = shared_1000_inds
 
-    val_voxel_data = voxel_data[shared_1000_inds,:]
-    trn_voxel_data = voxel_data[~shared_1000_inds,:]
- 
-    image_order_val = image_order[shared_1000_inds]
-    image_order_trn = image_order[~shared_1000_inds]
-    
-    session_inds_val = session_inds[shared_1000_inds]
-    session_inds_trn = session_inds[~shared_1000_inds]
-    
-    return trn_voxel_data, val_voxel_data, image_order, \
-            image_order_trn, image_order_val, \
-            session_inds_trn, session_inds_val
-
+    return voxel_data, image_order, val_inds, session_inds
+   
 
 def resize_image_tensor(x, newsize):
         tt = x.transpose((0,2,3,1))

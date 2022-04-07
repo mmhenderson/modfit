@@ -594,8 +594,8 @@ def fit_fwrf(args):
                                                              trials_use_each_prf = val_trials_use_this_sess, \
                                                              dtype=np.float32, device=device)
 
-                        val_cc_sess[voxel_subset_mask,:,se] = val_cc_tmp
-                        val_r2_sess[voxel_subset_mask,:,se] = val_r2_tmp
+                        val_cc_sess[voxel_subset_mask,:,se] = val_cc_sess_tmp
+                        val_r2_sess[voxel_subset_mask,:,se] = val_r2_sess_tmp
                 if (not args.do_tuning) and (not args.do_sem_disc):
                     voxel_subset_is_done_val[vi] = True
                 save_all(fn2save) 

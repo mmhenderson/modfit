@@ -79,6 +79,11 @@ def fit_fwrf(args):
             'val_r2_sess': val_r2_sess,
             'val_cc_sess': val_cc_sess,
             })
+        if args.use_model_residuals:
+            dict2save.update({
+            'residuals_model_name': args.residuals_model_name, 
+            'residuals_model_filename': residuals_model_filename,
+            })
         if args.do_tuning:
             dict2save.update({
             'corr_each_feature': corr_each_feature
@@ -147,6 +152,9 @@ def fit_fwrf(args):
     else:
         shuff_rnd_seed = args.shuff_rnd_seed
         
+    if args.use_model_residuals and len(args.residuals_model_name)==0:
+        raise ValueError('must specify the name of model the residuals are from')
+        
     val_r2 = None; 
     val_cc = None;
     
@@ -194,16 +202,28 @@ def fit_fwrf(args):
     else:
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
-    trn_voxel_data, val_voxel_data, \
-    image_order, trn_image_order, val_image_order, \
-    session_inds_trn, session_inds_val = \
-                                nsd_utils.get_data_splits(args.subject, \
-                                sessions=sessions, \
-                                voxel_mask=voxel_mask, volume_space=args.volume_space, \
-                                zscore_betas_within_sess=True, \
-                                shuffle_images=args.shuffle_images,\
-                                average_image_reps=args.average_image_reps, \
-                                random_voxel_data=args.random_voxel_data)
+    if not args.use_model_residuals:
+        # normal case, using voxel data to fit model
+        voxel_data, image_order, val_inds, session_inds = \
+                                    nsd_utils.get_data_splits(args.subject, \
+                                    sessions=sessions, \
+                                    voxel_mask=voxel_mask, volume_space=args.volume_space, \
+                                    zscore_betas_within_sess=True, \
+                                    shuffle_images=args.shuffle_images,\
+                                    average_image_reps=args.average_image_reps, \
+                                    random_voxel_data=args.random_voxel_data)
+        
+    else:
+        # special case, using the residuals of another encoding model as input voxel data.
+        voxel_data, image_order, val_inds, session_inds, residuals_model_filename = \
+                                    initialize_fitting.load_model_residuals(args, sessions)
+    val_voxel_data = voxel_data[val_inds,:]
+    trn_voxel_data = voxel_data[~val_inds,:]
+    val_image_order = image_order[val_inds]
+    trn_image_order = image_order[~val_inds]
+    if session_inds is not None:
+        session_inds_val = session_inds[val_inds]
+        session_inds_trn = session_inds[~val_inds]
     n_voxels = trn_voxel_data.shape[1]   
 
     ########## DEFINE PARAMETERS #############################################################################
@@ -251,13 +271,13 @@ def fit_fwrf(args):
                   initialize_fitting.load_best_model_layers(args.subject, dnn_model)
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
-        
+        assert(not args.save_model_residuals)
     else:
         # going to fit all voxels w same model
         voxel_subset_masks = [np.ones((n_voxels,), dtype=bool)]
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;
-
+        
     if not args.from_scratch:
         
         # stuff that needs to happen if we are resuming from some intermediate point
@@ -600,6 +620,26 @@ def fit_fwrf(args):
                     voxel_subset_is_done_val[vi] = True
                 save_all(fn2save) 
 
+            if args.save_model_residuals:
+                # going to compute model predictions on entire data set, and save them as a separate
+                # file for use later on.
+                _, all_dat_r2, all_dat_pred, _ = \
+                fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
+                                                 voxel_data, image_order, \
+                                                 feat_loader_full, zscore=args.zscore_features, \
+                                                 sample_batch_size=args.sample_batch_size, \
+                                                 voxel_batch_size=args.voxel_batch_size, \
+                                                 debug=args.debug, \
+                                                 trials_use_each_prf = None, \
+                                                 dtype=np.float32, device=device)
+                
+                initialize_fitting.save_model_residuals(voxel_data, all_dat_pred[:,:,0], \
+                                                        output_dir, model_name, \
+                                                        image_order, val_inds, \
+                                                        session_inds, all_dat_r2[:,0], \
+                                                        args)
+            
+                
             ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
             sys.stdout.flush()
             if args.do_tuning:

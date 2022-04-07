@@ -21,7 +21,12 @@ def get_args():
                     help="average over trial repetitions of same image?")
     parser.add_argument("--compute_sessionwise_r2", type=nice_str2bool, default=0,
                     help="compute r2 for each individual session?")
-    
+    parser.add_argument("--save_model_residuals", type=nice_str2bool, default=0, 
+                    help="save model residuals for each voxel?")
+    parser.add_argument("--use_model_residuals", type=nice_str2bool, default=0, 
+                    help="load/fit model residuals for each voxel?")
+    parser.add_argument("--residuals_model_name", type=str, default='', 
+                    help="model the residuals are from?")
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")

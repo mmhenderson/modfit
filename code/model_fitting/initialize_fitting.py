@@ -12,7 +12,7 @@ from datetime import datetime
 
 # import custom modules
 from feature_extraction import gabor_feature_extractor
-from utils import prf_utils, default_paths
+from utils import prf_utils, default_paths, nsd_utils
 
 def init_cuda():
     
@@ -501,3 +501,77 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
     val_trials_use = trials_use[val_image_order,:]
         
     return trn_trials_use, val_trials_use
+
+def load_model_residuals(args, sessions):
+
+    subject_dir = os.path.join(default_paths.save_fits_path, 'S%02d'%args.subject)
+    # load most recent file
+    files_in_dir = os.listdir(os.path.join(subject_dir, args.residuals_model_name))   
+    if args.debug:
+        my_dates = [f for f in files_in_dir if 'ipynb' not in f and 'DEBUG' in f]
+        my_dates = [dd.split('_DEBUG')[0] for dd in my_dates]
+    else:
+        my_dates = [f for f in files_in_dir if 'ipynb' not in f and 'DEBUG' not in f]
+    try:
+        my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M_%S"))
+    except:
+        my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M"))
+    most_recent_date = my_dates[-1]
+    if args.debug:
+        most_recent_date += '_DEBUG'
+    residuals_dir = os.path.join(subject_dir,args.residuals_model_name,'%s'%most_recent_date)
+     
+    fn2load = os.path.join(residuals_dir, 'residuals_all_trials.npy')
+    print('Loading single trial residuals from %s'%fn2load)
+    
+    out = np.load(fn2load, allow_pickle=True).item()
+    assert(out['model_name']==args.residuals_model_name)
+    assert(out['average_image_reps']==args.average_image_reps)
+    
+    voxel_data = out['residuals']
+    image_order = out['image_order']
+    val_inds = out['val_inds']
+    session_inds = out['session_inds']
+    
+    print('shape of residual voxel data is:')
+    print(voxel_data.shape)
+    
+    # now double check that the right number of trials are here
+    sessions_using = sessions[(sessions+1)<=nsd_utils.max_sess_each_subj[args.subject-1]]
+    image_order_expected = nsd_utils.get_master_image_order()
+    session_inds_expected = nsd_utils.get_session_inds_full()
+    inds2use = np.isin(session_inds_expected, sessions_using)
+    image_order_expected = image_order_expected[inds2use]
+    session_inds_expected = session_inds_expected[inds2use]
+
+    if args.average_image_reps:
+        n_trials_expected = len(np.unique(image_order))
+        assert(voxel_data.shape[0]==n_trials_expected)
+        assert(np.all(np.unique(image_order_expected)==image_order))
+    else:
+        n_trials_expected = len(sessions_using)*nsd_utils.trials_per_sess
+        assert(voxel_data.shape[0]==n_trials_expected)
+        assert(np.all(session_inds==session_inds_expected))
+        assert(np.all(image_order==image_order_expected))
+    
+    return voxel_data, image_order, val_inds, session_inds, fn2load
+
+
+
+def save_model_residuals(voxel_data, voxel_data_pred, output_dir, model_name, \
+                         image_order, val_inds, session_inds, \
+                         all_dat_r2, args):
+    
+    residuals = voxel_data - voxel_data_pred
+    residuals = residuals.astype(np.float32)
+    
+    fn2save = os.path.join(output_dir, 'residuals_all_trials.npy')
+    print('Saving single trial residuals to %s'%fn2save)
+    
+    np.save(fn2save,{'residuals':residuals, \
+                     'model_name':model_name, \
+                    'image_order':image_order, \
+                    'val_inds':val_inds, \
+                    'session_inds':session_inds, \
+                    'all_dat_r2': all_dat_r2, \
+                    'average_image_reps': args.average_image_reps})

@@ -249,16 +249,24 @@ def load_precomputed_prfs(subject):
     
     if subject==1:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
+                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')
+        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+        #         'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
     elif subject==2:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
+                'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy')                       
+        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+        #         'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
     elif subject==3:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
+                'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
+        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                # 'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
     elif subject==4:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
+                'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
+        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
+                # 'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
     elif subject==5:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S05/alexnet_all_conv_pca/Jan-15-2022_1936_46/all_fit_params.npy')
@@ -288,28 +296,36 @@ def load_best_model_layers(subject, model):
                  'S01/clip_RN50_all_resblocks_pca/Dec-12-2021_1407_50/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                 'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
+                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')
+            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+            #      'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
     elif subject==2:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                  'S02/clip_RN50_all_resblocks_pca/Jan-13-2022_1121_18/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
+                'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy') 
+            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+            #     'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
     elif subject==3:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                  'S03/clip_RN50_all_resblocks_pca/Jan-18-2022_1156_04/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
+                'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
+            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+            #     'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
     elif subject==4:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/clip_RN50_all_resblocks_pca/Jan-23-2022_2137_23/all_fit_params.npy')                                
+                'S04/clip_RN50_all_resblocks_pca/Jan-23-2022_2137_23/all_fit_params.npy')               
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
+                'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
+            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
+            #     'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
     elif subject==5:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -536,7 +552,7 @@ def load_model_residuals(args, sessions):
     print('shape of residual voxel data is:')
     print(voxel_data.shape)
     
-    # now double check that the right number of trials are here
+    # now double check that the right set of trials are here
     sessions_using = sessions[(sessions+1)<=nsd_utils.max_sess_each_subj[args.subject-1]]
     image_order_expected = nsd_utils.get_master_image_order()
     session_inds_expected = nsd_utils.get_session_inds_full()

@@ -92,6 +92,8 @@ def get_full_save_name(args):
                 model_name += '_pca'
             if not args.use_precomputed_prfs:
                 model_name += '_fit_pRFs'
+            if args.use_model_residuals:
+                model_name += '_from_residuals'
         elif 'sketch_tokens' in ft:      
             fitting_types += [ft]
             if args.use_pca_st_feats==True:       

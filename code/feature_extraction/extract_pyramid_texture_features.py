@@ -34,6 +34,7 @@ def extract_features(subject, n_ori=4, n_sf=4, batch_size=100, use_node_storage=
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
         image_data = coco_utils.load_indep_coco_images(n_pix=240)
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
     else: 
         # load all images for the current subject, 10,000 ims
         image_data = nsd_utils.get_image_data(subject)  

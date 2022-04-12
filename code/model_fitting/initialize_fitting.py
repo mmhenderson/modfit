@@ -126,6 +126,8 @@ def get_full_save_name(args):
             
     if args.trial_subset!='all':
         model_name += '_%s'%args.trial_subset
+    if len(args.semantic_axis_balance)>0:
+        model_name += '_balance_%s'%args.semantic_axis_balance
 
     print(fitting_types)
     print(model_name)
@@ -429,26 +431,28 @@ def get_balanced_trial_order(trn_image_order, val_image_order, index, args):
     
     if 'indoor_outdoor' in args.semantic_axis_balance:       
         fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_12orient_indoor_outdoor.npy'%args.subject) 
+                       'S%d_trial_resamp_order_balance_4orientbins_indoor_outdoor.npy'%args.subject) 
     elif 'animacy' in args.semantic_axis_balance:       
         fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_12orient_animacy.npy'%args.subject) 
+                       'S%d_trial_resamp_order_balance_4orientbins_animacy.npy'%args.subject) 
     elif 'real_world_size' in args.semantic_axis_balance:       
         fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_12orient_real_world_size.npy'%args.subject) 
-    
+                       'S%d_trial_resamp_order_balance_4orientbins_real_world_size.npy'%args.subject) 
+    print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()
+    if not args.debug:
+        assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
+        assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
+    trn_trials_use = trials['trial_inds_trn'][:,index,:]
+    val_trials_use = trials['trial_inds_val'][:,index,:]
+    # make sure we had enough trials to balance, in training set
     assert(not np.any(np.isnan(trials['min_counts_trn'])))
-    n_prfs = len(trials['trial_inds_trn'])
-    trninds_binary = np.zeros((len(trn_image_order),n_prfs), dtype=bool)
-    valinds_binary = np.ones((len(val_image_order),n_prfs), dtype=bool)
     
-    for mm in range(n_prfs):
-        # trninds_num is a numerical list of indices into the training set trials only
-        trninds_num = trials['trial_inds_trn'][mm][index,:]
-        trninds_binary[trninds_num,mm] = 1
-        
-    return trninds_binary, valinds_binary
+    # since some pRFs did not have enough validation set trials to balance properly, 
+    # will just use all trials for validation. training set is balanced though.
+    val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
+    
+    return trn_trials_use, val_trials_use
         
 def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
     

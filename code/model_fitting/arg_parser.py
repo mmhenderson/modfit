@@ -27,6 +27,8 @@ def get_args():
                     help="load/fit model residuals for each voxel?")
     parser.add_argument("--residuals_model_name", type=str, default='', 
                     help="model the residuals are from?")
+    parser.add_argument("--semantic_axis_balance", type=str, default='', 
+                    help="want to choose subset of trials that balance semantic labels and features?")
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")

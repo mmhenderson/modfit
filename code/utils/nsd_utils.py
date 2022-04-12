@@ -318,8 +318,14 @@ def get_data_splits(subject, sessions=[0], voxel_mask=None, \
     is_shared_image = np.array(subj_df['shared1000'])
     shared_1000_inds = is_shared_image[image_order]
     val_inds = shared_1000_inds
+    
+    is_trn, is_holdout, is_val = load_image_data_partitions(subject)
+    is_val = is_val[image_order]
+    is_holdout = is_holdout[image_order]
+    assert(np.all(is_val==val_inds))
+    holdout_inds = is_holdout
 
-    return voxel_data, image_order, val_inds, session_inds
+    return voxel_data, image_order, val_inds, holdout_inds, session_inds
    
 
 def resize_image_tensor(x, newsize):
@@ -472,3 +478,54 @@ def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
     fn2save = os.path.join(default_paths.stim_root, 'S%d_ranked_images.csv'%subject)
     print('Saving to %s'%fn2save)
     rank_df.to_csv(fn2save, header=True)
+    
+def load_image_data_partitions(subject):
+    
+    fn2load = os.path.join(default_paths.stim_root, 'Image_data_partitions.npy')
+    print('loading train/holdout/val image list from %s'%fn2load)
+    partitions = np.load(fn2load, allow_pickle=True).item()
+    is_trn = partitions['is_trn'][:,subject-1]
+    is_holdout = partitions['is_holdout'][:,subject-1]
+    is_val = partitions['is_val'][:,subject-1]
+    
+    return is_trn, is_holdout, is_val
+
+def make_image_data_partitions(subjects=np.arange(1,9), pct_holdout=0.10):
+
+    n_subjects = len(subjects)
+    # fixed random seeds for each subject, to make sure shuffling is repeatable
+    rndseeds = [171301, 42102, 490304, 521005, 11407, 501610, 552211, 46353]
+
+    n_images_total = 10000
+    is_trn = np.zeros((n_images_total,n_subjects),dtype=bool)
+    is_holdout = np.zeros((n_images_total,n_subjects),dtype=bool)
+    is_val = np.zeros((n_images_total,n_subjects),dtype=bool)
+
+    for si, ss in enumerate(subjects):
+
+        subject_df = get_subj_df(ss)
+        val_image_inds = subject_df['shared1000']
+        trn_image_inds = ~subject_df['shared1000']
+
+        n_images_val = np.sum(val_image_inds)
+        n_images_notval = np.sum(trn_image_inds);
+        n_images_holdout = int(np.ceil(n_images_notval*pct_holdout))
+        n_images_trn = n_images_notval - n_images_holdout
+
+        # of the full 9000 image training set, holding out a random chunk
+        inds_notval = np.where(trn_image_inds)[0]
+        np.random.seed(rndseeds[si])
+        np.random.shuffle(inds_notval)
+        inds_trn = inds_notval[0:n_images_trn]
+        inds_holdout = inds_notval[n_images_trn:]
+        assert(len(inds_holdout)==n_images_holdout)
+
+        is_trn[inds_trn,si] = 1
+        is_holdout[inds_holdout,si] = 1
+        is_val[val_image_inds,si] = 1
+
+    fn2save = os.path.join(default_paths.stim_root, 'Image_data_partitions.npy')
+    np.save(fn2save, {'is_trn': is_trn, \
+                      'is_holdout': is_holdout, \
+                      'is_val': is_val, \
+                      'rndseeds': rndseeds})

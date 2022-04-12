@@ -205,7 +205,7 @@ def fit_fwrf(args):
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
     if not args.use_model_residuals:
         # normal case, using voxel data to fit model
-        voxel_data, image_order, val_inds, session_inds = \
+        voxel_data, image_order, val_inds, holdout_inds, session_inds = \
                                     nsd_utils.get_data_splits(args.subject, \
                                     sessions=sessions, \
                                     voxel_mask=voxel_mask, volume_space=args.volume_space, \
@@ -216,21 +216,23 @@ def fit_fwrf(args):
         
     else:
         # special case, using the residuals of another encoding model as input voxel data.
-        voxel_data, image_order, val_inds, session_inds, residuals_model_filename = \
+        voxel_data, image_order, val_inds, holdout_inds, session_inds, residuals_model_filename = \
                                     initialize_fitting.load_model_residuals(args, sessions)
-    val_voxel_data = voxel_data[val_inds,:]
-    trn_voxel_data = voxel_data[~val_inds,:]
-    val_image_order = image_order[val_inds]
-    trn_image_order = image_order[~val_inds]
+    voxel_data_val = voxel_data[val_inds,:]
+    voxel_data_trn = voxel_data[~val_inds & ~holdout_inds,:]
+    voxel_data_holdout = voxel_data[holdout_inds,:]
+    image_inds_val = image_order[val_inds]
+    image_inds_trn = image_order[~val_inds & ~holdout_inds]
+    image_inds_holdout = image_order[holdout_inds]
+    
     if session_inds is not None:
         session_inds_val = session_inds[val_inds]
-        session_inds_trn = session_inds[~val_inds]
-    n_voxels = trn_voxel_data.shape[1]   
+        session_inds_trn = session_inds[~val_inds & ~holdout_inds]
+        session_inds_holdout = session_inds[holdout_inds]
+    n_voxels = voxel_data_trn.shape[1]   
 
     ########## DEFINE PARAMETERS #############################################################################
     
-    holdout_pct=0.10
-    holdout_size = int(np.ceil(np.shape(trn_voxel_data)[0]*holdout_pct))   
     lambdas = initialize_fitting.get_lambdas(fitting_types=fitting_types, \
                                              zscore_features=args.zscore_features, ridge=args.ridge)
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid, verbose=True) 
@@ -240,22 +242,28 @@ def fit_fwrf(args):
     
     if args.trial_subset!='all':
         print('choosing a subset of trials to work with: %s'%args.trial_subset) 
-        trn_trials_use, val_trials_use = \
-                initialize_fitting.get_trial_subsets(trn_image_order, val_image_order, prf_models, args)
+        trn_trials_use, holdout_trials_use, val_trials_use = \
+                initialize_fitting.get_trial_subsets(image_inds_trn, image_inds_holdout, \
+                                                     image_inds_val, \
+                                                     prf_models, args)
         print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
+        print('min holdout trials: %d'%np.min(np.sum(holdout_trials_use, axis=0)))
         print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
     elif len(args.semantic_axis_balance)>0:
         assert(model_name.split('_balance')[0]=='gabor_solo_ridge_12ori_8sf')
         if not args.debug:
             assert(args.up_to_sess==40)
         assert(args.average_image_reps==True)
-        trn_trials_use, val_trials_use = \
-                initialize_fitting.get_balanced_trial_order(trn_image_order, val_image_order, \
+        trn_trials_use, holdout_trials_use, val_trials_use = \
+                initialize_fitting.get_balanced_trial_order(image_inds_trn, image_inds_holdout, \
+                                                            image_inds_val, \
                                                             index=0, args=args)
         print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
+        print('min holdout trials: %d'%np.min(np.sum(holdout_trials_use, axis=0)))
         print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
     else:
         trn_trials_use = None
+        holdout_trials_use = None
         val_trials_use = None
    
     ########## LOAD PRECOMPUTED PRFS ##########################################################################
@@ -264,7 +272,7 @@ def fit_fwrf(args):
         # If we already computed pRFs for this subject on some model, can load those now and use them during 
         # fitting. Faster than fitting pRFs each time.
         best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
-        assert(len(best_model_each_voxel)==trn_voxel_data.shape[1])
+        assert(len(best_model_each_voxel)==n_voxels)
     else:
         # otherwise fitting all params from scratch.
         best_model_each_voxel = None
@@ -359,14 +367,16 @@ def fit_fwrf(args):
     # Start the loop
     for vi, voxel_subset_mask in enumerate(voxel_subset_masks):
         
-        trn_voxel_data_use = trn_voxel_data[:,voxel_subset_mask]
-        val_voxel_data_use = val_voxel_data[:,voxel_subset_mask]
+        voxel_data_trn_use = voxel_data_trn[:,voxel_subset_mask]
+        voxel_data_holdout_use = voxel_data_holdout[:,voxel_subset_mask]
+        voxel_data_val_use = voxel_data_val[:,voxel_subset_mask]
         if best_model_each_voxel is not None:
             best_model_each_voxel_use = best_model_each_voxel[voxel_subset_mask]
         else:
             best_model_each_voxel_use = None
-        print('\nStarting fitting for voxel mask %d of %d, number of voxels this loop=%d'%(vi, len(voxel_subset_masks), trn_voxel_data_use.shape[1]))
-        if trn_voxel_data_use.shape[1]==0:
+        print('\nStarting fitting for voxel mask %d of %d, number of voxels this loop=%d'%(vi, \
+                                           len(voxel_subset_masks), voxel_data_trn_use.shape[1]))
+        if voxel_data_trn_use.shape[1]==0:
             print('no voxels, continuing loop')
             voxel_subset_is_done_trn = True
             continue
@@ -539,20 +549,20 @@ def fit_fwrf(args):
         if not voxel_subset_is_done_trn[vi]:
    
             print('\nStarting training (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
-            print(len(trn_image_order))
+            print(len(image_inds_trn))
 
             best_losses_tmp, best_lambdas_tmp, best_weights_tmp, best_biases_tmp, \
                 best_prf_models_tmp, features_mean_tmp, features_std_tmp, \
-                                = fwrf_fit.fit_fwrf_model(trn_image_order, trn_voxel_data_use, \
+                                = fwrf_fit.fit_fwrf_model(image_inds_trn, voxel_data_trn_use, \
+                                                          image_inds_holdout, voxel_data_holdout_use, \
                                                         feat_loader_full, prf_models, lambdas, \
                                                         best_model_each_voxel = best_model_each_voxel_use, \
                                                         zscore=args.zscore_features, \
                                                         add_bias=True, \
                                                         voxel_batch_size=args.voxel_batch_size, \
-                                                        holdout_size=holdout_size, \
-                                                        shuffle=True, shuff_rnd_seed=shuff_rnd_seed, \
                                                         device=device, \
-                                                        trials_use_each_prf = trn_trials_use, \
+                                                        trials_use_each_prf_trn = trn_trials_use, \
+                                                        trials_use_each_prf_holdout = holdout_trials_use, \
                                                         dtype=np.float32, debug=args.debug)
             
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
@@ -591,9 +601,9 @@ def fit_fwrf(args):
             print('Starting validation (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
             sys.stdout.flush()
     
-            val_cc_tmp, val_r2_tmp, val_voxel_data_pred, features_each_prf = \
+            val_cc_tmp, val_r2_tmp, voxel_data_val_pred, features_each_prf = \
                 fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
-                                                 val_voxel_data_use, val_image_order, \
+                                                 voxel_data_val_use, image_inds_val, \
                                                  feat_loader_full, zscore=args.zscore_features, \
                                                  sample_batch_size=args.sample_batch_size, \
                                                  voxel_batch_size=args.voxel_batch_size, \
@@ -618,7 +628,7 @@ def fit_fwrf(args):
                         val_trials_use_this_sess = np.tile(trials_this_sess[:,np.newaxis], [1,n_prfs])
                         val_cc_sess_tmp, val_r2_sess_tmp, _, _ = \
                             fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
-                                                             val_voxel_data_use, val_image_order, \
+                                                             voxel_data_val_use, image_inds_val, \
                                                              feat_loader_full, zscore=args.zscore_features, \
                                                              sample_batch_size=args.sample_batch_size, \
                                                              voxel_batch_size=args.voxel_batch_size, \
@@ -659,7 +669,7 @@ def fit_fwrf(args):
                 print('\nStarting feature tuning analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
                 sys.stdout.flush()
                 corr_each_feature_tmp = fwrf_predict.get_feature_tuning(best_params_tmp, features_each_prf, \
-                                                                        val_voxel_data_pred, \
+                                                                        voxel_data_val_pred, \
                                                                         trials_use_each_prf = val_trials_use, \
                                                                         debug=args.debug)
                 if vi==0:
@@ -684,13 +694,13 @@ def fit_fwrf(args):
                 sys.stdout.flush()
                 labels_all, discrim_type_list, unique_labs_each = \
                         initialize_fitting.load_labels_each_prf(args.subject, args.which_prf_grid,\
-                                                        image_inds=val_image_order, \
+                                                        image_inds=image_inds_val, \
                                                         models=prf_models,verbose=False, \
                                                         debug=args.debug)
                 discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
                         fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                                           labels_all, unique_labs_each, \
-                                                          val_voxel_data_pred,\
+                                                          voxel_data_val_pred,\
                                                           trials_use_each_prf = val_trials_use, \
                                                           debug=args.debug)
                 if vi==0:
@@ -717,7 +727,7 @@ def fit_fwrf(args):
                         fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \
                                                           labels_all, axes_to_do=axes_to_do, \
                                                           unique_labels_each=unique_labs_each, \
-                                                          val_voxel_data_pred=val_voxel_data_pred,\
+                                                          voxel_data_val_pred=voxel_data_val_pred,\
                                                           trials_use_each_prf = val_trials_use, \
                                                           debug=args.debug)
                 if vi==0:                 

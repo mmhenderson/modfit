@@ -13,12 +13,14 @@ models for each voxel, find a set of weights that best predict its responses bas
 Can work for many different types of feature spaces (visual, semantic)
 """
 
-def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, \
+def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
+                   image_inds_holdout, voxel_data_holdout, \
+                   feature_loader, prf_models, lambdas, \
                    best_model_each_voxel=None,\
                    zscore=True, add_bias=True, \
-                   voxel_batch_size=100, holdout_size=100, \
-                   shuffle=True, shuff_rnd_seed=0, \
-                   trials_use_each_prf = None, \
+                   voxel_batch_size=100, 
+                   trials_use_each_prf_trn = None, \
+                   trials_use_each_prf_holdout = None, \
                    device=None, dtype=np.float32, debug=False):
     
     """
@@ -35,9 +37,12 @@ def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, 
     If we're only fitting the full model, then n_partial_versions is 1
     
     Inputs:
-        image_inds (1D array): [n_trials,] numerical indices of the images included in training set - 
+        image_inds_trn (1D array): [n_trials,] numerical indices of the images included in training set - 
                                index into the 10,000 long list of images shown to each subject. 
-        voxel_data (2D array): training set data, [n_trials x n_voxels]
+        voxel_data_trn (2D array): training set data, [n_trials x n_voxels]
+        image_inds_holdout (1D array): [n_trials,] numerical indices of the images included in holdout set - 
+                               index into the 10,000 long list of images shown to each subject. 
+        voxel_data_holdout (2D array): holdout set data, [n_trials x n_voxels]
         feature_loader (obj):  an object that loads pre-computed features for the feature space of 
                                interest, see "fwrf_features.py" or "semantic_features.py"
                                will take "image_inds" as input to load correct features
@@ -50,11 +55,10 @@ def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, 
         add_bias (bool, optional): want to add intercept to the linear model? default=True
         voxel_batch_size (int, optional): how many voxels to fit at a time in a batch? default=100
                                Decreasing this can help with out of memory issues
-        holdout_size (int, optional): how many trials to include in nested validation set? default=100
-        shuffle (bool, optional): want to randomize the part of data that is held out? default=True
-        shuff_rnd_seed (int, optional): random seed for choosing held-out partition 
-                                (if 0, then randomly choose a new seed)
-        trials_use_each_prf (2D array of booleans, optional): if you want to choose a sub-set of trials 
+        trials_use_each_prf_trn (2D array of booleans, optional): if you want to choose a sub-set of trials 
+                                to fit, and choose them on a by-pRF basis. [n_trials x n_prfs]
+                                for instance if we want to fit just the trials with animate in the prf, etc.
+        trials_use_each_prf_holdout (2D array of booleans, optional): if you want to choose a sub-set of trials 
                                 to fit, and choose them on a by-pRF basis. [n_trials x n_prfs]
                                 for instance if we want to fit just the trials with animate in the prf, etc.
         device (optional): gpu or cpu device to use, default will be to use cpu
@@ -78,44 +82,17 @@ def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, 
 
     print ('dtype = %s' % dtype)
     print ('device = %s' % device)
-
-    n_trials = len(image_inds)
+    
+    # concatenate trn/val inds here, makes it easier to extract features
+    image_inds_concat = np.concatenate([image_inds_trn, image_inds_holdout], axis=0)
+    n_trials = len(image_inds_concat)
+    # make indices for how to get train/val trials back out of concat trials
+    trninds = np.arange(n_trials)<len(image_inds_trn)
+    valinds = np.arange(n_trials)>=len(image_inds_trn)
+    
     n_prfs = len(prf_models)
-    n_voxels = voxel_data.shape[1]   
+    n_voxels = voxel_data_trn.shape[1]   
 
-    # Get train/holdout splits.
-    # Held-out data here is used for lamdba selection.
-    # This is the inner part of nested cross-validation; there is another portion of data ('val')
-    # which never enters this function.
-    trn_size = n_trials - holdout_size
-    assert trn_size>0, 'Training size needs to be greater than zero'
-    print ('trn_size = %d (%.1f%%)' % (trn_size, float(trn_size)*100/len(voxel_data)))
-    order = np.arange(len(voxel_data), dtype=int)
-    if shuffle:
-        if shuff_rnd_seed==0:
-            print('Computing a new random seed')
-            shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
-        print('Seeding random number generator: seed is %d'%shuff_rnd_seed)
-        np.random.seed(shuff_rnd_seed)
-        np.random.shuffle(order)
-        
-    image_inds = copy.deepcopy(image_inds[order])
-    
-    if trials_use_each_prf is not None:
-        # shuffle this the same way as images/voxel data.
-        trials_use_each_prf = copy.deepcopy(trials_use_each_prf[order,:])
-    
-    train_trial_order = order[:trn_size]
-    holdout_trial_order = order[trn_size:]
-
-    # get train/validation data 
-    trn_data = copy.deepcopy(voxel_data[train_trial_order,:])
-    out_data = copy.deepcopy(voxel_data[holdout_trial_order,:])
-    
-    if len(image_inds.shape)>1:
-        image_size = image_inds.shape[2:4]
-    else:
-        image_size = None
     # clear any stored features from feature loader's memory    
     feature_loader.clear_big_features()
     max_features = feature_loader.max_features 
@@ -187,8 +164,8 @@ def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, 
             # nfeatures may be less than max_features; max_features is the largest number possible for any pRF.
             # feature_inds_defined is length max_features, and indicates which of the features in max_features 
             # are included in features.
-            features, feature_inds_defined = feature_loader.load(image_inds, m, fitting_mode=True)
-                      
+            features, feature_inds_defined = feature_loader.load(image_inds_concat, m, fitting_mode=True)
+              
             elapsed = time.time() - t
 
             n_features_actual = features.shape[1]
@@ -206,19 +183,24 @@ def fit_fwrf_model(image_inds, voxel_data, feature_loader, prf_models, lambdas, 
                 features = np.concatenate([features, np.ones(shape=(len(features), 1), dtype=dtype)], axis=1)
                 feature_inds_defined = np.concatenate((feature_inds_defined, [True]), axis=0)
                 
-            trn_features = features[:trn_size,:]
-            out_features = features[trn_size:,:]
+            trn_features = features[trninds,:]
+            out_features = features[valinds,:]
             
-            if trials_use_each_prf is not None:
+            if trials_use_each_prf_trn is not None:
                 # select subset of trials to work with
-                trials_use = trials_use_each_prf[:,m]
-                trn_features = trn_features[trials_use[:trn_size],:]
-                out_features = out_features[trials_use[trn_size:],:]
-                trn_data_use = trn_data[trials_use[:trn_size],:]
-                out_data_use = out_data[trials_use[trn_size:],:]
+                trials_use_trn = trials_use_each_prf_trn[:,m]
+                trn_features = trn_features[trials_use_trn,:]
+                trn_data_use = voxel_data_trn[trials_use_trn,:]
             else:
-                trn_data_use = trn_data
-                out_data_use = out_data
+                trn_data_use = voxel_data_trn
+                
+            if trials_use_each_prf_holdout is not None:
+                # select subset of trials to work with
+                trials_use_holdout = trials_use_each_prf_holdout[:,m]
+                out_features = out_features[trials_use_holdout,:]
+                out_data_use = voxel_data_holdout[trials_use_holdout,:]
+            else:
+                out_data_use = voxel_data_holdout
                 
             print('prf %d - using %d training trials and %d held-out trials'\
                       %(m, trn_data_use.shape[0], out_data_use.shape[0]))

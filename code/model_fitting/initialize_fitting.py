@@ -454,7 +454,7 @@ def get_balanced_trial_order(trn_image_order, val_image_order, index, args):
     
     return trn_trials_use, val_trials_use
         
-def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
+def get_trial_subsets(trn_image_order, holdout_image_order, val_image_order, prf_models, args):
     
     # going to work with a subset of trials only, defined by their semantic categories
     # note these definitions will be different for different pRFs 
@@ -481,7 +481,7 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
         elif args.trial_subset=='outdoor_only':
             trials_use = (np.array(in_out_df['has_outdoor'])==1) & has_one_label
         
-        trials_use = np.tile(trials_use[:,np.newaxis], [1,n_prfs])
+        trials_use = np.tile(np.array(trials_use)[:,np.newaxis], [1,n_prfs])
         
     elif 'animate' in args.trial_subset:
         
@@ -546,9 +546,10 @@ def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
 
     # put into correct order for different trial sets
     trn_trials_use = trials_use[trn_image_order,:]
+    holdout_trials_use = trials_use[holdout_image_order,:]    
     val_trials_use = trials_use[val_image_order,:]
         
-    return trn_trials_use, val_trials_use
+    return trn_trials_use, holdout_trials_use, val_trials_use
 
 def load_model_residuals(args, sessions):
 
@@ -581,6 +582,12 @@ def load_model_residuals(args, sessions):
     val_inds = out['val_inds']
     session_inds = out['session_inds']
     
+    is_trn, is_holdout, is_val = nsd_utils.load_image_data_partitions(args.subject)
+    is_val = is_val[image_order]
+    is_holdout = is_holdout[image_order]
+    assert(np.all(is_val==val_inds))
+    holdout_inds = is_holdout
+    
     print('shape of residual voxel data is:')
     print(voxel_data.shape)
     
@@ -602,7 +609,7 @@ def load_model_residuals(args, sessions):
         assert(np.all(session_inds==session_inds_expected))
         assert(np.all(image_order==image_order_expected))
     
-    return voxel_data, image_order, val_inds, session_inds, fn2load
+    return voxel_data, image_order, val_inds, holdout_inds, session_inds, fn2load
 
 
 

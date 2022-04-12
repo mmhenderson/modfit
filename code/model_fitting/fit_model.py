@@ -245,8 +245,9 @@ def fit_fwrf(args):
         print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
         print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
     elif len(args.semantic_axis_balance)>0:
-        assert(model_name=='gabor_solo_ridge_12ori_8sf')
-        assert(args.up_to_sess==40)
+        assert(model_name.split('_balance')[0]=='gabor_solo_ridge_12ori_8sf')
+        if not args.debug:
+            assert(args.up_to_sess==40)
         assert(args.average_image_reps==True)
         trn_trials_use, val_trials_use = \
                 initialize_fitting.get_balanced_trial_order(trn_image_order, val_image_order, \

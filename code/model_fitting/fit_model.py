@@ -110,7 +110,8 @@ def fit_fwrf(args):
             })
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({         
-            'use_pca_st_feats': args.use_pca_st_feats, 
+            'use_pca_st_feats': args.use_pca_st_feats,
+            'use_residual_st_feats': args.use_residual_st_feats,
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
@@ -394,7 +395,8 @@ def fit_fwrf(args):
                 feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                                 which_prf_grid=args.which_prf_grid, \
                                                                 feature_type='sketch_tokens',\
-                                                                use_pca_feats = args.use_pca_st_feats)
+                                                                use_pca_feats = args.use_pca_st_feats, \
+                                                                use_residual_st_feats = args.use_residual_st_feats)
                 fe.append(feat_loader)
                 fe_names.append(ft)
           

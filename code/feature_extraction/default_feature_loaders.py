@@ -38,12 +38,18 @@ def get_feature_loaders(subjects, feature_type, which_prf_grid=5):
                                                         include_ll=include_ll, include_hl=include_hl,\
                                                         use_pca_feats_hl = use_pca_feats_hl) for ss in subjects]       
  
-    elif feature_type=='sketch_tokens':
+    elif 'sketch_tokens' in feature_type:
         path_to_load = default_paths.sketch_token_feat_path
+        if 'residuals' in feature_type:
+            use_residual_st_feats=True
+        else:
+            use_residual_st_feats=False
         feat_loaders = [fwrf_features.fwrf_feature_loader(subject=ss,\
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='sketch_tokens',\
-                                                        use_pca_feats = False) for ss in subjects]
+                                                        use_pca_feats = False, \
+                                                        use_residual_st_feats=use_residual_st_feats) \
+                                                            for ss in subjects]
 
     elif feature_type=='alexnet':
         assert(len(subjects)==1) # since these features are pca-ed within subject, can't concatenate.

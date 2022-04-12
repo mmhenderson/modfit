@@ -161,6 +161,8 @@ class fwrf_feature_loader:
         sketch_token_feat_path = default_paths.sketch_token_feat_path
 
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False
+        self.use_residual_st_feats = kwargs['use_residual_st_feats'] \
+                                        if 'use_residual_st_feats' in kwargs.keys() else False
            
         if self.use_pca_feats:
             self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
@@ -169,7 +171,12 @@ class fwrf_feature_loader:
                 feat_shape = np.shape(file['/features'])
                 file.close()
             n_feat_actual = feat_shape[1]
-            self.max_features = np.min([150, n_feat_actual])  
+            self.max_features = np.min([150, n_feat_actual]) 
+        elif self.use_residual_st_feats:
+            self.max_features = 150;
+            self.features_file = os.path.join(sketch_token_feat_path, \
+                          'S%d_gabor_residuals_grid%d.h5py'%(self.subject, self.which_prf_grid))
+             
         else:
             self.max_features = 150;
             self.features_file = os.path.join(sketch_token_feat_path, \

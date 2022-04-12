@@ -425,7 +425,31 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     return labels_all, discrim_type_list, unique_labs_each
 
-
+def get_balanced_trial_order(trn_image_order, val_image_order, index, args):
+    
+    if 'indoor_outdoor' in args.semantic_axis_balance:       
+        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
+                       'S%d_trial_resamp_order_balance_12orient_indoor_outdoor.npy'%args.subject) 
+    elif 'animacy' in args.semantic_axis_balance:       
+        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
+                       'S%d_trial_resamp_order_balance_12orient_animacy.npy'%args.subject) 
+    elif 'real_world_size' in args.semantic_axis_balance:       
+        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
+                       'S%d_trial_resamp_order_balance_12orient_real_world_size.npy'%args.subject) 
+    
+    trials = np.load(fn2load, allow_pickle=True).item()
+    assert(not np.any(np.isnan(trials['min_counts_trn'])))
+    n_prfs = len(trials['trial_inds_trn'])
+    trninds_binary = np.zeros((len(trn_image_order),n_prfs), dtype=bool)
+    valinds_binary = np.ones((len(val_image_order),n_prfs), dtype=bool)
+    
+    for mm in range(n_prfs):
+        # trninds_num is a numerical list of indices into the training set trials only
+        trninds_num = trials['trial_inds_trn'][mm][index,:]
+        trninds_binary[trninds_num,mm] = 1
+        
+    return trninds_binary, valinds_binary
+        
 def get_trial_subsets(trn_image_order, val_image_order, prf_models, args):
     
     # going to work with a subset of trials only, defined by their semantic categories

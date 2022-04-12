@@ -8,7 +8,7 @@ import scipy.stats
 from utils import numpy_utils, torch_utils, stats_utils
 
 
-def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
+def validate_fwrf_model(best_params, prf_models, voxel_data, image_inds_val, \
                         feature_loader, zscore=False, sample_batch_size=100, \
                         voxel_batch_size=100, debug=False, \
                         trials_use_each_prf = None,
@@ -27,7 +27,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
     if device is None:
         device=torch.device('cpu:0')
     
-    n_trials, n_voxels = len(images), len(params[0])
+    n_trials, n_voxels = len(image_inds_val), len(params[0])
     n_prfs = prf_models.shape[0]
     n_features = params[1].shape[1]  
     n_voxels = np.shape(voxel_data)[1]
@@ -76,7 +76,7 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, images, \
 
             # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
             # feature_inds_defined is [max_features]
-            all_feat_concat, feature_inds_defined = feature_loader.load(images, mm, fitting_mode=False)
+            all_feat_concat, feature_inds_defined = feature_loader.load(image_inds_val, mm, fitting_mode=False)
             
             if zscore:
                 # using mean and std that were computed on training set during fitting - keeping 

@@ -64,7 +64,7 @@ def fit_fwrf(args):
         'debug': args.debug,
         'up_to_sess': args.up_to_sess,
         'single_sess': args.single_sess,
-        'shuff_rnd_seed': shuff_rnd_seed,
+        'shuff_rnd_seed': args.shuff_rnd_seed,
         'use_precomputed_prfs': args.use_precomputed_prfs,
         'saved_prfs_fn': saved_prfs_fn,
         'best_layer_each_voxel': best_layer_each_voxel,
@@ -148,11 +148,7 @@ def fit_fwrf(args):
         raise ValueError('if --from_scratch=True, should specify --date_str=0 (rather than entering a date)')    
     if (args.do_sem_disc or args.do_tuning) and not args.do_val:
         raise ValueError('to do tuning analysis or semantic discriminability, need to run validation (--do_val=True)')       
-    if args.shuff_rnd_seed==0:
-        shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))       
-    else:
-        shuff_rnd_seed = args.shuff_rnd_seed
-        
+      
     if args.use_model_residuals and len(args.residuals_model_name)==0:
         raise ValueError('must specify the name of model the residuals are from')
         
@@ -358,8 +354,7 @@ def fit_fwrf(args):
                            features_mean, features_std, best_prf_models = best_params
         val_cc = last_saved['val_cc']
         val_r2 = last_saved['val_r2']
-        shuff_rnd_seed=last_saved['shuff_rnd_seed']
-        
+      
     else:
         voxel_subset_is_done_trn = np.zeros((len(voxel_subset_masks),),dtype=bool)
         voxel_subset_is_done_val = np.zeros((len(voxel_subset_masks),),dtype=bool)

@@ -427,32 +427,29 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     return labels_all, discrim_type_list, unique_labs_each
 
-def get_balanced_trial_order(trn_image_order, val_image_order, index, args):
-    
-    if 'indoor_outdoor' in args.semantic_axis_balance:       
-        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_4orientbins_indoor_outdoor.npy'%args.subject) 
-    elif 'animacy' in args.semantic_axis_balance:       
-        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_4orientbins_animacy.npy'%args.subject) 
-    elif 'real_world_size' in args.semantic_axis_balance:       
-        fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                       'S%d_trial_resamp_order_balance_4orientbins_real_world_size.npy'%args.subject) 
+def get_balanced_trial_order(trn_image_order, holdout_image_order, val_image_order, index, args):
+   
+    fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
+                   'S%d_trial_resamp_order_balance_4orientbins_%.npy'%\
+                           (args.subject, args.semantic_axis_balance)) 
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()
     if not args.debug:
         assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
         assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
+        assert(np.all(trials['image_order'][trials['outinds']]==holdout_image_order))
     trn_trials_use = trials['trial_inds_trn'][:,index,:]
     val_trials_use = trials['trial_inds_val'][:,index,:]
+    out_trials_use = trials['trial_inds_out'][:,index,:]
     # make sure we had enough trials to balance, in training set
     assert(not np.any(np.isnan(trials['min_counts_trn'])))
     
     # since some pRFs did not have enough validation set trials to balance properly, 
     # will just use all trials for validation. training set is balanced though.
     val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
+    out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
     
-    return trn_trials_use, val_trials_use
+    return trn_trials_use, out_trials_use, val_trials_use
         
 def get_trial_subsets(trn_image_order, holdout_image_order, val_image_order, prf_models, args):
     

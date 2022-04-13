@@ -15,7 +15,8 @@ do_indoor=1
 do_natural=1
 do_size=1
 
-subjects=(1 2 3 4)
+# subjects=(1 2 3 4)
+subjects=(999)
 
 for subject in ${subjects[@]}
 do

@@ -12,7 +12,8 @@ cd /user_data/mmhender/imStat/code/utils/run/
 
 which_prf_grid=5
 
-subjects=(1 2 3 4 5 6 7 8)
+subjects=(999)
+# subjects=(1 2 3 4 5 6 7 8)
 
 for subject in ${subjects[@]}
 do

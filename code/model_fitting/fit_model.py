@@ -722,7 +722,7 @@ def fit_fwrf(args):
                         fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \
                                                           labels_all, axes_to_do=axes_to_do, \
                                                           unique_labels_each=unique_labs_each, \
-                                                          voxel_data_val_pred=voxel_data_val_pred,\
+                                                          val_voxel_data_pred=voxel_data_val_pred,\
                                                           trials_use_each_prf = val_trials_use, \
                                                           debug=args.debug)
                 if vi==0:                 

@@ -430,7 +430,7 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 def get_balanced_trial_order(trn_image_order, holdout_image_order, val_image_order, index, args):
    
     fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
-                   'S%d_trial_resamp_order_balance_4orientbins_%.npy'%\
+                   'S%d_trial_resamp_order_balance_4orientbins_%s.npy'%\
                            (args.subject, args.semantic_axis_balance)) 
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()

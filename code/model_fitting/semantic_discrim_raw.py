@@ -102,15 +102,25 @@ def get_discrim(args):
     else:
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
-    trn_stim_data, trn_voxel_data, val_stim_data, val_voxel_data, \
-    image_order, trn_image_order, val_image_order = \
+    voxel_data, image_order, val_inds, holdout_inds, session_inds = \
                                 nsd_utils.get_data_splits(args.subject, \
-                                sessions=sessions, image_inds_only = True, \
+                                sessions=sessions, \
                                 voxel_mask=voxel_mask, volume_space=args.volume_space, \
                                 zscore_betas_within_sess=True, \
-                                shuffle_images=False, random_images=False, \
-                                random_voxel_data=False)
-    n_voxels = trn_voxel_data.shape[1]   
+                                shuffle_images=False, \
+                                random_voxel_data=False, \
+                                average_image_reps = args.average_image_reps)
+    if args.use_all_data:
+        # use both train/test trials
+        image_inds_use = image_order
+        voxel_data_use = voxel_data
+    else:
+        # Use just validation set, to make it more comparable to encoding model analysis
+        image_inds_use = image_order[val_inds]
+        voxel_data_use = voxel_data[val_inds,:]
+    voxel_data_use = voxel_data_use[:,:,np.newaxis]
+        
+    n_voxels = voxel_data_use.shape[1]   
     
     ########## DEFINE PARAMETERS #############################################################################
 
@@ -124,7 +134,7 @@ def get_discrim(args):
     # will need these estimates in order to get the appropriate semantic labels for each voxel, based
     # on where its spatial pRF is. 
     best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
-    assert(len(best_model_each_voxel)==trn_voxel_data.shape[1])  
+    assert(len(best_model_each_voxel)==n_voxels)  
     best_params_tmp = [None, None, None, None, None, best_model_each_voxel[:,np.newaxis]]
     
     ### ESTIMATE SEMANTIC DISCRIMINABILITY #########################################################################
@@ -132,14 +142,7 @@ def get_discrim(args):
     
     print('\nStarting semantic discriminability analysis ...\n')
     sys.stdout.flush()
-    if args.use_all_data:
-        image_inds_use = np.concatenate([val_image_order, trn_image_order], axis=0)
-        voxel_data_use = np.concatenate([val_voxel_data[:,:,np.newaxis], \
-                                         trn_voxel_data[:,:,np.newaxis]], axis=0)
-    else:
-        image_inds_use = val_image_order
-        voxel_data_use = val_voxel_data[:,:,np.newaxis]
-    
+   
     labels_all, discrim_type_list, unique_labs_each = \
             initialize_fitting.load_labels_each_prf(args.subject, args.which_prf_grid,\
                                             image_inds=image_inds_use, \
@@ -169,28 +172,7 @@ def get_discrim(args):
                                               debug=args.debug)
     
     save_all(fn2save)
-    
-#     # Now computing semantic discriminability for a sub-set of the axes of interest, 
-#     # using resampling to balance trial counts in each grouping.
-#     print('\nStarting balanced semantic discriminability analysis ...\n')
-#     sys.stdout.flush()
-
-#     axes_to_balance=[[0,2],[0,3],[2,3]]
-
-#     print('Going to compute balanced semantic discriminability, for these pairs of axes:')
-#     for axes in axes_to_balance:
-#         print([discrim_type_list[aa] for aa in axes])
-
-#     sem_discrim_each_axis_balanced, sem_corr_each_axis_balanced, \
-#         n_sem_samp_each_axis_balanced, mean_each_sem_level_balanced = \
-#             fwrf_predict.get_semantic_discrim_balanced(best_params_tmp, \
-#                                               labels_all, axes_to_balance, unique_labs_each, \
-#                                               val_voxel_data_pred=voxel_data_use,\
-#                                               n_samp_iters=1000,\
-#                                               debug=args.debug)
-
-#     save_all(fn2save)
-
+  
     # Done!
 
 if __name__ == '__main__':
@@ -208,6 +190,9 @@ if __name__ == '__main__':
                     help="analyze sessions 1-#")
     parser.add_argument("--single_sess", type=int, default=0,
                     help="analyze just this one session (enter integer)")
+    parser.add_argument("--average_image_reps",type=nice_str2bool,default=True,
+                    help="Want to average over 3 repetitions of same image? 1 for yes, 0 for no")
+    
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")

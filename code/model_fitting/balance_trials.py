@@ -18,7 +18,6 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
 
     # figure out what images are available for this subject - assume that we 
     # will be using all the available sessions. 
-    subject_df = nsd_utils.get_subj_df(subject)
     image_order = nsd_utils.get_master_image_order()    
     session_inds = nsd_utils.get_session_inds_full()
     sessions = np.arange(nsd_utils.max_sess_each_subj[subject-1])
@@ -28,12 +27,18 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
     # reduce to the 10,000 unique images
     # NOTE that this order will only work correctly if we average over image repetitions
     image_order = np.unique(image_order) 
-    # will balance the trn/val sets separately
-    # trninds and valinds are boolean, same length as image_order
-    trninds = np.array(subject_df['shared1000']==False)[image_order]
-    valinds = np.array(subject_df['shared1000']==True)[image_order]
+
+    # load the list of which images are training, holdout, and validation
+    # each is a mask [10,000] long
+    is_trn, is_holdout, is_val = nsd_utils.load_image_data_partitions(subject)
+    
+    trninds = is_trn[image_order]
+    valinds = is_val[image_order]
+    outinds = is_holdout[image_order]
+    
     n_trials = len(image_order)
     n_trn_trials = np.sum(trninds)
+    n_out_trials = np.sum(outinds)
     n_val_trials = np.sum(valinds)
     
     # get semantic category labels
@@ -43,6 +48,7 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
                                 models=models,verbose=False, debug=debug)
     labels_all_trn = labels_all[trninds,:,:]
     labels_all_val = labels_all[valinds,:,:]
+    labels_all_out = labels_all[outinds,:,:]
     
     # create feature loader
     feat_loaders, path_to_load = \
@@ -54,11 +60,11 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
     # boolean masks for which trials will be included in the balanced sets
     trninds_mask = np.zeros((n_trn_trials,n_samp_iters,n_prfs,len(axes_to_do)), dtype=bool)
     valinds_mask = np.zeros((n_val_trials,n_samp_iters,n_prfs,len(axes_to_do)), dtype=bool)
-    
-    # all_resample_inds_trn = [[] for mm in range(n_prfs)]
+    outinds_mask = np.zeros((n_out_trials,n_samp_iters,n_prfs,len(axes_to_do)), dtype=bool)
+  
     min_counts_trn = np.zeros((n_prfs,len(axes_to_do)))
-    # all_resample_inds_val = [[] for mm in range(n_prfs)]
     min_counts_val = np.zeros((n_prfs,len(axes_to_do)))
+    min_counts_out = np.zeros((n_prfs,len(axes_to_do)))
 
     # will put the 12 orientations into four equal sized bins. 
     # centered at 0, 45, 90, 135 deg
@@ -71,9 +77,6 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
     unique_categ = np.arange(n_categ);
 
     for mm in range(n_prfs):
-
-        # all_resample_inds_trn[mm] = [[] for aa in range(len(axes_to_do))]
-        # all_resample_inds_val[mm] = [[] for aa in range(len(axes_to_do))]
 
         if debug and mm>1:
             continue
@@ -89,25 +92,15 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
         orient_labels = bin_values[max_orient]
         orient_labels_trn = orient_labels[trninds]
         orient_labels_val = orient_labels[valinds]
-        
-#         features_trn = features[trninds,:]
-#         features_val = features[valinds,:]
-#         # compute average power at each orientation
-#         features_reshaped_trn = np.reshape(features_trn, [np.sum(trninds), n_ori, n_sf], order='F')
-#         features_each_orient_trn = np.mean(features_reshaped_trn, axis=2)
-#         features_reshaped_val = np.reshape(features_val, [np.sum(valinds), n_ori, n_sf], order='F')
-#         features_each_orient_val = np.mean(features_reshaped_val, axis=2)
-#         # choose the max orientation for each image. 
-#         # Will use this as the "label" to balance over
-#         max_orient_trn = np.argmax(features_each_orient_trn, axis=1).astype(int)
-#         max_orient_val = np.argmax(features_each_orient_val, axis=1).astype(int)
-        
+        orient_labels_out = orient_labels[outinds]
+   
         for ai, aa in enumerate(axes_to_do):
 
             print([ai, aa])
             # labels for whatever semantic axis is of interest
             categ_labels_trn = labels_all_trn[:,aa,mm]  
             categ_labels_val = labels_all_val[:,aa,mm]  
+            categ_labels_out = labels_all_out[:,aa,mm]  
 
             trial_inds_resample_trn, min_count_trn = \
                     get_balanced_trials(orient_labels_trn, \
@@ -116,6 +109,10 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
             trial_inds_resample_val, min_count_val = \
                     get_balanced_trials(orient_labels_val, \
                                         categ_labels_val, n_samp_iters=n_samp_iters, \
+                                        unique1=unique_ori,unique2=unique_categ)
+            trial_inds_resample_out, min_count_out = \
+                    get_balanced_trials(orient_labels_out, \
+                                        categ_labels_out, n_samp_iters=n_samp_iters, \
                                         unique1=unique_ori,unique2=unique_categ)
             
             # check a few of the trial lists just to make sure this worked
@@ -134,23 +131,34 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
                 u, counts = np.unique(categ_labels_val[trial_inds_resample_val[1,:]], return_counts=True)
                 assert(np.all(u==unique_categ))
                 assert(np.all(counts==min_count_val*n_ori_bins))
+                
+            if min_count_out is not None:
+                u, counts = np.unique(orient_labels_out[trial_inds_resample_out[1,:]], return_counts=True)
+                assert(np.all(u==unique_ori))
+                assert(np.all(counts==min_count_out*n_categ))
+                u, counts = np.unique(categ_labels_out[trial_inds_resample_out[1,:]], return_counts=True)
+                assert(np.all(u==unique_categ))
+                assert(np.all(counts==min_count_out*n_ori_bins))
 
             # put the numeric trial indices into boolean mask arrays
             for xx in range(n_samp_iters):
                 if trial_inds_resample_trn is not None:
                     trninds_mask[trial_inds_resample_trn[xx,:],xx,mm,ai] = 1
                 else:
-                    trninds_mask[:,xx,mm,ai]
+                    # if missing, just keep all trials
+                    trninds_mask[:,xx,mm,ai] = 1
                 if trial_inds_resample_val is not None:
                     valinds_mask[trial_inds_resample_val[xx,:],xx,mm,ai] = 1
                 else:
                     valinds_mask[:,xx,mm,ai] = 1
-                
-            # all_resample_inds_trn[mm][ai] = trial_inds_resample_trn
+                if trial_inds_resample_out is not None:
+                    outinds_mask[trial_inds_resample_out[xx,:],xx,mm,ai] = 1
+                else:
+                    outinds_mask[:,xx,mm,ai] = 1
+
             min_counts_trn[mm,ai] = min_count_trn
-            
-            # all_resample_inds_val[mm][ai] = trial_inds_resample_val
             min_counts_val[mm,ai] = min_count_val
+            min_counts_out[mm,ai] = min_count_out
 
     # saving the results, one file per semantic axis of interest
     for ai, aa in enumerate(axes_to_do):
@@ -159,19 +167,17 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
         fn2save = os.path.join(path_to_load, \
                            'S%d_trial_resamp_order_balance_4orientbins_%s.npy'\
                                %(subject, discrim_type_list[aa]))
-        # fn2save = os.path.join(path_to_load, \
-                           # 'S%d_trial_resamp_order_balance_12orient_%s.npy'\
-                               # %(subject, discrim_type_list[aa]))
-        # trial_inds_save_trn = [all_resample_inds_trn[mm][ai] for mm in range(n_prfs)]
-        # trial_inds_save_val = [all_resample_inds_val[mm][ai] for mm in range(n_prfs)]
         print('saving to %s'%fn2save)
         np.save(fn2save, {'trial_inds_trn': trninds_mask[:,:,:,ai], \
                           'min_counts_trn': min_counts_trn[:,ai], \
                           'trial_inds_val': valinds_mask[:,:,:,ai], \
                           'min_counts_val': min_counts_val[:,ai], \
+                          'trial_inds_out': outinds_mask[:,:,:,ai], \
+                          'min_counts_out': min_counts_out[:,ai], \
                           'image_order': image_order, \
                           'trninds': trninds, \
-                          'valinds': valinds}, 
+                          'valinds': valinds, \
+                          'outinds': outinds}, 
                 allow_pickle=True)
 
 def get_balanced_trials(labels1, labels2, n_samp_iters=1000, \

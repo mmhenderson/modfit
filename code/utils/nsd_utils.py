@@ -494,8 +494,8 @@ def make_image_data_partitions(subjects=np.arange(1,9), pct_holdout=0.10):
 
     n_subjects = len(subjects)
     # fixed random seeds for each subject, to make sure shuffling is repeatable
-    rndseeds = [171301, 42102, 490304, 521005, 11407, 501610, 552211, 46353]
-
+    rndseeds = [171301, 42102, 490304, 521005, 11407, 501610, 552211, 450013]
+    
     n_images_total = 10000
     is_trn = np.zeros((n_images_total,n_subjects),dtype=bool)
     is_holdout = np.zeros((n_images_total,n_subjects),dtype=bool)

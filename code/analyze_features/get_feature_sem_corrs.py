@@ -5,7 +5,9 @@ import argparse
 from utils import default_paths, nsd_utils, stats_utils
 from feature_extraction import default_feature_loaders
 from model_fitting import initialize_fitting 
-   
+  
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, layer_name=None):
 
     print('\nusing prf grid %d\n'%(which_prf_grid))

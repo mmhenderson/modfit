@@ -253,44 +253,28 @@ def load_precomputed_prfs(subject):
     
     if subject==1:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-        #         'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
+                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')  
     elif subject==2:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy')                       
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-        #         'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
     elif subject==3:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
     elif subject==4:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
     elif subject==5:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S05/alexnet_all_conv_pca/Apr-07-2022_1401_20/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-        #         'S05/alexnet_all_conv_pca/Jan-15-2022_1936_46/all_fit_params.npy')
     elif subject==6:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S06/alexnet_all_conv_pca/Apr-10-2022_1650_18/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-        #         'S06/alexnet_all_conv_pca/Jan-19-2022_1358_01/all_fit_params.npy')
     elif subject==7:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S07/alexnet_all_conv_pca/Apr-11-2022_2255_10/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params.npy')
     elif subject==8:
         saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
                 'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy')
-        # saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S08/alexnet_all_conv_pca/Jan-22-2022_1508_21/all_fit_params.npy')
     else:
         raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
 
@@ -309,9 +293,7 @@ def load_best_model_layers(subject, model):
                  'S01/clip_RN50_all_resblocks_pca/Dec-12-2021_1407_50/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-            #      'S01/alexnet_all_conv_pca/Nov-23-2021_2247_09/all_fit_params.npy')    
+                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')  
     elif subject==2:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -319,8 +301,6 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy') 
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-            #     'S02/alexnet_all_conv_pca/Jan-07-2022_1815_05/all_fit_params.npy')
     elif subject==3:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -328,8 +308,6 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-            #     'S03/alexnet_all_conv_pca/Jan-11-2022_0342_58/all_fit_params.npy')
     elif subject==4:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -337,8 +315,6 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-            #     'S04/alexnet_all_conv_pca/Jan-13-2022_1805_02/all_fit_params.npy')
     elif subject==5:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -346,8 +322,6 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S05/alexnet_all_conv_pca/Apr-07-2022_1401_20/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-            #     'S05/alexnet_all_conv_pca/Jan-15-2022_1936_46/all_fit_params.npy')
     elif subject==6:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -355,8 +329,6 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S06/alexnet_all_conv_pca/Apr-10-2022_1650_18/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S06/alexnet_all_conv_pca/Jan-19-2022_1358_01/all_fit_params.npy')
     elif subject==7:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
@@ -364,17 +336,13 @@ def load_best_model_layers(subject, model):
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S07/alexnet_all_conv_pca/Apr-11-2022_2255_10/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S07/alexnet_all_conv_pca/Jan-21-2022_0313_37/all_fit_params.npy')
     elif subject==8:
         if model=='clip':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
                 'S08/clip_RN50_all_resblocks_pca/Feb-09-2022_1544_10/all_fit_params.npy')
         elif model=='alexnet':
             saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy')
-            # saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                # 'S08/alexnet_all_conv_pca/Jan-22-2022_1508_21/all_fit_params.npy')
+                'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy')         
     else:
         raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
     
@@ -491,127 +459,6 @@ def get_subsampled_trial_order(trn_image_order, \
     assert(not np.any(np.isnan(val_trials_use)))
     
     return trn_trials_use, out_trials_use, val_trials_use
-
-# def get_subsampled_trial_order(trn_image_order, holdout_image_order, val_image_order, index, args):
-   
-#     fn2load = os.path.join(default_paths.stim_labels_root,'resampled_trial_orders',\
-#                    'S%d_trial_resamp_order_balance_%s.npy'%\
-#                            (args.subject, args.semantic_axis_balance)) 
-#     print('loading balanced trial order (pre-computed) from %s'%fn2load)
-#     trials = np.load(fn2load, allow_pickle=True).item()
-#     if not args.debug:
-#         assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
-#         assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
-#         assert(np.all(trials['image_order'][trials['outinds']]==holdout_image_order))
-#     trn_trials_use = trials['trial_inds_trn'][:,index,:]
-#     val_trials_use = trials['trial_inds_val'][:,index,:]
-#     out_trials_use = trials['trial_inds_out'][:,index,:]
-#     # make sure we had enough trials to balance, in training set
-#     assert(not np.any(np.isnan(trials['min_counts_trn'])))
-    
-#     # since some pRFs did not have enough validation set trials to balance properly, 
-#     # will just use all trials for validation. training set is balanced though.
-#     val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
-#     out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
-    
-#     return trn_trials_use, out_trials_use, val_trials_use
-        
-# def get_trial_subsets(trn_image_order, holdout_image_order, val_image_order, prf_models, args):
-    
-#     # going to work with a subset of trials only, defined by their semantic categories
-#     # note these definitions will be different for different pRFs 
-#     # this func will return an array [n_trials x n_prfs], masking out which trials to use
-#     # for each prf.
-#     # one for training trials, one for validation trials.
-    
-#     n_prfs = prf_models.shape[0]
-    
-#     labels_folder = os.path.join(default_paths.stim_labels_root, \
-#                          'S%d_within_prf_grid%d'%(args.subject, args.which_prf_grid))
-    
-#     if 'indoor' in args.trial_subset or 'outdoor' in args.trial_subset:
-        
-#         # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
-#         in_out_labels_fn = os.path.join(default_paths.stim_labels_root, \
-#                                         'S%d_indoor_outdoor.csv'%args.subject)
-#         print('loading from %s'%in_out_labels_fn)
-#         in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
-        
-#         has_one_label = np.sum(in_out_df, axis=1)==1
-#         if args.trial_subset=='indoor_only':
-#             trials_use = (np.array(in_out_df['has_indoor'])==1) & has_one_label
-#         elif args.trial_subset=='outdoor_only':
-#             trials_use = (np.array(in_out_df['has_outdoor'])==1) & has_one_label
-        
-#         trials_use = np.tile(np.array(trials_use)[:,np.newaxis], [1,n_prfs])
-        
-#     elif 'animate' in args.trial_subset:
-        
-#         trials_use = []
-#         for prf_model_index in range(n_prfs):
-        
-#             if args.debug and prf_model_index>1:
-#                 trials_use += [trials]
-#                 continue
-                
-#             coco_things_labels_fn = os.path.join(labels_folder, \
-#                                   'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index))
-#             if prf_model_index==0:
-#                 print('loading from %s'%coco_things_labels_fn)
-#             coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
-#             supcat_labels = np.array(coco_things_df)[:,0:12]
-#             animate_supcats = [1,9]
-#             inanimate_supcats = [ii for ii in range(12)\
-#                                  if ii not in animate_supcats]
-#             has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
-#                                            for ii in animate_supcats]), axis=0)
-#             has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
-#                                         for ii in inanimate_supcats]), axis=0)
-#             has_one_label = (has_animate.astype(int) + has_inanimate.astype(int))==1
-            
-#             if args.trial_subset=='animate_only':                
-#                 trials = has_animate & has_one_label
-#             elif args.trial_subset=='inanimate_only':         
-#                 trials = has_inanimate & has_one_label
-                
-#             trials_use += [trials]
-           
-#         trials_use = np.array(trials_use).T
-        
-        
-#     elif 'small' in args.trial_subset or 'large' in args.trial_subset:
-        
-#         trials_use = []
-#         for prf_model_index in range(n_prfs):
-        
-#             if args.debug and prf_model_index>1:
-#                 trials_use += [trials]
-#                 continue
-                
-#             size_labels_fn = os.path.join(labels_folder, \
-#                                   'S%d_realworldsize_prf%d.csv'%(args.subject, prf_model_index))
-#             if prf_model_index==0:
-#                 print('loading from %s'%size_labels_fn)
-#             size_df = pd.read_csv(size_labels_fn, index_col=0)
-#             size_df = size_df.iloc[:,[0,2]]
-           
-#             has_one_label = np.sum(np.array(size_df), axis=1)==1
-            
-#             if args.trial_subset=='small_only':                
-#                 trials = (np.array(size_df['has_small'])==1) & has_one_label
-#             elif args.trial_subset=='large_only':         
-#                 trials = (np.array(size_df['has_large'])==1) & has_one_label
-                
-#             trials_use += [trials]
-           
-#         trials_use = np.array(trials_use).T
-
-#     # put into correct order for different trial sets
-#     trn_trials_use = trials_use[trn_image_order,:]
-#     holdout_trials_use = trials_use[holdout_image_order,:]    
-#     val_trials_use = trials_use[val_image_order,:]
-        
-#     return trn_trials_use, holdout_trials_use, val_trials_use
 
 def load_model_residuals(args, sessions):
 

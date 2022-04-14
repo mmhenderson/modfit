@@ -126,9 +126,7 @@ def get_full_save_name(args):
             
     if args.trial_subset!='all':
         model_name += '_%s'%args.trial_subset
-    if len(args.semantic_axis_balance)>0:
-        model_name += '_balance_%s'%args.semantic_axis_balance
-
+   
     print(fitting_types)
     print(model_name)
     
@@ -445,13 +443,32 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 
     return labels_all, discrim_type_list, unique_labs_each
 
-def get_balanced_trial_order(trn_image_order, holdout_image_order, val_image_order, index, args):
-   
-    fn2load = os.path.join(default_paths.gabor_texture_feat_path,\
+def get_subsampled_trial_order(trn_image_order, \
+                               holdout_image_order, \
+                               val_image_order, \
+                               args, index=0):
+    
+    folder = os.path.join(default_paths.stim_labels_root,'resampled_trial_orders')
+    if 'only' in args.trial_subset:        
+        axis = args.trial_subset.split('_only')[0]
+        fn2load = os.path.join(folder,
+                   'S%d_trial_resamp_order_balance_has_%s.npy'%\
+                           (args.subject, axis))        
+    elif 'balance' in args.trial_subset:        
+        if 'orient' in args.trial_subset:
+            axis = args.trial_subsets.split('balance_orient_')[1]
+            fn2load = os.path.join(folder, \
                    'S%d_trial_resamp_order_balance_4orientbins_%s.npy'%\
                            (args.subject, args.semantic_axis_balance)) 
+        else:            
+            axis = args.trial_subset.split('balance_')[1]
+            fn2load = os.path.join(folder, \
+                       'S%d_trial_resamp_order_balance_both_%s.npy'%\
+                               (args.subject, axis)) 
+    
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()
+    
     if not args.debug:
         assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
         assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
@@ -462,109 +479,139 @@ def get_balanced_trial_order(trn_image_order, holdout_image_order, val_image_ord
     # make sure we had enough trials to balance, in training set
     assert(not np.any(np.isnan(trials['min_counts_trn'])))
     
-    # since some pRFs did not have enough validation set trials to balance properly, 
-    # will just use all trials for validation. training set is balanced though.
-    val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
-    out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
+    if any(np.isnan(val_trials_use)):
+        print('using all validation set trials')
+        val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
+    if any(np.isnan(out_trials_use)):
+        print('using all holdout set trials')
+        out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
+    
+    assert(not np.any(np.isnan(trn_trials_use)))
+    assert(not np.any(np.isnan(out_trials_use)))
+    assert(not np.any(np.isnan(val_trials_use)))
     
     return trn_trials_use, out_trials_use, val_trials_use
-        
-def get_trial_subsets(trn_image_order, holdout_image_order, val_image_order, prf_models, args):
-    
-    # going to work with a subset of trials only, defined by their semantic categories
-    # note these definitions will be different for different pRFs 
-    # this func will return an array [n_trials x n_prfs], masking out which trials to use
-    # for each prf.
-    # one for training trials, one for validation trials.
-    
-    n_prfs = prf_models.shape[0]
-    
-    labels_folder = os.path.join(default_paths.stim_labels_root, \
-                         'S%d_within_prf_grid%d'%(args.subject, args.which_prf_grid))
-    
-    if 'indoor' in args.trial_subset or 'outdoor' in args.trial_subset:
-        
-        # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
-        in_out_labels_fn = os.path.join(default_paths.stim_labels_root, \
-                                        'S%d_indoor_outdoor.csv'%args.subject)
-        print('loading from %s'%in_out_labels_fn)
-        in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
-        
-        has_one_label = np.sum(in_out_df, axis=1)==1
-        if args.trial_subset=='indoor_only':
-            trials_use = (np.array(in_out_df['has_indoor'])==1) & has_one_label
-        elif args.trial_subset=='outdoor_only':
-            trials_use = (np.array(in_out_df['has_outdoor'])==1) & has_one_label
-        
-        trials_use = np.tile(np.array(trials_use)[:,np.newaxis], [1,n_prfs])
-        
-    elif 'animate' in args.trial_subset:
-        
-        trials_use = []
-        for prf_model_index in range(n_prfs):
-        
-            if args.debug and prf_model_index>1:
-                trials_use += [trials]
-                continue
-                
-            coco_things_labels_fn = os.path.join(labels_folder, \
-                                  'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index))
-            if prf_model_index==0:
-                print('loading from %s'%coco_things_labels_fn)
-            coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
-            supcat_labels = np.array(coco_things_df)[:,0:12]
-            animate_supcats = [1,9]
-            inanimate_supcats = [ii for ii in range(12)\
-                                 if ii not in animate_supcats]
-            has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
-                                           for ii in animate_supcats]), axis=0)
-            has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
-                                        for ii in inanimate_supcats]), axis=0)
-            has_one_label = (has_animate.astype(int) + has_inanimate.astype(int))==1
-            
-            if args.trial_subset=='animate_only':                
-                trials = has_animate & has_one_label
-            elif args.trial_subset=='inanimate_only':         
-                trials = has_inanimate & has_one_label
-                
-            trials_use += [trials]
-           
-        trials_use = np.array(trials_use).T
-        
-        
-    elif 'small' in args.trial_subset or 'large' in args.trial_subset:
-        
-        trials_use = []
-        for prf_model_index in range(n_prfs):
-        
-            if args.debug and prf_model_index>1:
-                trials_use += [trials]
-                continue
-                
-            size_labels_fn = os.path.join(labels_folder, \
-                                  'S%d_realworldsize_prf%d.csv'%(args.subject, prf_model_index))
-            if prf_model_index==0:
-                print('loading from %s'%size_labels_fn)
-            size_df = pd.read_csv(size_labels_fn, index_col=0)
-            size_df = size_df.iloc[:,[0,2]]
-           
-            has_one_label = np.sum(np.array(size_df), axis=1)==1
-            
-            if args.trial_subset=='small_only':                
-                trials = (np.array(size_df['has_small'])==1) & has_one_label
-            elif args.trial_subset=='large_only':         
-                trials = (np.array(size_df['has_large'])==1) & has_one_label
-                
-            trials_use += [trials]
-           
-        trials_use = np.array(trials_use).T
 
-    # put into correct order for different trial sets
-    trn_trials_use = trials_use[trn_image_order,:]
-    holdout_trials_use = trials_use[holdout_image_order,:]    
-    val_trials_use = trials_use[val_image_order,:]
+# def get_subsampled_trial_order(trn_image_order, holdout_image_order, val_image_order, index, args):
+   
+#     fn2load = os.path.join(default_paths.stim_labels_root,'resampled_trial_orders',\
+#                    'S%d_trial_resamp_order_balance_%s.npy'%\
+#                            (args.subject, args.semantic_axis_balance)) 
+#     print('loading balanced trial order (pre-computed) from %s'%fn2load)
+#     trials = np.load(fn2load, allow_pickle=True).item()
+#     if not args.debug:
+#         assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
+#         assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
+#         assert(np.all(trials['image_order'][trials['outinds']]==holdout_image_order))
+#     trn_trials_use = trials['trial_inds_trn'][:,index,:]
+#     val_trials_use = trials['trial_inds_val'][:,index,:]
+#     out_trials_use = trials['trial_inds_out'][:,index,:]
+#     # make sure we had enough trials to balance, in training set
+#     assert(not np.any(np.isnan(trials['min_counts_trn'])))
+    
+#     # since some pRFs did not have enough validation set trials to balance properly, 
+#     # will just use all trials for validation. training set is balanced though.
+#     val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
+#     out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
+    
+#     return trn_trials_use, out_trials_use, val_trials_use
         
-    return trn_trials_use, holdout_trials_use, val_trials_use
+# def get_trial_subsets(trn_image_order, holdout_image_order, val_image_order, prf_models, args):
+    
+#     # going to work with a subset of trials only, defined by their semantic categories
+#     # note these definitions will be different for different pRFs 
+#     # this func will return an array [n_trials x n_prfs], masking out which trials to use
+#     # for each prf.
+#     # one for training trials, one for validation trials.
+    
+#     n_prfs = prf_models.shape[0]
+    
+#     labels_folder = os.path.join(default_paths.stim_labels_root, \
+#                          'S%d_within_prf_grid%d'%(args.subject, args.which_prf_grid))
+    
+#     if 'indoor' in args.trial_subset or 'outdoor' in args.trial_subset:
+        
+#         # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
+#         in_out_labels_fn = os.path.join(default_paths.stim_labels_root, \
+#                                         'S%d_indoor_outdoor.csv'%args.subject)
+#         print('loading from %s'%in_out_labels_fn)
+#         in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
+        
+#         has_one_label = np.sum(in_out_df, axis=1)==1
+#         if args.trial_subset=='indoor_only':
+#             trials_use = (np.array(in_out_df['has_indoor'])==1) & has_one_label
+#         elif args.trial_subset=='outdoor_only':
+#             trials_use = (np.array(in_out_df['has_outdoor'])==1) & has_one_label
+        
+#         trials_use = np.tile(np.array(trials_use)[:,np.newaxis], [1,n_prfs])
+        
+#     elif 'animate' in args.trial_subset:
+        
+#         trials_use = []
+#         for prf_model_index in range(n_prfs):
+        
+#             if args.debug and prf_model_index>1:
+#                 trials_use += [trials]
+#                 continue
+                
+#             coco_things_labels_fn = os.path.join(labels_folder, \
+#                                   'S%d_cocolabs_binary_prf%d.csv'%(args.subject, prf_model_index))
+#             if prf_model_index==0:
+#                 print('loading from %s'%coco_things_labels_fn)
+#             coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
+#             supcat_labels = np.array(coco_things_df)[:,0:12]
+#             animate_supcats = [1,9]
+#             inanimate_supcats = [ii for ii in range(12)\
+#                                  if ii not in animate_supcats]
+#             has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
+#                                            for ii in animate_supcats]), axis=0)
+#             has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
+#                                         for ii in inanimate_supcats]), axis=0)
+#             has_one_label = (has_animate.astype(int) + has_inanimate.astype(int))==1
+            
+#             if args.trial_subset=='animate_only':                
+#                 trials = has_animate & has_one_label
+#             elif args.trial_subset=='inanimate_only':         
+#                 trials = has_inanimate & has_one_label
+                
+#             trials_use += [trials]
+           
+#         trials_use = np.array(trials_use).T
+        
+        
+#     elif 'small' in args.trial_subset or 'large' in args.trial_subset:
+        
+#         trials_use = []
+#         for prf_model_index in range(n_prfs):
+        
+#             if args.debug and prf_model_index>1:
+#                 trials_use += [trials]
+#                 continue
+                
+#             size_labels_fn = os.path.join(labels_folder, \
+#                                   'S%d_realworldsize_prf%d.csv'%(args.subject, prf_model_index))
+#             if prf_model_index==0:
+#                 print('loading from %s'%size_labels_fn)
+#             size_df = pd.read_csv(size_labels_fn, index_col=0)
+#             size_df = size_df.iloc[:,[0,2]]
+           
+#             has_one_label = np.sum(np.array(size_df), axis=1)==1
+            
+#             if args.trial_subset=='small_only':                
+#                 trials = (np.array(size_df['has_small'])==1) & has_one_label
+#             elif args.trial_subset=='large_only':         
+#                 trials = (np.array(size_df['has_large'])==1) & has_one_label
+                
+#             trials_use += [trials]
+           
+#         trials_use = np.array(trials_use).T
+
+#     # put into correct order for different trial sets
+#     trn_trials_use = trials_use[trn_image_order,:]
+#     holdout_trials_use = trials_use[holdout_image_order,:]    
+#     val_trials_use = trials_use[val_image_order,:]
+        
+#     return trn_trials_use, holdout_trials_use, val_trials_use
 
 def load_model_residuals(args, sessions):
 

@@ -236,27 +236,23 @@ def fit_fwrf(args):
     
     sys.stdout.flush()
     
-    if args.trial_subset!='all':
-        print('choosing a subset of trials to work with: %s'%args.trial_subset) 
-        trn_trials_use, holdout_trials_use, val_trials_use = \
-                initialize_fitting.get_trial_subsets(image_inds_trn, image_inds_holdout, \
-                                                     image_inds_val, \
-                                                     prf_models, args)
-        print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
-        print('min holdout trials: %d'%np.min(np.sum(holdout_trials_use, axis=0)))
-        print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
-    elif len(args.semantic_axis_balance)>0:
-        assert(model_name.split('_balance')[0]=='gabor_solo_ridge_12ori_8sf')
+    if (args.trial_subset!='all'):
+        
         if not args.debug:
             assert(args.up_to_sess==40)
         assert(args.average_image_reps==True)
+        
         trn_trials_use, holdout_trials_use, val_trials_use = \
-                initialize_fitting.get_balanced_trial_order(image_inds_trn, image_inds_holdout, \
-                                                            image_inds_val, \
-                                                            index=0, args=args)
+                initialize_fitting.get_subsampled_trial_order(image_inds_trn, \
+                                                              image_inds_holdout, \
+                                                              image_inds_val, \
+                                                              args=args, \
+                                                              index=0)
+        
         print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
         print('min holdout trials: %d'%np.min(np.sum(holdout_trials_use, axis=0)))
         print('min val trials: %d'%np.min(np.sum(val_trials_use, axis=0)))
+        
     else:
         trn_trials_use = None
         holdout_trials_use = None
@@ -637,26 +633,7 @@ def fit_fwrf(args):
                     voxel_subset_is_done_val[vi] = True
                 save_all(fn2save) 
 
-            if args.save_model_residuals:
-                # going to compute model predictions on entire data set, and save them as a separate
-                # file for use later on.
-                _, all_dat_r2, all_dat_pred, _ = \
-                fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
-                                                 voxel_data, image_order, \
-                                                 feat_loader_full, zscore=args.zscore_features, \
-                                                 sample_batch_size=args.sample_batch_size, \
-                                                 voxel_batch_size=args.voxel_batch_size, \
-                                                 debug=args.debug, \
-                                                 trials_use_each_prf = None, \
-                                                 dtype=np.float32, device=device)
-                
-                initialize_fitting.save_model_residuals(voxel_data, all_dat_pred[:,:,0], \
-                                                        output_dir, model_name, \
-                                                        image_order, val_inds, \
-                                                        session_inds, all_dat_r2[:,0], \
-                                                        args)
             
-                
             ### ESTIMATE VOXELS' FEATURE TUNING #####################################################################
             sys.stdout.flush()
             if args.do_tuning:
@@ -736,7 +713,29 @@ def fit_fwrf(args):
         
                 voxel_subset_is_done_val[vi] = True
                 save_all(fn2save)
+                
+                
+                
+        if args.save_model_residuals:
+            # going to compute model predictions on entire data set, and save them as a separate
+            # file for use later on.
+            _, all_dat_r2, all_dat_pred, _ = \
+            fwrf_predict.validate_fwrf_model(best_params_tmp, prf_models, \
+                                             voxel_data, image_order, \
+                                             feat_loader_full, zscore=args.zscore_features, \
+                                             sample_batch_size=args.sample_batch_size, \
+                                             voxel_batch_size=args.voxel_batch_size, \
+                                             debug=args.debug, \
+                                             trials_use_each_prf = None, \
+                                             dtype=np.float32, device=device)
+
+            initialize_fitting.save_model_residuals(voxel_data, all_dat_pred[:,:,0], \
+                                                    output_dir, model_name, \
+                                                    image_order, val_inds, \
+                                                    session_inds, all_dat_r2[:,0], \
+                                                    args)
             
+                 
         # Done!
 
 if __name__ == '__main__':

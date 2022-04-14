@@ -420,18 +420,18 @@ def get_subsampled_trial_order(trn_image_order, \
     if 'only' in args.trial_subset:        
         axis = args.trial_subset.split('_only')[0]
         fn2load = os.path.join(folder,
-                   'S%d_trial_resamp_order_balance_has_%s.npy'%\
+                   'S%d_trial_resamp_order_has_%s.npy'%\
                            (args.subject, axis))        
     elif 'balance' in args.trial_subset:        
         if 'orient' in args.trial_subset:
-            axis = args.trial_subsets.split('balance_orient_')[1]
+            axis = args.trial_subset.split('balance_orient_')[1]
             fn2load = os.path.join(folder, \
                    'S%d_trial_resamp_order_balance_4orientbins_%s.npy'%\
-                           (args.subject, args.semantic_axis_balance)) 
+                           (args.subject, axis)) 
         else:            
             axis = args.trial_subset.split('balance_')[1]
             fn2load = os.path.join(folder, \
-                       'S%d_trial_resamp_order_balance_both_%s.npy'%\
+                       'S%d_trial_resamp_order_both_%s.npy'%\
                                (args.subject, axis)) 
     
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
@@ -447,10 +447,10 @@ def get_subsampled_trial_order(trn_image_order, \
     # make sure we had enough trials to balance, in training set
     assert(not np.any(np.isnan(trials['min_counts_trn'])))
     
-    if any(np.isnan(val_trials_use)):
+    if np.any(np.isnan(val_trials_use)):
         print('using all validation set trials')
         val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
-    if any(np.isnan(out_trials_use)):
+    if np.any(np.isnan(out_trials_use)):
         print('using all holdout set trials')
         out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
     

@@ -27,9 +27,10 @@ def get_args():
                     help="load/fit model residuals for each voxel?")
     parser.add_argument("--residuals_model_name", type=str, default='', 
                     help="model the residuals are from?")
-    parser.add_argument("--semantic_axis_balance", type=str, default='', 
-                    help="want to choose subset of trials that balance semantic labels and features?")
     
+    parser.add_argument("--trial_subset", type=str,default='all', 
+                    help="fit for a subset of trials only? default all trials")
+   
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")
     
@@ -41,9 +42,7 @@ def get_args():
     parser.add_argument("--fitting_type3", type=str,default='',
                     help="additional fitting type, for variance partition?")
     
-    parser.add_argument("--trial_subset", type=str,default='all', 
-                    help="fit for a subset of trials only? default all trials")
-   
+    
     parser.add_argument("--ridge", type=nice_str2bool, default=True,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=nice_str2bool, default=True,

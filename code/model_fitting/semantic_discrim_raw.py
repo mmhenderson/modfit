@@ -28,11 +28,9 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
         
     
 def get_discrim(args):
-
-    if args.use_all_data:
-        model_name = 'semantic_discrim_raw_trnval'
-    else:
-        model_name = 'semantic_discrim_raw_val'
+    
+    model_name = 'semantic_discrim_raw_val'
+    
     output_dir, fn2save = initialize_fitting.get_save_path(model_name, args)
     sys.stdout.flush()
     
@@ -65,11 +63,6 @@ def get_discrim(args):
         'axes_to_do': axes_to_do, 
         'sem_partial_corrs': sem_partial_corrs, 
         'sem_partial_n_samp': sem_partial_n_samp, 
-        'sem_discrim_each_axis_balanced': sem_discrim_each_axis_balanced,
-        'sem_corr_each_axis_balanced': sem_corr_each_axis_balanced,
-        'axes_to_balance': axes_to_balance,
-        'n_sem_samp_each_axis_balanced': n_sem_samp_each_axis_balanced, 
-        'mean_each_sem_level_balanced': mean_each_sem_level_balanced,
         }
         
         print('\nSaving to %s\n'%fn2save)
@@ -85,11 +78,12 @@ def get_discrim(args):
     sem_partial_corrs = None
     sem_partial_n_samp = None
     
-    axes_to_balance = None
-    sem_discrim_each_axis_balanced = None
-    sem_corr_each_axis_balanced = None
-    n_sem_samp_each_axis_balanced = None
-    mean_each_sem_level_balanced = None
+     ########## DEFINE PARAMETERS #############################################################################
+
+    prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid) 
+    n_prfs = prf_models.shape[0]
+    
+    sys.stdout.flush()
     
     ########## LOADING THE DATA #############################################################################
     # decide what voxels to use  
@@ -110,24 +104,36 @@ def get_discrim(args):
                                 shuffle_images=False, \
                                 random_voxel_data=False, \
                                 average_image_reps = args.average_image_reps)
-    if args.use_all_data:
-        # use both train/test trials
-        image_inds_use = image_order
-        voxel_data_use = voxel_data
+    trn_inds = ~val_inds & ~holdout_inds
+    
+    
+    if args.trial_subset!='all':
+        print('choosing a subset of trials to work with: %s'%args.trial_subset) 
+        trn_trials_use, holdout_trials_use, val_trials_use = \
+                initialize_fitting.get_subsampled_trial_order(image_order[trn_inds], \
+                                                              image_order[val_inds], \
+                                                              image_order[holdout_inds], \
+                                                              args=args, \
+                                                              index=0)
+        
+        # Use trn set trials, because once we have subsampled there 
+        # might not be enough val set trials
+        image_inds_use = image_order[trn_inds]
+        voxel_data_use = voxel_data[trn_inds,:]
+        trials_use = trn_trials_use       
+        print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
+        
     else:
-        # Use just validation set, to make it more comparable to encoding model analysis
+        # default case - using all validation set trials, no sub-sampling.
         image_inds_use = image_order[val_inds]
-        voxel_data_use = voxel_data[val_inds,:]
+        voxel_data_use = voxel_data[val_inds,:]    
+        trials_use = None
+        
     voxel_data_use = voxel_data_use[:,:,np.newaxis]
         
     n_voxels = voxel_data_use.shape[1]   
     
-    ########## DEFINE PARAMETERS #############################################################################
-
-    prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid) 
-    n_prfs = prf_models.shape[0]
-    
-    sys.stdout.flush()
+   
    
     ########## LOAD PRECOMPUTED PRFS ##########################################################################
     
@@ -157,6 +163,7 @@ def get_discrim(args):
             fwrf_predict.get_semantic_discrim(best_params_tmp, \
                                               labels_all, unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
+                                              trials_use_each_prf = trials_use, \
                                               debug=args.debug)
     
     save_all(fn2save)
@@ -169,6 +176,7 @@ def get_discrim(args):
                                               labels_all, axes_to_do=axes_to_do, \
                                               unique_labels_each=unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
+                                              trials_use_each_prf = trials_use, \
                                               debug=args.debug)
     
     save_all(fn2save)
@@ -193,6 +201,9 @@ if __name__ == '__main__':
     parser.add_argument("--average_image_reps",type=nice_str2bool,default=True,
                     help="Want to average over 3 repetitions of same image? 1 for yes, 0 for no")
     
+    parser.add_argument("--trial_subset", type=str,default='all', 
+                    help="fit for a subset of trials only? default all trials")
+   
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")
@@ -200,8 +211,7 @@ if __name__ == '__main__':
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     
-    parser.add_argument("--use_all_data",type=nice_str2bool,default=False,
-                    help="want to use both train and validation data? Otherwise just validation. 1 for yes, 0 for no")
+    
     parser.add_argument("--from_scratch",type=nice_str2bool,default=True,
                     help="Starting from scratch? 1 for yes, 0 for no")
     

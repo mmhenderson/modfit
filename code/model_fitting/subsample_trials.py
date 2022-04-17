@@ -150,17 +150,10 @@ def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], 
             for xx in range(n_samp_iters):
                 if trial_inds_resample_trn is not None:
                     trninds_mask[trial_inds_resample_trn[xx,:],xx,mm,ai] = 1
-                else:
-                    # if missing, just keep all trials
-                    trninds_mask[:,xx,mm,ai] = 1
                 if trial_inds_resample_val is not None:
                     valinds_mask[trial_inds_resample_val[xx,:],xx,mm,ai] = 1
-                else:
-                    valinds_mask[:,xx,mm,ai] = 1
                 if trial_inds_resample_out is not None:
                     outinds_mask[trial_inds_resample_out[xx,:],xx,mm,ai] = 1
-                else:
-                    outinds_mask[:,xx,mm,ai] = 1
 
             min_counts_trn[mm,ai] = min_count_trn
             min_counts_val[mm,ai] = min_count_val
@@ -261,6 +254,7 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
     valinds = is_val[image_order]
     outinds = is_holdout[image_order]
     
+    
     n_trials = len(image_order)
     n_trn_trials = np.sum(trninds)
     n_out_trials = np.sum(outinds)
@@ -294,13 +288,12 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
                                for cat in unique_categ] for mm in range(n_prfs)])
         outcounts = np.array([[np.sum(categ_labels[outinds,mm]==cat) \
                                for cat in unique_categ] for mm in range(n_prfs)])
-
-        min_trials_trn = np.min(trncounts)
-        min_trials_trn -= np.mod(min_trials_trn,2) # make sure it is an even number
-        min_trials_val = np.min(valcounts)
-        min_trials_val -= np.mod(min_trials_val,2)
-        min_trials_out = np.min(outcounts)
-        min_trials_out -= np.mod(min_trials_out,2)
+        min_counts_trn = np.min(trncounts, axis=1)
+        min_counts_trn -= np.mod(min_counts_trn, 2) # make sure even numbers
+        min_counts_val = np.min(valcounts, axis=1)
+        min_counts_val -= np.mod(min_counts_val, 2)
+        min_counts_out = np.min(outcounts, axis=1)
+        min_counts_out -= np.mod(min_counts_out, 2)
 
         # boolean masks for which trials will be included in the balanced sets
         # last dimension goes [both categ, just categ 1, just categ 2]
@@ -315,7 +308,11 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
 
             print('processing pRF %d of %d'%(mm, n_prfs))
             sys.stdout.flush()
-        
+            
+            min_trials_trn = min_counts_trn[mm]
+            min_trials_val = min_counts_val[mm]
+            min_trials_out = min_counts_out[mm]
+            
             trn_labels = categ_labels[trninds,mm]
             val_labels = categ_labels[valinds,mm]
             out_labels = categ_labels[outinds,mm]
@@ -382,11 +379,11 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
                                    %(subject, gg))
             print('saving to %s'%fn2save)
             np.save(fn2save, {'trial_inds_trn': trninds_mask[:,:,:,gi], \
-                              'min_counts_trn': min_trials_trn, \
+                              'min_counts_trn': min_counts_trn, \
                               'trial_inds_val': valinds_mask[:,:,:,gi], \
-                              'min_counts_val': min_trials_val, \
+                              'min_counts_val': min_counts_val, \
                               'trial_inds_out': outinds_mask[:,:,:,gi], \
-                              'min_counts_out': min_trials_out, \
+                              'min_counts_out': min_counts_out, \
                               'image_order': image_order, \
                               'trninds': trninds, \
                               'valinds': valinds, \
@@ -394,6 +391,79 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
                               'rnd_seed': rnd_seed}, 
                     allow_pickle=True)
 
+
+def make_random_downsample_sets(subject, which_prf_grid=5, \
+                               n_samp_iters=1000, debug=False):
+   
+    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)   
+    n_prfs = models.shape[0]
+
+    # figure out what images are available for this subject - assume that we 
+    # will be using all the available sessions. 
+    image_order = nsd_utils.get_master_image_order()    
+    session_inds = nsd_utils.get_session_inds_full()
+    sessions = np.arange(nsd_utils.max_sess_each_subj[subject-1])
+    inds2use = np.isin(session_inds, sessions) # remove any sessions that weren't shown
+    # list of all the image indices shown on each trial
+    image_order = image_order[inds2use] 
+    # reduce to the ~10,000 unique images
+    image_order = np.unique(image_order) 
+
+    # load the list of which images are training, holdout, and validation
+    # each is a mask [~10,000] long
+    is_trn, is_holdout, is_val = nsd_utils.load_image_data_partitions(subject)
+    
+    trninds = is_trn[image_order]
+    valinds = is_val[image_order]
+    outinds = is_holdout[image_order]
+        
+    n_trials = len(image_order)
+    n_trn_trials = np.sum(trninds)
+    n_out_trials = np.sum(outinds)
+    n_val_trials = np.sum(valinds)
+    
+    rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
+    np.random.seed(rnd_seed)
+    
+    pct_keep_list = np.arange(0.10, 1, 0.10)
+    for pct_keep in pct_keep_list:
+        
+        min_trials_trn = int(np.round(n_trn_trials*pct_keep))
+        min_trials_val = int(np.round(n_val_trials*pct_keep))
+        min_trials_out = int(np.round(n_out_trials*pct_keep))
+
+        # boolean masks for which trials will be included after downsampling
+        trninds_mask = np.zeros((n_trn_trials,n_samp_iters,n_prfs), dtype=bool)
+        valinds_mask = np.zeros((n_val_trials,n_samp_iters,n_prfs), dtype=bool)
+        outinds_mask = np.zeros((n_out_trials,n_samp_iters,n_prfs), dtype=bool)
+
+        for ii in range(n_samp_iters):
+            
+            # just randomly choose a set of trials to use
+            trninds_use = np.random.choice(np.arange(n_trn_trials), min_trials_trn, replace=False)
+            trninds_mask[trninds_use,ii,:] = 1
+            valinds_use = np.random.choice(np.arange(n_val_trials), min_trials_val, replace=False)
+            valinds_mask[valinds_use,ii,:] = 1
+            outinds_use = np.random.choice(np.arange(n_out_trials), min_trials_out, replace=False)
+            outinds_mask[outinds_use,ii,:] = 1
+        
+        fn2save = os.path.join(default_paths.stim_labels_root, 'resampled_trial_orders', \
+                                   'S%d_trial_resamp_order_random_downsample_%.2f.npy'%(subject, pct_keep))
+        print('saving to %s'%fn2save)
+        np.save(fn2save, {'trial_inds_trn': trninds_mask, \
+                          'min_counts_trn': min_trials_trn*np.ones((n_prfs,)), \
+                          'trial_inds_val': valinds_mask, \
+                          'min_counts_val': min_trials_val*np.ones((n_prfs,)), \
+                          'trial_inds_out': outinds_mask, \
+                          'min_counts_out': min_trials_out*np.ones((n_prfs,)), \
+                          'image_order': image_order, \
+                          'trninds': trninds, \
+                          'valinds': valinds, \
+                          'outinds': outinds, \
+                          'rnd_seed': rnd_seed}, 
+                allow_pickle=True)
+
+        
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
@@ -410,6 +480,8 @@ if __name__ == '__main__':
                     help="want to create labels balanced for orient/categ? 1 for yes, 0 for no")
     parser.add_argument("--separate_categ",type=int,default=0,
                     help="want to create labels of one semantic category at a time? 1 for yes, 0 for no")
+    parser.add_argument("--random_downsample",type=int,default=0,
+                    help="want to create subsets with random downsampling? 1 for yes, 0 for no")
     
     args = parser.parse_args()
     
@@ -421,3 +493,8 @@ if __name__ == '__main__':
         make_separate_categ_labels(args.subject, args.which_prf_grid, \
                                  axes_to_do=[0,2,3], debug=args.debug==1, \
                                  n_samp_iters=args.n_samp_iters)
+    
+    if args.random_downsample:
+        make_random_downsample_sets(args.subject, args.which_prf_grid, \
+                                 n_samp_iters=args.n_samp_iters)
+        

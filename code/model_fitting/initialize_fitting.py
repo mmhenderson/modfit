@@ -414,7 +414,8 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
 def get_subsampled_trial_order(trn_image_order, \
                                holdout_image_order, \
                                val_image_order, \
-                               args, index=0):
+                               args, index=0, \
+                              trn_only=False):
     
     folder = os.path.join(default_paths.stim_labels_root,'resampled_trial_orders')
     if 'only' in args.trial_subset:        
@@ -433,7 +434,10 @@ def get_subsampled_trial_order(trn_image_order, \
             fn2load = os.path.join(folder, \
                        'S%d_trial_resamp_order_both_%s.npy'%\
                                (args.subject, axis)) 
-    
+    else:
+        fn2load = os.path.join(folder, \
+                   'S%d_trial_resamp_order_%s.npy'%\
+                           (args.subject, args.trial_subset)) 
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()
     
@@ -441,23 +445,38 @@ def get_subsampled_trial_order(trn_image_order, \
         assert(np.all(trials['image_order'][trials['trninds']]==trn_image_order))
         assert(np.all(trials['image_order'][trials['valinds']]==val_image_order))
         assert(np.all(trials['image_order'][trials['outinds']]==holdout_image_order))
+    
+    # masks of which trials to use in each data partition (trn/val/out), 
+    # for each pRF
     trn_trials_use = trials['trial_inds_trn'][:,index,:]
     val_trials_use = trials['trial_inds_val'][:,index,:]
     out_trials_use = trials['trial_inds_out'][:,index,:]
-    # make sure we had enough trials to balance, in training set
-    assert(not np.any(np.isnan(trials['min_counts_trn'])))
     
-    if np.any(np.isnan(val_trials_use)):
-        print('using all validation set trials')
-        val_trials_use = np.ones(val_trials_use.shape, dtype=bool)
-    if np.any(np.isnan(out_trials_use)):
-        print('using all holdout set trials')
-        out_trials_use = np.ones(out_trials_use.shape, dtype=bool)
-    
-    assert(not np.any(np.isnan(trn_trials_use)))
-    assert(not np.any(np.isnan(out_trials_use)))
-    assert(not np.any(np.isnan(val_trials_use)))
-    
+    # find if there are any pRFs which were left with no trials after sub-sampling.
+    # if the pRF has no trials for any of the data partitions (trn/val/out), 
+    # then will skip these pRFs (and voxels associated with them).
+    if not trn_only:
+        prf_bad_any = (np.sum(trn_trials_use, axis=0)==0) | \
+                    (np.sum(val_trials_use, axis=0)==0) | \
+                    (np.sum(out_trials_use, axis=0)==0)
+
+        print('%d pRFs will be skipped due to insufficient trials'%np.sum(prf_bad_any))
+        # set them to zeros so they can be skipped
+        trn_trials_use[:,prf_bad_any] = 0
+        val_trials_use[:,prf_bad_any] = 0
+        out_trials_use[:,prf_bad_any] = 0
+
+        # double check that there are no missing trials in unexpected places
+        assert(np.all(np.sum(trn_trials_use[:,~prf_bad_any], axis=0)>0))
+        assert(np.all(np.sum(val_trials_use[:,~prf_bad_any], axis=0)>0))
+        assert(np.all(np.sum(out_trials_use[:,~prf_bad_any], axis=0)>0))
+        assert(not np.any(np.isnan(trials['min_counts_trn'][~prf_bad_any])))
+        assert(not np.any(np.isnan(trials['min_counts_val'][~prf_bad_any])))
+        assert(not np.any(np.isnan(trials['min_counts_out'][~prf_bad_any])))
+    else:
+        prf_bad_any = (np.sum(trn_trials_use, axis=0)==0)
+        print('%d pRFs will be skipped due to insufficient trials'%np.sum(prf_bad_any))
+        
     return trn_trials_use, out_trials_use, val_trials_use
 
 def load_model_residuals(args, sessions):

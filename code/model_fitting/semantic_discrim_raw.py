@@ -30,6 +30,8 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 def get_discrim(args):
     
     model_name = 'semantic_discrim_raw_val'
+    if args.trial_subset is not 'all':
+        model_name += '_%s'%args.trial_subset
     
     output_dir, fn2save = initialize_fitting.get_save_path(model_name, args)
     sys.stdout.flush()
@@ -111,10 +113,10 @@ def get_discrim(args):
         print('choosing a subset of trials to work with: %s'%args.trial_subset) 
         trn_trials_use, holdout_trials_use, val_trials_use = \
                 initialize_fitting.get_subsampled_trial_order(image_order[trn_inds], \
-                                                              image_order[val_inds], \
                                                               image_order[holdout_inds], \
+                                                              image_order[val_inds], \
                                                               args=args, \
-                                                              index=0)
+                                                              index=0, trn_only=True)
         
         # Use trn set trials, because once we have subsampled there 
         # might not be enough val set trials

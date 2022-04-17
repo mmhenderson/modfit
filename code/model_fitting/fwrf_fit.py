@@ -202,6 +202,13 @@ def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
             else:
                 out_data_use = voxel_data_holdout
                 
+            if trn_data_use.shape[0]==0 or out_data_use.shape[0]==0:
+                # if insufficient trials to work with this pRF - skip it.
+                # this only happens when the trial counts are subsampled in various control analyses.
+                assert(best_model_each_voxel is not None) # this can never happen when we are actually fitting pRFs.
+                print('prf %d - not enough trials to fit. skipping voxels with this pRF!'%(m))
+                continue
+                
             print('prf %d - using %d training trials and %d held-out trials'\
                       %(m, trn_data_use.shape[0], out_data_use.shape[0]))
 

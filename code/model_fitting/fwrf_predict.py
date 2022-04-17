@@ -100,14 +100,21 @@ def validate_fwrf_model(best_params, prf_models, voxel_data, image_inds_val, \
                 trials_use = trials_use_each_prf[:,mm]
                 features_full = features_full[trials_use,:,:]
                 voxel_data_use = voxel_data[trials_use,:]
+                if np.sum(trials_use)==0:
+                    print('prf %d: no trials are included here, skipping validation for all voxels with this pRF!'%mm)
+                    val_cc[voxels_to_do,:] = np.nan
+                    val_r2[voxels_to_do,:] = np.nan
+                    continue
             else:
                 trials_use = np.ones((n_trials,),dtype=bool)
                 voxel_data_use = voxel_data
                 
             n_trials_use = np.sum(trials_use)
+            
+                
             print(n_trials_use)
             print('prf %d: using %d validation set trials'%(mm, voxel_data_use.shape[0]))
-
+            
             # Next looping over all voxels with this same pRF, in batches        
             for vv in range(n_voxel_batches):
                     
@@ -212,6 +219,10 @@ def get_feature_tuning(best_params, features_each_prf, val_voxel_data_pred, \
             trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
             resp = resp[trials_use]
             feat_act = feat_act[trials_use]
+            if np.sum(trials_use)==0:
+                print('voxel %d: no trials are included here, skipping it'%vv)
+                corr_each_feature[vv,:] = np.nan
+                continue
         
         for ff in range(n_features):
             if np.var(feat_act[:,ff])>0:
@@ -254,6 +265,11 @@ def get_semantic_discrim(best_params, labels_all, unique_labels_each, val_voxel_
             trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
             resp = resp[trials_use]
             labels_use = labels_all[trials_use,:,:]
+            if np.sum(trials_use)==0:
+                print('voxel %d: no trials are included here, skipping it'%vv)
+                sem_discrim_each_axis[vv,:] = np.nan
+                sem_corr_each_axis[vv,:] = np.nan
+                continue
         else:
             labels_use = labels_all
        
@@ -331,6 +347,10 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
             trials_use = trials_use_each_prf[:,best_model_inds[vv,0]]
             resp = resp[trials_use]
             labels_use = labels_all[trials_use,:,:]
+            if np.sum(trials_use)==0:
+                print('voxel %d: no trials are included here, skipping it'%vv)
+                partial_corr_each_axis[vv,:] = np.nan
+                continue
         else:
             labels_use = labels_all
         
@@ -364,3 +384,57 @@ def get_semantic_partial_corrs(best_params, labels_all, axes_to_do, \
                 n_samp_each_axis[vv,aa,:] = np.nan
                
     return partial_corr_each_axis, n_samp_each_axis
+
+
+
+
+def get_features_each_prf(best_params, prf_models, image_inds_val, \
+                        feature_loader, zscore=False, sample_batch_size=100, \
+                        voxel_batch_size=100, debug=False, \
+                        trials_use_each_prf = None,
+                        dtype=np.float32):
+    
+    """ 
+    Just loads the features in each pRF on each trial. 
+    Only used in special case when evaluating feature "tuning" of raw voxel data.
+    """
+    
+    params = best_params
+  
+    n_trials = len(image_inds_val)
+    
+    n_prfs = prf_models.shape[0]
+    
+    best_models, weights, bias, features_mt, features_st, best_model_inds = params
+    n_voxels = len(best_model_inds)
+    
+    n_features_max = feature_loader.max_features
+   
+    features_each_prf = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
+    
+    start_time = time.time()    
+    with torch.no_grad(): # make sure local gradients are off to save memory
+        
+        # First looping over pRFs - there are fewer pRFs than voxels, so this will be faster 
+        # than looping over voxels first would be.
+        feature_loader.clear_big_features()
+        
+        for mm in range(n_prfs):
+            if mm>1 and debug:
+                break
+          
+            # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
+            # feature_inds_defined is [max_features]
+            all_feat_concat, feature_inds_defined = feature_loader.load(image_inds_val, mm, fitting_mode=False)
+            
+            if zscore:
+                m = np.mean(all_feat_concat, axis=0)
+                s = np.std(all_feat_concat, axis=0)
+                all_feat_concat = (all_feat_concat - m)/s
+                assert(not np.any(np.isnan(all_feat_concat)) and not np.any(np.isinf(all_feat_concat)))
+                  
+            # saving all these features for use later on
+            features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
+            
+                    
+    return features_each_prf

@@ -13,7 +13,9 @@ which_prf_grid=5
 
 
 subjects=(999)
-feature_types=(gabor_solo)
+feature_types=(pyramid_texture_ll pyramid_texture_hl pyramid_texture_hl_pca)
+
+# feature_types=(gabor_solo)
 # sketch_tokens pyramid_texture_ll pyramid_texture_hl)
 
 # subjects=(2 3 4 5 6 7 8)

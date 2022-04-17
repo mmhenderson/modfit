@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
@@ -14,19 +14,20 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(2 3 4)
-subjects=(1)
+subjects=(1 2 3 4)
+# subjects=(1)
 
-debug=1
-up_to_sess=1
+# debug=1
+# up_to_sess=1
 
-# debug=0
-# up_to_sess=40
+debug=0
+up_to_sess=40
 
 average_image_reps=1
 
 use_model_residuals=1
-residuals_model_name=semantic_highlevel_concat
+# residuals_model_name=semantic_highlevel_concat
+residuals_model_name=all_coco
 
 sample_batch_size=100
 voxel_batch_size=100
@@ -41,7 +42,7 @@ date_str=0
 overwrite_sem_disc=0
 do_val=1
 do_tuning=1
-do_sem_disc=0
+do_sem_disc=1
 
 fitting_type=gabor_solo
 

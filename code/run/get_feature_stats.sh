@@ -10,10 +10,11 @@
 debug=0
 which_prf_grid=5
 
-subjects=(1)
-# subjects=(999)
+# subjects=(1)
+subjects=(999)
 # subjects=(all)
-feature_types=(sketch_tokens_residuals)
+feature_types=(pyramid_texture_ll pyramid_texture_hl pyramid_texture_hl_pca)
+# feature_types=(sketch_tokens_residuals)
 # feature_types=(gabor_solo)
 # sketch_tokens pyramid_texture_ll pyramid_texture_hl)
 # feature_types=(sketch_tokens pyramid_texture_ll pyramid_texture_hl)

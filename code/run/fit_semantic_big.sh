@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=tarrq
 #SBATCH --gres=gpu:1
-#SBATCH --mem=24G
+#SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -17,7 +17,7 @@ subjects=(1 2 3 4)
 
 # debug=1
 # up_to_sess=1
-average_image_reps=1
+average_image_reps=1                                      
 
 save_model_residuals=1
 
@@ -31,7 +31,7 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=1
 which_prf_grid=5
-from_scratch=1
+from_scratch=0
 date_str=0
 do_val=1
 do_tuning=0

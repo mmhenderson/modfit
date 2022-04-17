@@ -14,14 +14,13 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subject_list=(1)
 subject_list=(1 2 3 4 5 6 7 8)
 debug=0
 n_samp_iters=10
-balance_orient_categ=1
+separate_categ=1
 
 for subject in ${subject_list[@]}
 do
-    python3 subsample_trials.py --subject $subject --debug $debug --n_samp_iters $n_samp_iters --balance_orient_categ $balance_orient_categ
+    python3 subsample_trials.py --subject $subject --debug $debug --n_samp_iters $n_samp_iters --separate_categ $separate_categ
     
 done

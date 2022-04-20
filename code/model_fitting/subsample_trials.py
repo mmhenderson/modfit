@@ -425,13 +425,16 @@ def make_random_downsample_sets(subject, which_prf_grid=5, \
     rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
     np.random.seed(rnd_seed)
     
-    pct_keep_list = np.arange(0.10, 1, 0.10)
+    pct_keep_list = np.array(list(np.arange(0.02, 0.10, 0.02)) + list(np.arange(0.10, 1, 0.10)))
     for pct_keep in pct_keep_list:
         
         min_trials_trn = int(np.round(n_trn_trials*pct_keep))
         min_trials_val = int(np.round(n_val_trials*pct_keep))
         min_trials_out = int(np.round(n_out_trials*pct_keep))
-
+        print('pct %.2f, keeping n trials:'%pct_keep)
+        print([min_trials_trn, min_trials_val, min_trials_out])
+        sys.stdout.flush()
+            
         # boolean masks for which trials will be included after downsampling
         trninds_mask = np.zeros((n_trn_trials,n_samp_iters,n_prfs), dtype=bool)
         valinds_mask = np.zeros((n_val_trials,n_samp_iters,n_prfs), dtype=bool)

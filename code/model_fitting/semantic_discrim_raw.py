@@ -29,9 +29,12 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
     
 def get_discrim(args):
     
-    model_name = 'semantic_discrim_raw_val'
-    if args.trial_subset is not 'all':
-        model_name += '_%s'%args.trial_subset
+    
+    if not args.trial_subset=='all':
+        model_name = 'semantic_discrim_raw_trn'        
+    else:
+        model_name = 'semantic_discrim_raw_val'
+    model_name += '_%s'%args.trial_subset    
     
     output_dir, fn2save = initialize_fitting.get_save_path(model_name, args)
     sys.stdout.flush()

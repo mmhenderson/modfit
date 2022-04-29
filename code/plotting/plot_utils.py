@@ -545,7 +545,7 @@ def plot_multi_bars(
         assert len(legend_labels) == nlevels2
         ax.legend(lh, legend_labels)
 
-    if add_brackets is not None and nlevels2 == 2:
+    if add_brackets is not None:
         assert len(add_brackets) == nlevels1
         assert bracket_text is None or len(bracket_text) == nlevels1
         orig_ylim = ax.get_ylim()
@@ -565,8 +565,11 @@ def plot_multi_bars(
             text_lab_ht = max_ht + vert_space * 4
             ymax = np.max([ymax, text_lab_ht + vert_space * 3])
 
+            bracket_x1 = np.mean(offsets[0:int(nlevels2/2)])
+            bracket_x2 = np.mean(offsets[int(nlevels2/2):])
+            
             plt.plot(
-                [xx + offsets[0], xx + offsets[0], xx + offsets[1], xx + offsets[1]],
+                [xx + bracket_x1, xx + bracket_x1, xx + bracket_x2, xx + bracket_x2],
                 [brack_bottom, brack_top, brack_top, brack_bottom],
                 "-",
                 color="k",

@@ -82,11 +82,13 @@ def barplot_R2_all(fitting_type, out, roi_def, ylims = [-0.05, 0.30], \
         plt.plot(np.arange(n_rois), vals[ss,:,0],'.',markersize=10, markeredgecolor='none', \
                  markerfacecolor=subcolors[ss,:], zorder=15)
      
-    plt.figure();
+    lh = plt.figure();
     for ss in range(n_subjects):
         plt.plot(0,ss,'.',markersize=10, markeredgecolor='none', \
                  markerfacecolor=subcolors[ss,:], )
     plt.legend(['S%d'%(ss+1) for ss in range(n_subjects)])
+    
+    return fh, lh
 
     
 def plot_perf_summary(fitting_type, out, fig_save_folder=None):

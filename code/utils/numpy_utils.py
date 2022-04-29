@@ -141,7 +141,7 @@ def bytes_to_gb(bytes_size):
     return gib, gb
 
 def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True, \
-                       return_edges=False, return_std = False):
+                       return_edges=False, return_std = False, use_unique=False):
            
     if len(xdata.shape)>1:
         xdata = np.squeeze(xdata)
@@ -153,6 +153,11 @@ def bin_ydata_by_xdata(xdata, ydata, n_bins, linear_bins=True, remove_nans=True,
         # break x axis into linearly spaced increments
         bin_edges = np.linspace(np.min(xdata), np.max(xdata)+0.0001, n_bins+1)
         bin_centers = bin_edges[0:-1]+(bin_edges[1]-bin_edges[0])/2
+    elif use_unique:
+        # force the bin centers to take on actual values in the data.
+        bin_centers = np.unique(xdata)
+        bin_edges = np.concatenate([bin_centers-0.01, [bin_centers[-1]+0.01]], axis=0)
+        n_bins=len(bin_centers)
     else:
         # bin according to data density
         bin_edges = np.quantile(xdata, np.linspace(0,1,n_bins+1))

@@ -26,7 +26,8 @@ up_to_sess=40
 average_image_reps=1
 compute_sessionwise_r2=0
 
-trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
+# trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
+trial_subset_list=(balance_freq_indoor_outdoor balance_freq_animacy balance_freq_real_world_size_binary)
 
 sample_batch_size=100
 voxel_batch_size=100

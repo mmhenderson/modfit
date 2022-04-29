@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
-#SBATCH --time=24-00:00:00
+#SBATCH --time=12-00:00:00
 
 source ~/myenv/bin/activate
 
@@ -40,7 +40,8 @@ average_image_reps=1
 
 cd $ROOT/code/model_fitting
 
-subjects=(1 2 3 4 5 6 7 8)
+subjects=(6 7 8)
+# subjects=(1 2 3 4 5 6 7 8)
 
 for subj in ${subjects[@]}
 do

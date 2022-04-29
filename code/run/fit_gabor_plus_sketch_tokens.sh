@@ -11,10 +11,12 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(2 3 4 5 6 7 8)
+subjects=(1 2 3 4 5 6 7 8)
 
 debug=0
 up_to_sess=40
+
+average_image_reps=1
 
 sample_batch_size=100
 voxel_batch_size=100
@@ -28,6 +30,8 @@ do_val=1
 do_tuning=0
 do_sem_disc=0
 
+do_varpart=0
+
 fitting_type=gabor_solo
 
 n_ori_gabor=12
@@ -39,6 +43,6 @@ use_pca_st_feats=0
 
 for subject in ${subjects[@]}
 do
-    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --fitting_type2 $fitting_type2 --use_pca_st_feats $use_pca_st_feats
+    python3 fit_model.py --subject $subject --debug $debug --average_image_reps $average_image_reps --up_to_sess $up_to_sess --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --do_varpart $do_varpart --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --fitting_type2 $fitting_type2 --use_pca_st_feats $use_pca_st_feats
 
 done

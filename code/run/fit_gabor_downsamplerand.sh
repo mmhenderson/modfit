@@ -26,7 +26,9 @@ up_to_sess=40
 average_image_reps=1
 compute_sessionwise_r2=0
 
-trial_subset_list=(random_downsample_0.10 random_downsample_0.20 random_downsample_0.30 random_downsample_0.40 random_downsample_0.50 random_downsample_0.60 random_downsample_0.70 random_downsample_0.80 random_downsample_0.90)
+trial_subset_list=(random_downsample_0.02 random_downsample_0.04 random_downsample_0.06 random_downsample_0.08)
+
+# trial_subset_list=(random_downsample_0.10 random_downsample_0.20 random_downsample_0.30 random_downsample_0.40 random_downsample_0.50 random_downsample_0.60 random_downsample_0.70 random_downsample_0.80 random_downsample_0.90)
 
 sample_batch_size=100
 voxel_batch_size=100

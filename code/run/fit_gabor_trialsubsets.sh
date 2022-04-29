@@ -14,7 +14,9 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1 2 3 4)
+subjects=(5)
+# subjects=(1 2 3 4 5 6 7 8)
 # subjects=(1)
 
 # debug=1
@@ -40,7 +42,8 @@ do_sem_disc=0
 
 fitting_type=gabor_solo
 
-trial_subset_list=(balance_indoor_outdoor outdoor_only indoor_only balance_animacy animate_only inanimate_only balance_real_world_size_binary large_only small_only)
+trial_subset_list=(balance_indoor_outdoor)
+# outdoor_only indoor_only balance_animacy animate_only inanimate_only balance_real_world_size_binary large_only small_only)
 
 n_ori_gabor=12
 n_sf_gabor=8

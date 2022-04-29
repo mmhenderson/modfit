@@ -11,15 +11,15 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting/
 
-debug=0
-up_to_sess=40
-# debug=1
-# up_to_sess=1
+# debug=0
+# up_to_sess=40
+debug=1
+up_to_sess=1
 
-# subjects=(1)
-subjects=(1 2 3 4 5 6 7 8)
-
-trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
+subjects=(1)
+# subjects=(1 2 3 4 5 6 7 8)
+trial_subset_list=(all balance_orient_indoor_outdoor)
+# trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
 
 which_prf_grid=5
 

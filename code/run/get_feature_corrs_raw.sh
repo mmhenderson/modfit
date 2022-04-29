@@ -19,7 +19,8 @@ up_to_sess=40
 # subjects=(1)
 subjects=(1 2 3 4 5 6 7 8)
 
-trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
+trial_subset_list=(all)
+# trial_subset_list=(balance_orient_indoor_outdoor balance_orient_animacy balance_orient_real_world_size_binary)
 
 which_prf_grid=5
 

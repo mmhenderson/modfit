@@ -14,7 +14,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
 # subjects=(5 6 7 8)
 
 average_image_reps=1

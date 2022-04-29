@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
-#SBATCH --time=8-00:00:00
+#SBATCH --time=12-00:00:00
 
 debug=0
 source ~/myenv/bin/activate
@@ -21,9 +21,9 @@ subjects=(999)
 for subject in ${subjects[@]}
 do
 
-    cd $codepath1
+#     cd $codepath1
 
-    matlab -nodisplay -nodesktop -nosplash -r "get_st_features_wrapper($subject,$debug); exit"
+#     matlab -nodisplay -nodesktop -nosplash -r "get_st_features_wrapper($subject,$debug); exit"
 
     cd $codepath2
     

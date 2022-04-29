@@ -14,8 +14,8 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subject_list=(1)
-subject_list=(1 2 3 4 5 6 7 8)
+subject_list=(1)
+# subject_list=(1 2 3 4 5 6 7 8)
 debug=0
 n_samp_iters=1
 random_downsample=1

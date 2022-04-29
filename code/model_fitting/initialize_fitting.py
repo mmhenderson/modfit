@@ -423,11 +423,16 @@ def get_subsampled_trial_order(trn_image_order, \
         fn2load = os.path.join(folder,
                    'S%d_trial_resamp_order_has_%s.npy'%\
                            (args.subject, axis))        
-    elif 'balance' in args.trial_subset:        
+    elif 'balance' in args.trial_subset:       
         if 'orient' in args.trial_subset:
             axis = args.trial_subset.split('balance_orient_')[1]
             fn2load = os.path.join(folder, \
                    'S%d_trial_resamp_order_balance_4orientbins_%s.npy'%\
+                           (args.subject, axis)) 
+        elif 'freq' in args.trial_subset:
+            axis = args.trial_subset.split('balance_freq_')[1]
+            fn2load = os.path.join(folder, \
+                   'S%d_trial_resamp_order_balance_2freqbins_%s.npy'%\
                            (args.subject, axis)) 
         else:            
             axis = args.trial_subset.split('balance_')[1]

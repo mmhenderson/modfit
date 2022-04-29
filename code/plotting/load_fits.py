@@ -7,7 +7,8 @@ General use functions for loading encoding model fit results.
 Works with the fits generated and saved by code in model_fitting/fit_model.py
 """
 
-def load_fit_results(subject, fitting_type, n_from_end=0, volume_space=True, verbose=True, root=None):     
+def load_fit_results(subject, fitting_type, n_from_end=0, volume_space=True, \
+                     verbose=True, root=None, return_filename=False):     
     """
     Load fit params for a given subject and fitting type. 
     By default, it loads the most recent fit (based on date str in name of saved file).
@@ -41,9 +42,12 @@ def load_fit_results(subject, fitting_type, n_from_end=0, volume_space=True, ver
     
     if verbose:
         print(out.keys())
- 
-    return out
-
+     
+    if return_filename:
+        return out, file2load
+    else:
+        return out
+    
 def print_output_summary(out):
     """
     Print all the keys in the saved data file and a summary of each value.

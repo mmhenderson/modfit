@@ -243,8 +243,10 @@ def plot_prf_grid(prf_models, xy_circ = [-0.4, -0.4], screen_eccen_deg = 8.4):
                                           color = [0.2, 0.2, 0.2], fill=False)
         ax.add_artist(circ)
         plt.axis('square')
-        plt.xlim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
-        plt.ylim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+        # plt.xlim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+        # plt.ylim([-1.5*screen_eccen_deg, 1.5*screen_eccen_deg])
+        plt.xlim([-0.8*screen_eccen_deg, 0.8*screen_eccen_deg])
+        plt.ylim([-0.8*screen_eccen_deg, 0.8*screen_eccen_deg])
         plt.xticks(np.arange(-8,9,4))
         plt.yticks(np.arange(-8,9,4))
 

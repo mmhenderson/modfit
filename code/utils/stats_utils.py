@@ -279,3 +279,25 @@ def get_dprime(predlabs,reallabs,un=None):
     dprime = np.mean(hrz-fpz);
 
     return dprime
+
+def lin_reg(x,y):
+   
+    if len(x.shape)==1:
+        x_mat = x[:,np.newaxis]
+    if len(y.shape)==1:
+        y_mat = y[:,np.newaxis]
+        
+    n_pts = x_mat.shape[0]
+    assert(y_mat.shape[0]==n_pts)
+    
+    X = np.concatenate([x_mat, np.ones((n_pts,1))], axis=1)
+    reg_coeffs = np.linalg.pinv(X) @ y_mat
+    yhat = X @ reg_coeffs
+    
+    actual = np.squeeze(y_mat)
+    pred = np.squeeze(yhat)
+    ssres = np.sum(np.power((actual - pred),2));
+    sstot = np.sum(np.power((actual - np.mean(actual)),2));
+    r2 = 1-(ssres/sstot)
+    
+    return yhat, reg_coeffs, r2

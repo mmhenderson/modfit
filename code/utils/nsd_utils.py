@@ -490,11 +490,12 @@ def load_image_data_partitions(subject):
     
     return is_trn, is_holdout, is_val
 
-def make_image_data_partitions(subjects=np.arange(1,9), pct_holdout=0.10):
+def make_image_data_partitions(pct_holdout=0.10):
 
+    subjects=np.concatenate([np.arange(1,9),[999]], axis=0)
     n_subjects = len(subjects)
     # fixed random seeds for each subject, to make sure shuffling is repeatable
-    rndseeds = [171301, 42102, 490304, 521005, 11407, 501610, 552211, 450013]
+    rndseeds = [171301, 42102, 490304, 521005, 11407, 501610, 552211, 450013, 824387]
     
     n_images_total = 10000
     is_trn = np.zeros((n_images_total,n_subjects),dtype=bool)
@@ -503,9 +504,13 @@ def make_image_data_partitions(subjects=np.arange(1,9), pct_holdout=0.10):
 
     for si, ss in enumerate(subjects):
 
-        subject_df = get_subj_df(ss)
-        val_image_inds = subject_df['shared1000']
-        trn_image_inds = ~subject_df['shared1000']
+        if ss==999:
+            val_image_inds = np.arange(0,10000)<1000
+            trn_image_inds = np.arange(0,10000)>=1000            
+        else:           
+            subject_df = get_subj_df(ss)
+            val_image_inds = subject_df['shared1000']
+            trn_image_inds = ~subject_df['shared1000']
 
         n_images_val = np.sum(val_image_inds)
         n_images_notval = np.sum(trn_image_inds);

@@ -104,8 +104,8 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
             y = labels[inds2use]
             tst_acc, tst_dprime = decode_lda(X, y, n_crossval_folds=10)
             
-            acc_each_prf[aa,prf_model_index] = tst_acc
-            dprime_each_prf[aa,prf_model_index] = tst_dprime
+            acc_each_prf[prf_model_index,aa] = tst_acc
+            dprime_each_prf[prf_model_index, aa] = tst_dprime
             
             # print to see how we are doing so far
             print('decode %s, prf %d: acc=%.2f, dprime=%.2f'%(discrim_type_list[aa], prf_model_index, tst_acc, tst_dprime))

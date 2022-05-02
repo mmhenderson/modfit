@@ -13,6 +13,7 @@ from datetime import datetime
 # import custom modules
 from feature_extraction import gabor_feature_extractor
 from utils import prf_utils, default_paths, nsd_utils
+from model_fitting import saved_fit_paths
 
 def init_cuda():
     
@@ -44,6 +45,7 @@ def get_full_save_name(args):
         if ft=='full_midlevel':
             fitting_types += ['gabor_solo', 'pyramid_texture','sketch_tokens']
             model_name += 'full_midlevel'
+            
         elif ft=='semantic':
             if args.semantic_feature_set=='all_coco':
                 fitting_types += ['semantic_coco_things_supcateg','semantic_coco_things_categ',\
@@ -80,6 +82,7 @@ def get_full_save_name(args):
                 model_name += '_pca_HL' 
             if not args.group_all_hl_feats:
                 model_name += '_allsubsets'
+                
         elif 'gabor_solo' in ft:     
             fitting_types += [ft]
             model_name += 'gabor_solo'
@@ -89,11 +92,8 @@ def get_full_save_name(args):
                 model_name += '_OLS'
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
             if args.use_pca_gabor_feats:
-                model_name += '_pca'
-            if not args.use_precomputed_prfs:
-                model_name += '_fit_pRFs'
-            if args.use_model_residuals:
-                model_name += '_from_residuals'
+                model_name += '_pca'           
+            
         elif 'sketch_tokens' in ft:      
             fitting_types += [ft]
             if args.use_pca_st_feats==True:       
@@ -102,8 +102,7 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens_residuals'
             else:        
                 model_name += 'sketch_tokens'
-            if not args.use_precomputed_prfs:
-                model_name += '_fit_pRFs'
+            
         elif 'alexnet' in ft:
             fitting_types += [ft]
             if 'ReLU' in args.alexnet_layer_name:
@@ -113,11 +112,13 @@ def get_full_save_name(args):
             model_name += 'alexnet_%s'%name
             if args.use_pca_alexnet_feats:
                 model_name += '_pca'
+                
         elif 'clip' in ft:
             fitting_types += [ft]
             model_name += 'clip_%s_%s'%(args.clip_model_architecture, args.clip_layer_name)
             if args.use_pca_clip_feats:
                 model_name += '_pca'
+                
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
         
@@ -126,7 +127,14 @@ def get_full_save_name(args):
             
     if args.trial_subset!='all':
         model_name += '_%s'%args.trial_subset
-   
+    if args.use_model_residuals:
+        model_name += '_from_residuals'
+    if not args.use_precomputed_prfs:
+        if 'alexnet' not in model_name:
+            model_name += '_fit_pRFs'
+    elif len(args.prfs_model_name)>0:
+        model_name += '_use_%s_pRFs'%args.prfs_model_name
+        
     print(fitting_types)
     print(model_name)
     
@@ -249,34 +257,15 @@ def get_prf_models(which_grid=5, verbose=False):
 
     return models
 
-def load_precomputed_prfs(subject):
+def load_precomputed_prfs(subject, args):
     
-    if subject==1:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')  
-    elif subject==2:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy')                       
-    elif subject==3:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
-    elif subject==4:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
-    elif subject==5:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S05/alexnet_all_conv_pca/Apr-07-2022_1401_20/all_fit_params.npy')
-    elif subject==6:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S06/alexnet_all_conv_pca/Apr-10-2022_1650_18/all_fit_params.npy')
-    elif subject==7:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S07/alexnet_all_conv_pca/Apr-11-2022_2255_10/all_fit_params.npy')
-    elif subject==8:
-        saved_prfs_fn=os.path.join(default_paths.save_fits_path,\
-                'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy')
+    if len(args.prfs_model_name)==0 or args.prfs_model_name=='alexnet':
+        # default is to use alexnet
+        saved_prfs_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
+    elif args.prfs_model_name=='gabor':
+        saved_prfs_fn = saved_fit_paths.gabor_fit_paths[subject-1]
     else:
-        raise ValueError('trying to load pre-computed prfs, but prf params are not yet computed for this model')
+        raise ValueError('trying to load pre-computed prfs for model %s, not found'%args.prfs_model_name)
 
     print('Loading pre-computed pRF estimates for all voxels from %s'%saved_prfs_fn)
     out = np.load(saved_prfs_fn, allow_pickle=True).item()
@@ -287,64 +276,12 @@ def load_precomputed_prfs(subject):
 
 def load_best_model_layers(subject, model):
     
-    if subject==1:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                 'S01/clip_RN50_all_resblocks_pca/Dec-12-2021_1407_50/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_params.npy')  
-    elif subject==2:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                 'S02/clip_RN50_all_resblocks_pca/Jan-13-2022_1121_18/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S02/alexnet_all_conv_pca/Apr-02-2022_2104_46/all_fit_params.npy') 
-    elif subject==3:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                 'S03/clip_RN50_all_resblocks_pca/Jan-18-2022_1156_04/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S03/alexnet_all_conv_pca/Apr-04-2022_0349_08/all_fit_params.npy')
-    elif subject==4:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/clip_RN50_all_resblocks_pca/Jan-23-2022_2137_23/all_fit_params.npy')               
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S04/alexnet_all_conv_pca/Apr-05-2022_1052_06/all_fit_params.npy')
-    elif subject==5:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S05/clip_RN50_all_resblocks_pca/Jan-27-2022_1124_04/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S05/alexnet_all_conv_pca/Apr-07-2022_1401_20/all_fit_params.npy')
-    elif subject==6:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S06/clip_RN50_all_resblocks_pca/Jan-31-2022_0220_32/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S06/alexnet_all_conv_pca/Apr-10-2022_1650_18/all_fit_params.npy')
-    elif subject==7:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S07/clip_RN50_all_resblocks_pca/Feb-03-2022_2258_44/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S07/alexnet_all_conv_pca/Apr-11-2022_2255_10/all_fit_params.npy')
-    elif subject==8:
-        if model=='clip':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S08/clip_RN50_all_resblocks_pca/Feb-09-2022_1544_10/all_fit_params.npy')
-        elif model=='alexnet':
-            saved_best_layer_fn=os.path.join(default_paths.save_fits_path,\
-                'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy')         
+    if model=='clip':
+        saved_best_layer_fn = saved_fit_paths.clip_fit_paths[subject-1]
+    elif model=='alexnet':
+        saved_best_layer_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
     else:
-        raise ValueError('for S%d %s, best model layer not computed yet'%(subject, model))
+        raise ValueError('for %s, best model layer not computed yet'%(model))
     
     print('Loading best %s layer for all voxels from %s'%(model,saved_best_layer_fn))
     

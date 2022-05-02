@@ -62,6 +62,10 @@ def get_args():
                     help="want to do model training from the start? 1 for yes, 0 for no")
     parser.add_argument("--use_precomputed_prfs", type=nice_str2bool,default=False,
                     help="want to use prf estimates that were already computed? 1 for yes, 0 for no")
+    parser.add_argument("--prfs_model_name", type=str, default='', 
+                    help="model the prfs are from?")
+    
+    
     parser.add_argument("--do_val", type=nice_str2bool,default=True, 
                     help="want to do model validation? 1 for yes, 0 for no")
     parser.add_argument("--do_varpart", type=nice_str2bool,default=True,

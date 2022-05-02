@@ -263,7 +263,7 @@ def fit_fwrf(args):
     if args.use_precomputed_prfs:
         # If we already computed pRFs for this subject on some model, can load those now and use them during 
         # fitting. Faster than fitting pRFs each time.
-        best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
+        best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
         assert(len(best_model_each_voxel)==n_voxels)
     else:
         # otherwise fitting all params from scratch.

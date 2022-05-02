@@ -434,8 +434,10 @@ def plot_multi_bars(
     mean_data,
     err_data=None,
     point_data=None,
+    add_ss_lines=False,
     colors=None,
     space=0.3,
+    space_inner = 0, 
     xticklabels=None,
     ylabel=None,
     ylim=None,
@@ -487,9 +489,9 @@ def plot_multi_bars(
     if point_data is not None:
         assert(point_data.shape[1]==nlevels1)
         assert(point_data.shape[2]==nlevels2)
-
+        
     edge_pos = [-0.5 + space, 0.5 - space]
-    bar_width = (edge_pos[1] - edge_pos[0]) / nlevels2
+    bar_width = (edge_pos[1] - edge_pos[0] - space_inner*(nlevels2-1)) / nlevels2
     offsets = np.linspace(
         edge_pos[0] + bar_width / 2, edge_pos[1] - bar_width / 2, nlevels2
     )
@@ -522,7 +524,12 @@ def plot_multi_bars(
             for pp in range(point_data.shape[0]):
                 plt.plot(np.arange(nlevels1) + offsets[ll], point_data[pp,:,ll], \
                          '.', color=[0.8, 0.8, 0.8], zorder=15)
-
+                
+    if add_ss_lines and point_data is not None:
+        for ll in range(nlevels1):           
+            for pp in range(point_data.shape[0]):
+                plt.plot(ll+offsets, point_data[pp,ll,:],'-', color=[0.8, 0.8, 0.8], zorder=15)
+                
     if xticklabels is not None:
         assert len(xticklabels) == nlevels1
         plt.xticks(

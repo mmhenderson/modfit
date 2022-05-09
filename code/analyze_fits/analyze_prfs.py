@@ -72,3 +72,5 @@ def compute_prf_coverage(subjects, fitting_type='alexnet_all_conv_pca', image_si
     np.save(fn2save, {'all_max_prfs': all_max_prfs, \
                       'all_mean_prfs': all_mean_prfs, \
                       'filenames': filenames})
+    
+    

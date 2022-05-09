@@ -40,8 +40,7 @@ average_image_reps=1
 
 cd $ROOT/code/model_fitting
 
-subjects=(6 7 8)
-# subjects=(1 2 3 4 5 6 7 8)
+subjects=(5 8)
 
 for subj in ${subjects[@]}
 do

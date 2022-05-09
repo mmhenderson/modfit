@@ -14,8 +14,8 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(1 2 3 4 5 6 7 8)
-subjects=(8)
+subjects=(1 2 3 4 5 6 7 8)
+# subjects=(8)
 # subjects=(5)
 
 # debug=1
@@ -29,7 +29,7 @@ sample_batch_size=100
 voxel_batch_size=100
 zscore_features=1
 ridge=1
-use_precomputed_prfs=0
+use_precomputed_prfs=1
 which_prf_grid=5
 from_scratch=1
 date_str=0
@@ -41,8 +41,8 @@ do_tuning=0
 do_sem_disc=0
 
 fitting_type=alexnet
-alexnet_layer_name='all_conv'
-# alexnet_layer_name=best_layer
+# alexnet_layer_name='all_conv'
+alexnet_layer_name=best_layer
 alexnet_padding_mode=reflect
 use_pca_alexnet_feats=1
 

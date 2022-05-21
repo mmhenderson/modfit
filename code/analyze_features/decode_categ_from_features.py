@@ -31,11 +31,12 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
         # combine all 9000 trn/holdout trials together
         trninds = trninds | outinds
         image_inds = np.where(trninds)[0]
+        assert(balance_downsample==False)
     else:
         # 999 is a code for the independent coco image set, using all images
         # (cross-validate within this set)
         image_inds = np.arange(10000)
-    
+        
     labels_all, discrim_type_list, unique_labels_each = initialize_fitting.load_labels_each_prf(subject, \
                          which_prf_grid, image_inds=image_inds, models=models,verbose=False, debug=debug)
     
@@ -51,7 +52,20 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
     
     n_trials = labels_all.shape[0]
     n_sem_axes = labels_all.shape[1] 
-
+    
+    if balance_downsample:
+        # find the sub-sampled indices to use (computed offline)
+        trial_masks = np.zeros((n_trials, n_prfs, n_sem_axes))       
+        for aa in range(n_sem_axes):
+            fn2load = os.path.join(default_paths.stim_labels_root, 'resampled_trial_orders', \
+                       'S%d_balance_%s_for_decoding.npy'\
+                           %(subject, discrim_type_list[aa]))
+            print('loading from %s'%fn2load)
+            resamp_order = np.load(fn2load, allow_pickle=True).item()
+            assert(np.all(resamp_order['image_order']==image_inds))
+            trial_masks[:,:,aa] = resamp_order['trial_inds_balanced'][:,0,:]
+        n_each = (np.sum(trial_masks[:,0,:], axis=0)/2).astype(int)
+    
     # create feature loaders
     feat_loaders, path_to_load = \
         default_feature_loaders.get_feature_loaders([subject], feature_type, which_prf_grid)
@@ -65,7 +79,12 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
-    fn2save = os.path.join(path_to_save, 'S%s_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
+    if balance_downsample:
+        fn2save = os.path.join(path_to_save, \
+               'S%s_%s_LDA_all_grid%d_balanced.npy'%(subject, feature_type, which_prf_grid))
+    else:
+        fn2save = os.path.join(path_to_save, \
+               'S%s_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
        
     print(fn2save)
     sys.stdout.flush()
@@ -97,9 +116,17 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
                 print(unique_labels_each[aa])  
             
             labels = labels_all[:,aa,prf_model_index]
-            # ignore any trials that are ambiguous for this label.
-            inds2use = ~np.isnan(labels)   
-            
+            if balance_downsample:
+                # use a balanced set, equally represent each label
+                inds2use = trial_masks[:,prf_model_index, aa]==1
+                assert(np.sum(labels[inds2use]==0)==n_each[aa])
+                assert(np.sum(labels[inds2use]==1)==n_each[aa])
+                assert(not np.any(np.isnan(labels[inds2use])))
+                print('using %d trials each categ'%n_each[aa])
+            else:               
+                # ignore any trials that are ambiguous for this label.
+                inds2use = ~np.isnan(labels)   
+
             X = features_in_prf[inds2use,:]
             y = labels[inds2use]
             tst_acc, tst_dprime = decode_lda(X, y, n_crossval_folds=10)
@@ -172,6 +199,8 @@ if __name__ == '__main__':
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which prf grid to use")
+    parser.add_argument("--balance_downsample", type=int,default=1,
+                    help="use balanced set of each category?")
 
     args = parser.parse_args()
 
@@ -181,5 +210,5 @@ if __name__ == '__main__':
     sys.stdout.flush()
      
     run_decoding(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, \
-                  which_prf_grid=args.which_prf_grid)
+                  which_prf_grid=args.which_prf_grid, balance_downsample=args.balance_downsample==1)
     

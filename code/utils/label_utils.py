@@ -891,3 +891,76 @@ def concat_labels_each_prf(subject, which_prf_grid, verbose=False):
             np.save(save_name_groups, {'discrim_type_list': discrim_type_list, \
                                       'col_names_all': col_names_all}, allow_pickle=True)
         
+def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
+                           debug=False):
+
+    """
+    Count occurences of each high-level semantic label in the entire image set
+    for each NSD participant.
+    """
+
+    models = initialize_fitting.get_prf_models(which_prf_grid)
+    n_prfs = models.shape[0]
+
+    subjects = np.array(list(np.arange(1,9)) + [999])
+    n_subjects = len(subjects)
+    n_axes = len(axes_to_do)
+    n_levels = 3; # levels are [label1, label2, ambiguous]
+    
+    counts = np.zeros((n_subjects, n_prfs, n_axes, n_levels))
+    
+    for si, ss in enumerate(subjects):
+    
+        labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(ss, which_prf_grid))
+        if si==0:
+            groups = np.load(os.path.join(default_paths.stim_labels_root,\
+                                  'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
+            group_names = [groups['col_names_all'][aa] for aa in axes_to_do]
+            axis_names = [groups['discrim_type_list'][aa] for aa in axes_to_do]
+          
+        print('loading labels from folders at %s (will be slow...)'%(labels_folder))
+  
+        # figure out what images are available for this subject - assume that we 
+        # will be using all the available sessions. 
+        image_order = nsd_utils.get_master_image_order()    
+        session_inds = nsd_utils.get_session_inds_full()
+        if ss!=999:
+            sessions = np.arange(nsd_utils.max_sess_each_subj[ss-1])
+            inds2use = np.isin(session_inds, sessions) # remove any sessions that weren't shown
+            # list of all the image indices shown on each trial
+            image_order = image_order[inds2use] 
+        # reduce to the ~10,000 unique images
+        image_order = np.unique(image_order) 
+        print('analyzing counts for S%d, %d images'%(ss, len(image_order)))
+              
+        n_trials = image_order.shape[0]
+
+        for prf_model_index in range(n_prfs):
+
+            if debug and prf_model_index>1:
+                continue
+
+            fn2load = os.path.join(labels_folder, \
+                                      'S%d_concat_prf%d.csv'%(ss, prf_model_index))
+            concat_df = pd.read_csv(fn2load, index_col=0)
+            labels = np.array(concat_df)
+            labels = labels[image_order,:]
+           
+            for ai, aa in enumerate(axes_to_do):
+                counts[si, prf_model_index, ai, 0] = np.sum(labels[:,aa]==0)
+                counts[si, prf_model_index, ai, 1] = np.sum(labels[:,aa]==1)
+                counts[si, prf_model_index, ai, 2] = np.sum(np.isnan(labels[:,aa]))
+            
+        if not debug:
+            assert(np.all(np.sum(counts[si,:,:,:], axis=2)==n_trials))
+              
+                
+    fn2save = os.path.join(default_paths.stim_labels_root, 'Highlevel_counts_all.npy')
+    print('saving to %s'%fn2save)
+    np.save(fn2save, {'counts': counts, \
+                     'group_names': group_names, \
+                     'axis_names': axis_names}, 
+            allow_pickle=True)
+
+    return 

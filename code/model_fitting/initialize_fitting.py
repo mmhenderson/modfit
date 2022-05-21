@@ -135,6 +135,9 @@ def get_full_save_name(args):
     elif len(args.prfs_model_name)>0:
         model_name += '_use_%s_pRFs'%args.prfs_model_name
         
+    if args.which_prf_grid!=5:
+        model_name += '_pRFgrid_%d'%args.which_prf_grid
+        
     print(fitting_types)
     print(model_name)
     
@@ -271,6 +274,7 @@ def load_precomputed_prfs(subject, args):
     out = np.load(saved_prfs_fn, allow_pickle=True).item()
     assert(out['average_image_reps']==True)
     best_model_each_voxel = out['best_params'][5][:,0]
+    assert(out['which_prf_grid']==args.which_prf_grid)
     
     return best_model_each_voxel, saved_prfs_fn
 

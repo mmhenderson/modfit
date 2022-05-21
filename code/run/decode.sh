@@ -18,11 +18,13 @@ feature_types=(gabor_solo)
 source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/analyze_features
 
+balance_downsample=1
+
 for subj in ${subjects[@]}
 do
     for feature_type in ${feature_types[@]}
     do
-        python3 decode_categ_from_features.py --subject $subj --debug $debug --feature_type $feature_type --which_prf_grid $which_prf_grid
+        python3 decode_categ_from_features.py --subject $subj --debug $debug --feature_type $feature_type --which_prf_grid $which_prf_grid --balance_downsample $balance_downsample
     done
     
 done

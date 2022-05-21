@@ -14,14 +14,12 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(2 3 4)
-# subjects=(1)
-subjects=(4 5 6 7 8)
-
-debug=0
-# debug=1
-# up_to_sess=1
-up_to_sess=40
+# subjects=(1 2 3 4 5 6 7 8)
+subjects=(1)
+# debug=0
+debug=1
+up_to_sess=1
+# up_to_sess=40
 
 average_image_reps=1
 compute_sessionwise_r2=0
@@ -30,8 +28,10 @@ sample_batch_size=100
 voxel_batch_size=100
 zscore_features=1
 ridge=1
-use_precomputed_prfs=1
-which_prf_grid=5
+# use_precomputed_prfs=1
+# which_prf_grid=5
+use_precomputed_prfs=0
+which_prf_grid=3
 from_scratch=1
 date_str=0
 overwrite_sem_disc=0

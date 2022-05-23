@@ -417,6 +417,41 @@ def load_prf_mapping_pars(subject, voxel_mask=None):
     return angle, eccen, size, exponent, gain, rsq
 
 
+def load_domain_tvals(subject, voxel_mask=None):
+
+    """
+    For one NSD subject, load the t-statistics for all domain contrasts 
+    from independent localizer task (faces, places, etc)
+    """
+    
+    if voxel_mask is None:
+        voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                roi_utils.get_voxel_roi_info(subject, volume_space=True)
+    
+    n_voxels = np.sum(voxel_mask)
+
+    niftis_path = os.path.join(default_paths.nsd_root, \
+                               'nsddata', 'ppdata','subj%02d'%subject, 'func1pt8mm')
+
+    categ_list = ['places', 'faces', 'bodies', 'objects', 'characters']
+    n_categ = len(categ_list)
+
+    tvals_all = np.zeros((n_voxels, n_categ))
+
+    for cc, categ in enumerate(categ_list):
+
+        # load t-statistics for the domain contrast of interest
+        tvals_filename = os.path.join(niftis_path, 'floc_%stval.nii.gz'%categ)
+        tvals = load_from_nii(tvals_filename)
+        tvals = tvals.reshape((1, -1), order='C')[0]
+
+        # pull out same set of voxels all my analyses were done on
+        tvals_masked = tvals[voxel_mask] 
+
+        tvals_all[:,cc] = tvals_masked
+
+    return tvals_all, categ_list
+
 
 def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
     

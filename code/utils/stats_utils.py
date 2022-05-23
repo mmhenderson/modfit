@@ -37,7 +37,7 @@ def get_corrcoef(actual,predicted,dtype=np.float32):
     return vals_cc
 
 
-def compute_partial_corr(x, y, c):
+def compute_partial_corr(x, y, c, return_p=False):
 
     """
     Compute the partial correlation coefficient between x and y, 
@@ -74,9 +74,14 @@ def compute_partial_corr(x, y, c):
     model2_resids = model2_yhat - y
 
     # correlate the residuals to get partial correlation.
-    partial_corr = numpy_corrcoef_warn(model1_resids[:,0], model2_resids[:,0])[0,1]
+    if return_p:
+        partial_corr, p = scipy.stats.pearsonr(model1_resids[:,0], model2_resids[:,0])
+        return partial_corr, p
+    else:
+        partial_corr = numpy_corrcoef_warn(model1_resids[:,0], model2_resids[:,0])[0,1]
+        return partial_corr
    
-    return partial_corr
+    
 
 def compute_partial_corr_formula(x,y,c):
  

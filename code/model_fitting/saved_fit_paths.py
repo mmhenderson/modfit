@@ -13,14 +13,14 @@ alexnet_fit_paths = ['S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_param
                      'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy']
 alexnet_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in alexnet_fit_paths]
 
-clip_fit_paths = ['S01/clip_RN50_all_resblocks_pca/Dec-12-2021_1407_50/all_fit_params.npy', \
-                 'S02/clip_RN50_all_resblocks_pca/Jan-13-2022_1121_18/all_fit_params.npy', \
-                 'S03/clip_RN50_all_resblocks_pca/Jan-18-2022_1156_04/all_fit_params.npy', \
-                 'S04/clip_RN50_all_resblocks_pca/Jan-23-2022_2137_23/all_fit_params.npy', \
-                 'S05/clip_RN50_all_resblocks_pca/Jan-27-2022_1124_04/all_fit_params.npy', \
-                 'S06/clip_RN50_all_resblocks_pca/Jan-31-2022_0220_32/all_fit_params.npy', \
-                 'S07/clip_RN50_all_resblocks_pca/Feb-03-2022_2258_44/all_fit_params.npy', \
-                 'S08/clip_RN50_all_resblocks_pca/Feb-09-2022_1544_10/all_fit_params.npy']
+clip_fit_paths = ['S01/clip_RN50_all_resblocks_pca/Apr-13-2022_1933_25/all_fit_params.npy', \
+                 'S02/clip_RN50_all_resblocks_pca/Apr-19-2022_0911_52/all_fit_params.npy', \
+                 'S03/clip_RN50_all_resblocks_pca/Apr-21-2022_0247_51/all_fit_params.npy', \
+                 'S04/clip_RN50_all_resblocks_pca/Apr-26-2022_1828_22/all_fit_params.npy', \
+                 'S05/clip_RN50_all_resblocks_pca/May-20-2022_1621_41/all_fit_params.npy', \
+                 'S06/clip_RN50_all_resblocks_pca/Apr-25-2022_1207_19/all_fit_params.npy', \
+                 'S07/clip_RN50_all_resblocks_pca/May-01-2022_0911_53/all_fit_params.npy', \
+                 'S08/clip_RN50_all_resblocks_pca/May-25-2022_1022_18/all_fit_params.npy']
 clip_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in clip_fit_paths]
 
 gabor_fit_paths = ['S01/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-04-2022_1525_10/all_fit_params.npy', \

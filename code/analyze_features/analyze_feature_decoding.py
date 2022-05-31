@@ -26,11 +26,15 @@ def get_path(feature_type):
     
     return path_to_load
 
-def load_decoding(feature_type, subject=999, which_prf_grid=5, verbose=False):
+def load_decoding(feature_type, subject=999, which_prf_grid=5, \
+                  balanced=False, verbose=False):
 
     path_to_load = get_path(feature_type)
 
-    fn1 = os.path.join(path_to_load, 'S%d_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
+    if balanced:
+        fn1 = os.path.join(path_to_load, 'S%d_%s_LDA_all_grid%d_balanced.npy'%(subject, feature_type, which_prf_grid))
+    else:
+        fn1 = os.path.join(path_to_load, 'S%d_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
     if verbose:
         print('loading from %s'%fn1)
     decoding = np.load(fn1,allow_pickle=True).item()
@@ -42,9 +46,11 @@ def load_decoding(feature_type, subject=999, which_prf_grid=5, verbose=False):
     return acc, dprime, names
 
 
-def analyze_decoding_slopes(subject, feature_type, which_prf_grid=5, rndseed=309468, n_iter=10000):
+def analyze_decoding_slopes(subject, feature_type, which_prf_grid=5, \
+                            balanced=False, \
+                            rndseed=309468, n_iter=10000):
     
-    acc, dprime, names = load_decoding(feature_type, subject=subject)
+    acc, dprime, names = load_decoding(feature_type, subject=subject, balanced=balanced)
     n_axes = len(names)
     
     models = initialize_fitting.get_prf_models(which_grid=5)
@@ -130,7 +136,10 @@ def analyze_decoding_slopes(subject, feature_type, which_prf_grid=5, rndseed=309
     
     path_to_save = get_path(feature_type)
        
-    fn2save = os.path.join(path_to_save, 'prf_decoding_slopes.csv')
+    if balanced:
+        fn2save = os.path.join(path_to_save, 'prf_decoding_slopes_balanced.csv')
+    else:
+        fn2save = os.path.join(path_to_save, 'prf_decoding_slopes.csv')
     print('saving to %s'%fn2save)    
     slopes_table.to_csv(fn2save)
     

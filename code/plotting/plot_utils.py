@@ -517,7 +517,7 @@ def plot_multi_bars(
                 mean_data[:, ll],
                 err_data[:, ll],
                 ecolor="k",
-                zorder=10,
+                zorder=20,
                 ls="none",
             )
         if point_data is not None:
@@ -580,13 +580,14 @@ def plot_multi_bars(
                 [brack_bottom, brack_top, brack_top, brack_bottom],
                 "-",
                 color="k",
+                zorder=20
             )
 
             if bracket_text is not None:
                 ax.annotate(
                     bracket_text[xx],
                     xy=(xx, text_lab_ht),
-                    zorder=10,
+                    zorder=20,
                     color="k",
                     ha="center",
                     fontsize=12,

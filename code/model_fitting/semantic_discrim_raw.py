@@ -48,6 +48,7 @@ def get_discrim(args):
         'subject': args.subject,
         'volume_space': args.volume_space,
         'voxel_mask': voxel_mask,
+        'average_image_reps': args.average_image_reps,
         'brain_nii_shape': brain_nii_shape,
         'image_order': image_order,
         'voxel_index': voxel_index,

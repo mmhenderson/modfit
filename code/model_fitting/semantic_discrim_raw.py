@@ -145,7 +145,7 @@ def get_discrim(args):
     
     # will need these estimates in order to get the appropriate semantic labels for each voxel, based
     # on where its spatial pRF is. 
-    best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
+    best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
     assert(len(best_model_each_voxel)==n_voxels)  
     best_params_tmp = [None, None, None, None, None, best_model_each_voxel[:,np.newaxis]]
     

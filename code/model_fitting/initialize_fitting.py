@@ -267,6 +267,8 @@ def load_precomputed_prfs(subject, args):
         saved_prfs_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
     elif args.prfs_model_name=='gabor':
         saved_prfs_fn = saved_fit_paths.gabor_fit_paths[subject-1]
+    elif args.prfs_model_name=='texture':
+        saved_prfs_fn = saved_fit_paths.texture_fit_paths[subject-1]
     else:
         raise ValueError('trying to load pre-computed prfs for model %s, not found'%args.prfs_model_name)
 

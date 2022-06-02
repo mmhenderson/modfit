@@ -32,3 +32,13 @@ gabor_fit_paths = ['S01/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-04-2022_1525_10/
                  'S07/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-05-2022_1224_52/all_fit_params.npy', \
                  'S08/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-05-2022_1437_12/all_fit_params.npy']
 gabor_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in gabor_fit_paths]
+
+texture_fit_paths = ['S01/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-27-2022_1731_00/all_fit_params.npy', \
+                 'S02/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-28-2022_0027_33/all_fit_params.npy', \
+                 'S03/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-28-2022_0609_31/all_fit_params.npy', \
+                 'S04/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-28-2022_1153_54/all_fit_params.npy', \
+                 'S05/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-28-2022_1728_43/all_fit_params.npy', \
+                 'S06/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-28-2022_2307_04/all_fit_params.npy', \
+                 'S07/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-29-2022_0516_20/all_fit_params.npy', \
+                 'S08/texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs/May-29-2022_1042_54/all_fit_params.npy']
+texture_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in texture_fit_paths]

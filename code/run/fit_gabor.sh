@@ -14,12 +14,12 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(1 2 3 4 5 6 7 8)
-subjects=(1)
-# debug=0
-debug=1
-up_to_sess=1
-# up_to_sess=40
+subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1)
+debug=0
+# debug=1
+# up_to_sess=1
+up_to_sess=40
 
 average_image_reps=1
 compute_sessionwise_r2=0

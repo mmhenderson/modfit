@@ -2,7 +2,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:0
 #SBATCH --nodelist=mind-1-9
-#SBATCH --mem=24G
+#SBATCH --mem=1G
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -13,8 +13,14 @@ source ~/myenv/bin/activate
 echo $SLURM_JOBID
 echo $SLURM_NODELIST
 
-cd /user_data/mmhender/imStat/code/utils/
+cd /user_data/mmhender/imStat/code/model_fitting
 
-rndval=0
+# prf_fixed_sigma=0
 
-python3 test_saving.py --rndval $rndval
+# python3 test_arg.py --prf_fixed_sigma $prf_fixed_sigma
+
+python3 test_arg.py
+
+prf_fixed_sigma=0
+
+python3 test_arg.py --prf_fixed_sigma $prf_fixed_sigma

@@ -132,7 +132,8 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
     # Open the webviewer
     print('navigate browser to: 127.0.0.1:%s'%port)
     viewer = cortex.webshow(dat2plot, open_browser=True, port=port, \
-                   title = title)
+                            autoclose=False, \
+                            title = title)
     
 #     viewer.get_view('subj01','default_flat')
     

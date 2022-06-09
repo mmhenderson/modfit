@@ -33,7 +33,8 @@ def get_args():
    
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")
-    
+    parser.add_argument("--prf_fixed_sigma", type=float, default=None, 
+                    help="if sigma is fixed, what sigma value to use?")
     
     parser.add_argument("--fitting_type", type=str,default='texture_pyramid',
                     help="what kind of fitting are we doing? opts are 'texture_pyramid', 'texture_gabor', 'gabor_solo'")
@@ -143,6 +144,9 @@ def get_args():
                     help="if semantic model, what dimension?")
     
     args = parser.parse_args()
+    
+    if args.prf_fixed_sigma==0:
+        args.prf_fixed_sigma=None
     
     # print values of a few key things to the command line...
     if args.debug==1:

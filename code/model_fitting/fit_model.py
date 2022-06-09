@@ -50,6 +50,7 @@ def fit_fwrf(args):
         'voxel_roi': voxel_roi,
         'voxel_ncsnr': voxel_ncsnr, 
         'which_prf_grid': args.which_prf_grid,
+        'prfs_fixed_sigma': args.prf_fixed_sigma, 
         'models': prf_models,        
         'best_losses': best_losses,           
         'best_lambdas': best_lambdas,
@@ -233,6 +234,16 @@ def fit_fwrf(args):
                                              zscore_features=args.zscore_features, ridge=args.ridge)
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid, verbose=True) 
     n_prfs = prf_models.shape[0]
+    
+    if args.prf_fixed_sigma is not None:
+        assert(args.use_precomputed_prfs==False)
+        # special case, we want to test all centers for only one size value.
+        print('going to fix sigma at %.3f for all voxels'%args.prf_fixed_sigma)
+        prfs_fit_mask = np.round(prf_models[:,2],3)==args.prf_fixed_sigma
+        assert(np.sum(prfs_fit_mask)>=132)
+        print('there are %d pRFs with this sigma value'%np.sum(prfs_fit_mask))
+    else:
+        prfs_fit_mask=None
     
     sys.stdout.flush()
     
@@ -554,6 +565,7 @@ def fit_fwrf(args):
                                                         device=device, \
                                                         trials_use_each_prf_trn = trn_trials_use, \
                                                         trials_use_each_prf_holdout = holdout_trials_use, \
+                                                        prfs_fit_mask = prfs_fit_mask, \
                                                         dtype=np.float32, debug=args.debug)
             
             # taking the fit params for this set of voxels and putting them into the full array over all voxels

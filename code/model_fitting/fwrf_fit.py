@@ -21,6 +21,7 @@ def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
                    voxel_batch_size=100, 
                    trials_use_each_prf_trn = None, \
                    trials_use_each_prf_holdout = None, \
+                   prfs_fit_mask = None, \
                    device=None, dtype=np.float32, debug=False):
     
     """
@@ -61,6 +62,8 @@ def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
         trials_use_each_prf_holdout (2D array of booleans, optional): if you want to choose a sub-set of trials 
                                 to fit, and choose them on a by-pRF basis. [n_trials x n_prfs]
                                 for instance if we want to fit just the trials with animate in the prf, etc.
+        prfs_fit_mask (1D array of booleans, optional): if you only want to fit a sub-set of the pRFs in 
+                                prf_models, for example just one sigma value. size [n_prfs,]
         device (optional): gpu or cpu device to use, default will be to use cpu
         dtype (optional): data type, default=np.float32
         debug (boolean, optional): want to run a fast (stop early) version of this code, to test it? 
@@ -93,6 +96,10 @@ def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
     n_prfs = len(prf_models)
     n_voxels = voxel_data_trn.shape[1]   
 
+    if prfs_fit_mask is not None:
+        assert(len(prfs_fit_mask)==n_prfs)
+        assert(best_model_each_voxel is None) # only use this in from-scratch pRF fitting
+        
     # clear any stored features from feature loader's memory    
     feature_loader.clear_big_features()
     max_features = feature_loader.max_features 
@@ -137,6 +144,10 @@ def fit_fwrf_model(image_inds_trn, voxel_data_trn, \
         for m,(x,y,sigma) in enumerate(prf_models):
             if debug and m>1:
                 break
+            if prfs_fit_mask is not None:
+                if not prfs_fit_mask[m]:
+                    print('skipping pRF %d, based on prfs_fit_mask'%m)
+                    continue
  
             print('\nGetting features for prf %d: [x,y,sigma] is [%.2f %.2f %.4f]'%(m, \
                                                         prf_models[m,0],  prf_models[m,1],  prf_models[m,2]))

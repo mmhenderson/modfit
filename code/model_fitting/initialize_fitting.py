@@ -137,7 +137,10 @@ def get_full_save_name(args):
         
     if args.which_prf_grid!=5:
         model_name += '_pRFgrid_%d'%args.which_prf_grid
-        
+    
+    if args.prf_fixed_sigma is not None:
+        model_name += '_fixsigma%.3f'%args.prf_fixed_sigma
+            
     print(fitting_types)
     print(model_name)
     
@@ -243,12 +246,13 @@ def get_prf_models(which_grid=5, verbose=False):
                               eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16)
     elif which_grid==5:
         models = prf_utils.make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
-                              eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16)
+                              eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16)        
     elif which_grid==6:
         models = prf_utils.make_log_polar_grid_scale_size_eccen(eccen_range=[0, 7/8.4], \
                               n_eccen_steps = 10, n_angle_steps = 16)
     elif which_grid==7:
         models = prf_utils.make_rect_grid(sigma_range=[0.04, 0.04], n_sigma_steps=1, min_grid_spacing=0.04)
+      
     else:
         raise ValueError('prf grid number not recognized')
 
@@ -260,6 +264,26 @@ def get_prf_models(which_grid=5, verbose=False):
 
     return models
 
+def most_recent_save(subject, fitting_type, n_from_end=0, root=None):     
+
+    if root is None:
+        root = default_paths.save_fits_path
+
+    folder2load = os.path.join(root,'S%02d'%(subject), fitting_type)
+     
+    # within this folder, assuming we want the most recent version that was saved
+    files_in_dir = os.listdir(folder2load)
+    from datetime import datetime
+    my_dates = [f for f in files_in_dir if 'ipynb' not in f and 'DEBUG' not in f]
+    try:
+        my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M_%S"))
+    except:
+        my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M"))
+    # if n from end is not zero, then going back further in time 
+    most_recent_date = my_dates[-1-n_from_end]
+
+    return most_recent_date
+
 def load_precomputed_prfs(subject, args):
     
     if len(args.prfs_model_name)==0 or args.prfs_model_name=='alexnet':
@@ -269,6 +293,12 @@ def load_precomputed_prfs(subject, args):
         saved_prfs_fn = saved_fit_paths.gabor_fit_paths[subject-1]
     elif args.prfs_model_name=='texture':
         saved_prfs_fn = saved_fit_paths.texture_fit_paths[subject-1]
+    elif 'texture_fixsigma' in args.prfs_model_name:
+        sigma = args.prfs_model_name.split('texture_fixsigma')[1]
+        fitting_type_name = 'texture_pyramid_ridge_4ori_4sf_pca_HL_fit_pRFs_fixsigma%s'%sigma
+        date = most_recent_save(subject, fitting_type_name, n_from_end=0)
+        saved_prfs_fn = os.path.join(default_paths.save_fits_path, \
+                                'S%02d'%subject,fitting_type_name,date,'all_fit_params.npy')
     else:
         raise ValueError('trying to load pre-computed prfs for model %s, not found'%args.prfs_model_name)
 

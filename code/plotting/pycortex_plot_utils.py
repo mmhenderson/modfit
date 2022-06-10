@@ -1,101 +1,24 @@
+import os
 import numpy as np
 import copy
 import cortex
 
-def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
-                        mins=None, maxes=None, cmaps=None, \
-                        title=None, vox2plot = None, roi_def=None,  \
-                        volume_space=None, nii_shape=None, voxel_mask=None, 
-                        simplest_roi_maps=False):
-
+def maps_to_volumes(subject, maps, names, cmaps=None, mins=None, maxes=None, \
+                    voxel_mask=None, xfmname=None, nii_shape=None, mask_3d = None, \
+                   vox2plot=None):
     """
-    Plot a set of maps in pycortex surface space, using cortex.webshow()
-    
-    subject: nsd subject numbers, 1-8  (can be list or single number)  
-    port: port number to use for cortex.webshow()
-    maps: list of arrays, each size [n_voxels,] to plot on surface
-    names: list of strings, names of the maps
-    subject_map_inds: list of which maps in "maps" correspond to each subject 
-        (gives index into "subject"). only required if >1 subject.
-    mins: optional list of minimum values for each map's colorbar
-    maxes: optional list of max values for each map's colorbar
-    cmaps: optional list of colormap names, i.e. 'RdBu'
-    title: optional string describing the analysis, goes in browser tab header
-    voxel_mask: boolean mask of size prod(nii_shape), indicates which voxels in the
-        whole brain the n_voxels in each map correspond to.
-        (if >1 subject, should be a list n subjects long)
-    roi_def: optional, an roi definition object from roi_utils.nsd_roi_def()
-        Note roi_def includes fields for voxel_mask, nii_shape, and volume_space, 
-        so if roi_def is specified, no need to specify those other arguments.
-        If roi_def is not specified, must specify voxel_mask and nii_shape.
-        If it is is specified, this code will also plot ROI masks as additional
-        maps in the webviewer.
-    vox2plot: optional mask for which voxels to include, size [n_voxels,]
-        (if >1 subject, should be a list n subjects long)   
-    nii_shape: shape of the original nifti file 
-        (if >1 subject, should be a list n subjects long)
-    volume_space: is the data in volume space (from a 3D nifti file?)
-        otherwise assume it is in surface space (i.e. each voxel is a mesh vertex)
-    simplest_roi_maps: want to draw all ROIs on one map, color coded only by "type"?
-        (i.e. V1-V2 are same color, PPA/RSC are same color) 
-        Only used if you have specified roi_def.
+    Convert a list of maps into a dictionary of cortex.Volume objects
+    maps should each be [n_voxels,] in shape where the mapping from n_voxels to 
+    whole brain is given by voxel_mask.
     """
     
-    if not hasattr(subject, '__len__'):
-        subject = [subject]
-        voxel_mask = [voxel_mask]
-        nii_shape = [nii_shape]
-    if len(subject)==1:
-        subject_map_inds = np.zeros((len(maps),),dtype=int)
-        n_subjects = 1
-    else:
-        n_subjects = len(subject)
-        if len(maps)>0:
-            assert(subject_map_inds is not None)
-            assert(len(np.unique(subject_map_inds))==n_subjects)
-        
+    substr = 'subj%02d'%subject
     
-    if roi_def is not None:
-        if n_subjects>1:
-            assert(len(roi_def.ss_roi_defs)==len(subject))
-            dat2plot = {}
-            for si, ss in enumerate(subject):
-                dat2plot.update(get_roi_maps_for_pycortex(ss, roi_def.ss_roi_defs[si],\
-                                                          simplest_maps=simplest_roi_maps))          
-            voxel_mask = roi_def.voxel_mask
-            nii_shape = roi_def.nii_shape
-        else:
-            if hasattr(roi_def, 'subjects'):
-                rdef = roi_def.ss_roi_defs[0]
-                voxel_mask = roi_def.voxel_mask
-                nii_shape = roi_def.nii_shape
-            else:
-                rdef = roi_def
-                voxel_mask = [roi_def.voxel_mask]
-                nii_shape = [roi_def.nii_shape]
-            dat2plot = get_roi_maps_for_pycortex(subject[0], rdef, simplest_maps=simplest_roi_maps)
-            
-            
-        volume_space = roi_def.volume_space
-        
-    else:
-        if voxel_mask is None:
-            raise ValueError('must specify either voxel_mask or roi_def.')   
-        if volume_space is None:
-            volume_space = nii_shape is not None
-        else:
-            if nii_shape is None:
-                raise ValueError('must specify nii_shape if volume_space=True.')   
-        dat2plot = {}
-           
-     
-    if volume_space:
+    if xfmname is None:
         xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
-        assert(len(voxel_mask)==n_subjects)
-        assert(len(nii_shape)==n_subjects)
-        mask_3d = [np.reshape(voxel_mask[si], nii_shape[si], order='C') \
-                    for si in range(n_subjects)]
 
+    volumes = {}
+    
     if mins is None:
         mins = [None for ll in range(len(names))]
     elif len(mins)==1:
@@ -111,40 +34,54 @@ def plot_maps_pycortex(subject, port, maps, names, subject_map_inds=None, \
     
     for ni, name in enumerate(names):
         
-        si = subject_map_inds[ni]
-        ss = subject[si]
-        substr = 'subj%02d'%ss
-  
         map_thresh = copy.deepcopy(maps[ni])
-    
-        if vox2plot is not None:          
-            map_thresh[~vox2plot[si]] = np.nan
-        if volume_space:
-            dat2plot[name] = cortex.Volume(data = get_full_volume(map_thresh, voxel_mask[si], nii_shape[si]), \
+
+        if vox2plot is not None: 
+            map_thresh[~vox2plot] = np.nan
+
+        volumes[name] = cortex.Volume(data = get_full_volume(map_thresh, voxel_mask, nii_shape), \
                                            cmap=cmaps[ni], subject=substr, \
                                            vmin=mins[ni], vmax=maxes[ni],\
-                                           xfmname=xfmname, mask=mask_3d[si])
-        else:
-            dat2plot[name] = cortex.Vertex(data = get_full_surface(map_thresh, voxel_mask[si]),\
-                                           cmap=cmaps[ni], subject=substr, \
-                                           vmin=mins[ni], vmax=maxes[ni])
+                                           xfmname=xfmname, mask=mask_3d)
         
-    # Open the webviewer
-    print('navigate browser to: 127.0.0.1:%s'%port)
-    viewer = cortex.webshow(dat2plot, open_browser=True, port=port, \
-                            autoclose=False, \
-                            title = title)
+    return volumes
+
+def plot_with_overlays(volumes, title, port, overlay_type='overlays', labels_on=True, recache=True):
     
-#     viewer.get_view('subj01','default_flat')
+    """
+    Make sure to set recache=True if you are changing from one set of overlays to another 
+    (or from no overlays to overlays)
+    """
+    overlay_names=('rois','sulci')
+
+    pycortex_db_path = cortex.database.default_filestore
+    subject_name = list(volumes.items())[0][1].subject
+    overlay_file = os.path.join(pycortex_db_path, subject_name, '%s.svg'%overlay_type)
+    print('using overlays from %s'%overlay_file)
+    
+    if labels_on:
+        labels_visible=overlay_names
+    else:
+        labels_visible=()
+    
+    print('navigate browser to: 127.0.0.1:%s'%port)
+    viewer = cortex.webshow(volumes, open_browser=True, port=port, \
+                            autoclose=True, \
+                            overlays_visible=overlay_names, \
+                            overlays_available=overlay_names, \
+                            labels_visible=labels_visible,\
+                            overlay_file = overlay_file, \
+                            recache=recache, 
+                            title = title)
     
     return viewer
 
-def get_roi_maps_for_pycortex(subject, roi_def, simplest_maps=False):    
+def get_roi_maps_for_pycortex(subject, roi_def):    
     """
-    Create a dictionary of cortex.Vertex labels for ROIs, to be plotted in PyCortex.
+    Create a dictionary of cortex.Volume labels for ROIs, to be plotted in PyCortex.
     
     subject: nsd subject number, 1-8
-    roi_def: an roi definition object from roi_utils.nsd_roi_def()
+    roi_def: an roi definition object from utils.roi_utils.nsd_roi_def()
      
     """ 
     substr = 'subj%02d'%subject
@@ -163,71 +100,24 @@ def get_roi_maps_for_pycortex(subject, roi_def, simplest_maps=False):
     placelabs[~has_place] = np.nan
     bodylabs[~has_body] = np.nan
 
-    volume_space = roi_def.volume_space
     voxel_mask = roi_def.voxel_mask
     nii_shape = roi_def.nii_shape
-
-    if volume_space:
+    xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
+    mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
         
-        xfmname = 'func1pt8_to_anat0pt8_autoFSbbr'
-        mask_3d = np.reshape(voxel_mask, nii_shape, order='C')
-        
-        if simplest_maps:
-            roi_labs = np.nan*np.ones(np.shape(retlabs))
-            roi_labs[has_ret] = 0
-            roi_labs[has_face] = 1
-            roi_labs[has_body] = 2
-            roi_labs[has_place] = 3
-            overlap = (has_ret.astype(int)+has_face.astype(int)+\
-                       has_body.astype(int)+has_place.astype(int))>1
-            roi_labs[overlap] = 4;
-            dat2plot = {'S%d ROI labels (ret/face/body/place/overlap)'%subject: \
-                    cortex.Volume(data=get_full_volume(roi_labs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='BROYG',\
-                    vmin = 0, vmax = 4,\
-                    xfmname=xfmname, mask=mask_3d)}
-        else:
-            dat2plot = {'S%d ROI labels (retinotopic)'%subject: \
-                    cortex.Volume(data=get_full_volume(retlabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(retlabs[~np.isnan(retlabs)])+1,\
-                    xfmname=xfmname, mask=mask_3d), \
-                'S%d ROI labels (face-selective)'%subject: \
-                    cortex.Volume(data=get_full_volume(facelabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(facelabs[~np.isnan(facelabs)])+1, \
-                    xfmname=xfmname, mask=mask_3d), \
-                'S%d ROI labels (place-selective)'%subject: \
-                    cortex.Volume(data=get_full_volume(placelabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(placelabs[~np.isnan(placelabs)])+1, \
-                    xfmname=xfmname, mask=mask_3d), \
-                'S%d ROI labels (body-selective)'%subject: \
-                    cortex.Volume(data=get_full_volume(bodylabs, voxel_mask, nii_shape),\
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(bodylabs[~np.isnan(bodylabs)])+1, \
-                     xfmname=xfmname, mask=mask_3d)}
-
-    else:
-
-        dat2plot = {'S%d ROI labels (retinotopic)'%subject: \
-                    cortex.Vertex(data = get_full_surface(retlabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(retlabs)+1), \
-                'S%d ROI labels (face-selective)'%subject: \
-                    cortex.Vertex(data = get_full_surface(facelabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(facelabs)+1), \
-                'S%d ROI labels (place-selective)'%subject: \
-                    cortex.Vertex(data = get_full_surface(placelabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(placelabs)+1), \
-                'S%d ROI labels (body-selective)'%subject: \
-                    cortex.Vertex(data = get_full_surface(bodylabs, voxel_mask), \
-                    subject=substr, cmap='Accent',\
-                    vmin = 0, vmax = np.max(bodylabs)+1)}
-        
-    return dat2plot
+    names = ['S%d ROI labels (retinotopic)'%subject, \
+             'S%d ROI labels (face-selective)'%subject,\
+             'S%d ROI labels (place-selective)'%subject,\
+             'S%d ROI labels (body-selective)'%subject]
+    maps = [retlabs, facelabs, placelabs, bodylabs]
+    mins = [0,0,0,0]
+    maxes = [np.max(m[~np.isnan(m)])+1 for m in maps]
+    cmaps = ['Accent' for m in maps]
+    
+    roi_volumes = maps_to_volumes(subject, maps, names, cmaps=cmaps, mins=mins, maxes=maxes, \
+                        voxel_mask=voxel_mask, nii_shape=nii_shape, mask_3d=mask_3d)
+            
+    return roi_volumes
 
 
 def get_full_surface(values, voxel_mask):

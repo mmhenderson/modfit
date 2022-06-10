@@ -1,41 +1,47 @@
+# this file sets relative paths to folders of interest for our project
+# see path_defs.py to change the root directory/absolute paths
 
 import os
+import path_defs
 
-# Path to the full NSD data repository (includes data and stimuli)
-# http://naturalscenesdataset.org/
-root = '/user_data/mmhender/'
-nsd_path = '/lab_data/tarrlab/common/datasets/NSD'   
-    
-nsd_root = nsd_path
-beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
-stim_root = os.path.join(root, 'nsd/stimuli/')    
-stim_labels_root = os.path.join(root, 'nsd/labels/')    
-nsd_data_concat_root = os.path.join(root, 'nsd/data/')
+nsd_path = path_defs.nsd_path
+nsd_root = nsd_path 
+root = path_defs.root
+root_localnode = path_defs.root_localnode
+project_name = path_defs.project_name
+
+# Where we are keeping the preprocessed NSD stimuli/labeling data
+stim_root = os.path.join(root, 'nsd','stimuli')    
+stim_labels_root = os.path.join(root, 'nsd','labels')    
 
 # Where to save model fits
-save_fits_path = os.path.join(root,'imStat/model_fits/')
+save_fits_path = os.path.join(root, project_name, 'model_fits')
 
-# Path where gabor model features will be
-gabor_texture_feat_path = os.path.join(root, 'features/gabor_texture/')
-gabor_texture_feat_path_localnode = '/scratch/mmhender/features/gabor_texture/'
+# Where to save any figures we make
+fig_path = os.path.join(root, project_name, 'figures')
 
-# Path where pyramid texture model features will be
-pyramid_texture_feat_path = os.path.join(root, 'features/pyramid_texture/')
-pyramid_texture_feat_path_localnode = '/scratch/mmhender/features/pyramid_texture/'
+# Path where gabor model features will be saved
+gabor_texture_feat_path = os.path.join(root, 'features','gabor_texture')
+gabor_texture_feat_path_localnode = os.path.join(root_localnode, 'features','gabor_texture')
 
-# Path where sketch token features will be
-sketch_token_feat_path = os.path.join(root, 'features/sketch_tokens/')
-sketch_token_feat_path_localnode = '/scratch/mmhender/features/sketch_tokens/'
+# Path where texture model features will be saved
+pyramid_texture_feat_path = os.path.join(root, 'features', 'pyramid_texture')
+pyramid_texture_feat_path_localnode = os.path.join(root_localnode, 'features', 'pyramid_texture')
+
+# Path where sketch token features will be saved
+sketch_token_feat_path = os.path.join(root, 'features', 'sketch_tokens')
+sketch_token_feat_path_localnode = os.path.join(root_localnode, 'features', 'sketch_tokens')
 
 # Path where AlexNet features will be saved
-alexnet_feat_path = os.path.join(root, 'features/alexnet/')
-alexnet_feat_path_localnode = '/scratch/mmhender/features/alexnet/'
+alexnet_feat_path = os.path.join(root, 'features','alexnet')
+alexnet_feat_path_localnode = os.path.join(root_localnode, 'features','alexnet')
 
 # Path where CLIP features will be saved
-clip_feat_path = os.path.join(root, 'features/CLIP/')
-clip_feat_path_localnode = '/scratch/mmhender/features/CLIP/'
+clip_feat_path = os.path.join(root, 'features', 'CLIP')
+clip_feat_path_localnode = os.path.join(root_localnode, 'features', 'CLIP')
 
-# Path to the COCO API toolbox
-# https://github.com/cocodataset/cocoapi
-coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
-coco_ims_path = '/lab_data/tarrlab/common/datasets/COCO'
+# Where the raw NSD beta weights are located
+beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
+
+coco_api_path = path_defs.coco_api_path
+coco_ims_path = path_defs.coco_ims_path

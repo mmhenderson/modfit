@@ -15,8 +15,8 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
-# subjects=(1 2 3 4 5 6 7 8)
-subjects=(6 7 8)
+subjects=(1 2 3 4 5)
+# subjects=(6 7 8)
 
 debug=0
 up_to_sess=40
@@ -31,7 +31,7 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=0
 # prfs_model_name=texture
-sigmas=(0.020 0.031 0.048 0.074 0.114 0.176 0.271 0.419 0.647 1.000)
+sigmas=(1.000)
 # prf_fixed_sigma=0.020
 # prf_fixed_sigma=0.647
 

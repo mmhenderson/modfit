@@ -68,13 +68,14 @@ class fwrf_feature_loader:
     def init_pyramid_texture(self, kwargs):
         
         pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
-        self.do_varpart=kwargs['do_varpart'] if 'do_varpart' in kwargs.keys() else 'True'
-        self.include_ll=kwargs['include_ll'] if 'include_ll' in kwargs.keys() else 'True'
-        self.include_hl=kwargs['include_hl'] if 'include_hl' in kwargs.keys() else 'True'
+        self.do_varpart=kwargs['do_varpart'] if 'do_varpart' in kwargs.keys() else True
+        self.include_ll=kwargs['include_ll'] if 'include_ll' in kwargs.keys() else True
+        self.include_hl=kwargs['include_hl'] if 'include_hl' in kwargs.keys() else True
+        self.match_ncomp_prfs=kwargs['match_ncomp_prfs'] if 'match_ncomp_prfs' in kwargs.keys() else False
         self.n_ori = kwargs['n_ori'] if 'n_ori' in kwargs.keys() else 4
         self.n_sf = kwargs['n_sf'] if 'n_sf' in kwargs.keys() else 4
-        self.use_pca_feats_hl=kwargs['use_pca_feats_hl'] if 'use_pca_feats_hl' in kwargs.keys() else 'True'
-        self.group_all_hl_feats=kwargs['group_all_hl_feats'] if 'group_all_hl_feats' in kwargs.keys() else 'True'
+        self.use_pca_feats_hl=kwargs['use_pca_feats_hl'] if 'use_pca_feats_hl' in kwargs.keys() else True
+        self.group_all_hl_feats=kwargs['group_all_hl_feats'] if 'group_all_hl_feats' in kwargs.keys() else True
         if (not self.include_ll) and (not self.include_hl):
             raise ValueError('cannot exclude both low and high level texture features.')
         if not self.include_hl:
@@ -114,8 +115,29 @@ class fwrf_feature_loader:
                 with h5py.File(self.features_files_hl[fi], 'r') as file:
                     feat_shape = np.shape(file['/features'])
                     file.close()
-                n_feat_actual = feat_shape[1]
-                self.max_pc_to_retain_hl[fi] = int(np.min([feature_dims_hl[fi], n_feat_actual]))        
+                if self.match_ncomp_prfs:
+                    # will always use minimum number of components for any pRF, 
+                    # even if more available for some pRFs.
+                    n_prfs = feat_shape[2]
+                    ncomp_each = np.zeros((n_prfs,))
+                    with h5py.File(self.features_files_hl[fi], 'r') as file:                       
+                        for mm in range(n_prfs):
+                            feat_prf = file['/features'][0,:,mm]
+                            ncomp = np.where(np.isnan(feat_prf))[0]
+                            if len(ncomp)==0:
+                                ncomp=len(feat_prf)
+                            else:
+                                ncomp=ncomp[0]        
+                            ncomp_each[mm] = ncomp
+                    n_feat_actual = int(np.min(ncomp_each))
+                    assert(n_feat_actual<=feat_shape[1])
+                    print('%s: n feat actual=%d'%(feature_type_name, n_feat_actual))
+                else:
+                    # use ncomp needed to explain 95 percent var in each pRF, 
+                    # can be different number for diff pRFs.
+                    n_feat_actual = feat_shape[1]
+                    
+                self.max_pc_to_retain_hl[fi] = n_feat_actual      
             
             self.n_hl_feats = np.sum(self.max_pc_to_retain_hl)
             self.feature_type_dims_include[~self.feature_is_ll] = self.max_pc_to_retain_hl
@@ -341,11 +363,15 @@ class fwrf_feature_loader:
                     print('Took %.5f seconds to load file'%elapsed)
                     feats_to_use = values[image_inds,:,:]
                     values = None
-                    nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
-                                for mm in range(len(self.prf_batch_inds[batch_to_use]))]
-                    nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
-                                else self.max_pc_to_retain_hl[fi] for ni in nan_inds]
-                    n_feat_each_prf=nan_inds
+                    if self.match_ncomp_prfs:
+                        n_feat_each_prf = [self.max_pc_to_retain_hl[fi] \
+                                               for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                    else:
+                        nan_inds = [np.where(np.isnan(feats_to_use[0,:,mm])) \
+                                    for mm in range(len(self.prf_batch_inds[batch_to_use]))]
+                        nan_inds = [ni[0][0] if ((len(ni)>0) and (len(ni[0])>0)) \
+                                    else self.max_pc_to_retain_hl[fi] for ni in nan_inds]
+                        n_feat_each_prf=nan_inds
 
                     start_ind = int(np.sum(self.max_pc_to_retain_hl[0:fi]))
                     print('start ind: %d'%start_ind)
@@ -353,7 +379,10 @@ class fwrf_feature_loader:
                         features_each_prf_hl[:,start_ind:start_ind+n_feat_each_prf[mm],mm] = \
                                 feats_to_use[:,0:n_feat_each_prf[mm],mm]
                         is_defined_each_prf_hl[start_ind:start_ind+n_feat_each_prf[mm],mm] = True;
-
+                        
+                if self.match_ncomp_prfs:
+                    assert(np.all(is_defined_each_prf_hl))
+                    assert(not np.any(features_each_prf_hl==0))
             else:
                 features_each_prf_hl = values[image_inds,self.n_ll_feats:,:]
                 is_defined_each_prf_hl = np.ones((self.n_hl_feats, len(self.prf_batch_inds[batch_to_use])),dtype=bool)

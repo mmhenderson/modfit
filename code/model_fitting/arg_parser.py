@@ -115,6 +115,8 @@ def get_args():
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
     parser.add_argument("--do_pyr_varpart", type=nice_str2bool,default=False, 
                     help="want to do variance partition within texture model features? 1 for yes, 0 for no")
+    parser.add_argument("--match_ncomp_prfs", type=nice_str2bool,default=False, 
+                    help="want to use same ncomps all pRFs (for higher-level texture model)? 1 for yes, 0 for no")
     
    
     # Specific to sketch tokens

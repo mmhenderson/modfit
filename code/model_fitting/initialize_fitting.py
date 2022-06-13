@@ -82,6 +82,8 @@ def get_full_save_name(args):
                 model_name += '_pca_HL' 
             if not args.group_all_hl_feats:
                 model_name += '_allsubsets'
+            if args.match_ncomp_prfs:
+                model_name += '_match_ncomp_allprfs'
                 
         elif 'gabor_solo' in ft:     
             fitting_types += [ft]

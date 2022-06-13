@@ -9,6 +9,8 @@ from sklearn import decomposition
 import argparse
 import pandas as pd
 
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 """
 Code to perform PCA on features within a given feature space (texture or contour etc).
 PCA is done separately within each pRF position, and the results for all pRFs are saved in a single file.
@@ -39,15 +41,12 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
     prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
 
-    # Set up the pyramid feature extractor (just to get dims of diff feature types, not using it for real here)
-    _fmaps_fn = texture_statistics_pyramid.steerable_pyramid_extractor(pyr_height = n_sf, n_ori = n_ori)
-    _feature_extractor = texture_statistics_pyramid.texture_feature_extractor(_fmaps_fn, subject=subject, \
-                                      sample_batch_size=None, include_ll=True, include_hl=True, n_prf_sd_out=2, \
-                                      aperture=1.0, do_varpart = False, compute_features=False, \
-                                      group_all_hl_feats = False, device='cpu:0', which_prf_grid=which_prf_grid)
-    # Get dims of each feature type
-    feature_type_dims = np.array(_feature_extractor.feature_type_dims_all)
-    feature_type_names = np.array(_feature_extractor.feature_types_include)
+    # compute dimensions of features/which columns are which feature type
+    feature_type_dims = np.array(texture_statistics_pyramid.feature_type_dims_all)
+    feature_type_names = np.array(texture_statistics_pyramid.feature_types_all)
+    feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_type_dims[fi]]) \
+                                for fi in range(len(feature_type_dims))], axis=1).astype('int'))
+    # decide which features to do pca on in groups
     gets_pca = np.ones((len(feature_type_dims),))==1
     gets_pca[0:5] = False # skip all the 'lower-level' features, because they're already pretty small.
     print('will perform PCA on these sets of features:')
@@ -56,13 +55,18 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
     print(feature_type_names[~gets_pca])
     feature_type_dims = feature_type_dims[gets_pca]
     feature_type_names = feature_type_names[gets_pca]
-    feature_inds = np.array([_feature_extractor.feature_column_labels==fi for fi in np.where(gets_pca)[0]])
+    feature_inds = np.array([feature_column_labels==fi for fi in np.where(gets_pca)[0]])
     assert(np.all(np.sum(feature_inds, axis=1)==feature_type_dims))
     
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+
     n_trials = len(trninds)
 
     # going to loop over one set of features at a time

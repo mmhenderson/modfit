@@ -23,25 +23,51 @@ class nsd_roi_def():
     you would like to skip here. Will reduce the total n_rois.
     """
     
-    def __init__(self, subject, volume_space=True, use_default_areas = True, \
-                 skip_areas = [],\
+    def __init__(self, subject, volume_space=True, use_kastner_areas = True, \
+                 areas_include=None, areas_merge = None, \
                  remove_ret_overlap = False, remove_categ_overlap=False):
         
         self.subject=subject
         self.volume_space=volume_space
-
+        self.use_kastner_areas=use_kastner_areas
+        
         self.__init_names__()        
         self.__init_labels__()
 
-        if use_default_areas:
+        if areas_include is None:            
             # convenience option, these are the areas we generally want to use
-            skip_areas = [4, 5, 6, 7, 11, 12, 19, 20, 22, 23, 24]
-            self.__remove_skipped__(skip_areas)
-            # combining these sub-regions to make larger areas, for simplicity
-            self.merge_two_areas('IPS0-1', 'IPS2-5', 'IPS')
-            self.merge_two_areas('FFA-1', 'FFA-2', 'FFA')
-        elif len(skip_areas)>0:
-            # otherwise, can ignore a custom set of areas.
+            if self.use_kastner_areas:
+                self.areas_include = ['V1','V2','V3','hV4',\
+                                      'V3ab','IPS',\
+                                      'OPA','PPA','RSC',\
+                                      'OFA','FFA','EBA']
+                areas_merge = [ [['IPS0-1','IPS2-5'], ['FFA-1','FFA-2']], \
+                                ['IPS',                'FFA']]
+            else:
+                self.areas_include = ['V1','V2','V3','hV4', \
+                                      'OPA','PPA','RSC', \
+                                      'OFA','FFA','EBA']
+                areas_merge = [[['FFA-1','FFA-2']], ['FFA']] 
+                
+        else:
+            assert(isinstance(areas_include, list) or isinstance(areas_include, np.ndarray))
+            assert(isinstance(areas_include[0], str))
+            self.areas_include = areas_include
+        
+        if areas_merge is not None:
+            for a1, a2 in zip(areas_merge[0], areas_merge[1]):
+                # combining these sub-regions to make larger areas, for simplicity
+                self.merge_two_areas(a1[0], a1[1], a2)
+            
+        if np.any([area not in self.roi_names for area in self.areas_include]):
+            print('at least one roi name in areas_include not recognized, inputs were: ')
+            print(self.areas_include)
+            return
+        
+        skip_areas = [ri for ri in range(len(self.roi_names)) \
+                          if self.roi_names[ri] not in self.areas_include]    
+        if len(skip_areas)>0:
+            # ignore any areas we didn't specify
             self.__remove_skipped__(skip_areas)
   
         if remove_ret_overlap:
@@ -55,8 +81,13 @@ class nsd_roi_def():
         self.face_names = face[1]
         self.place_names = place[1]
         self.body_names = body[1]
-        self.ret_names = copy.deepcopy(ret_group_names)
-
+        if self.use_kastner_areas:
+            # including approximate definitions for many areas based on atlas
+            self.ret_names = copy.deepcopy(ret_group_names)
+        else:
+            # including pRF-based definitions, only through V4
+            self.ret_names = [copy.deepcopy(ret_group_names[ii]) for ii in range(4)]
+            
         self.__combine_names__()
        
     def __combine_names__(self):
@@ -81,7 +112,8 @@ class nsd_roi_def():
         
         voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
                     get_voxel_roi_info(self.subject, \
-                               volume_space=self.volume_space)
+                                       volume_space=self.volume_space, \
+                                       use_kastner_areas=self.use_kastner_areas)
         self.voxel_mask = voxel_mask
         self.nii_shape = brain_nii_shape
         
@@ -255,15 +287,17 @@ class multi_subject_roi_def(nsd_roi_def):
     concatenating the property of interest for analysis.
     """
     
-    def __init__(self, subjects, volume_space=True, use_default_areas=True, skip_areas=[], \
-                remove_ret_overlap = False, remove_categ_overlap=False):
+    def __init__(self, subjects, volume_space=True, use_kastner_areas = True, \
+                 areas_include=None, areas_merge=None, \
+                 remove_ret_overlap = False, remove_categ_overlap=False):
      
         # first initialize object with just first subject, most of
         # the properties are same for all subs (ROI names etc.)
         super().__init__(subject=subjects[0], \
                          volume_space=volume_space, \
-                         use_default_areas=use_default_areas, \
-                         skip_areas=skip_areas, \
+                         use_kastner_areas = use_kastner_areas, \
+                         areas_include=areas_include, \
+                         areas_merge=areas_merge, \
                          remove_ret_overlap = remove_ret_overlap, \
                          remove_categ_overlap=remove_categ_overlap)
         
@@ -272,8 +306,9 @@ class multi_subject_roi_def(nsd_roi_def):
         # now getting subject-specific properties, labels for each voxel.
         self.ss_roi_defs = [nsd_roi_def(subject=ss, \
                                         volume_space=volume_space, \
-                                        use_default_areas=use_default_areas, \
-                                        skip_areas=skip_areas, \
+                                        use_kastner_areas = use_kastner_areas, \
+                                        areas_include=areas_include, \
+                                        areas_merge=areas_merge, \
                                         remove_ret_overlap = remove_ret_overlap, \
                                         remove_categ_overlap=remove_categ_overlap) \
                             for ss in self.subjects]
@@ -399,7 +434,7 @@ def get_nii_shape(subject):
     
     return brain_nii_shape
 
-def get_voxel_roi_info(subject, volume_space=True):
+def get_voxel_roi_info(subject, volume_space=True, use_kastner_areas=True):
 
     """
     For a specified NSD subject, load all definitions of all ROIs.
@@ -506,13 +541,17 @@ def get_voxel_roi_info(subject, volume_space=True):
                     has_face_label | has_place_label | has_body_label
     voxel_idx = np.where(voxel_mask) # numerical indices into the big array
     
-    # Make our definitions of retinotopic ROIs: starting with the Kastner atlas.
-    roi_labels_retino = np.copy(kast_labels_full)    
-    # Partially overwrite these defs with pRF mapping defs, which are more 
-    # accurate when they exist. The numbers have same meaning across these 
-    # sets, so this is ok. 
-    roi_labels_retino[has_prf_label] = prf_labels_full[has_prf_label]
-
+    # Make our definitions of retinotopic ROIs
+    if use_kastner_areas:
+        # starting with the Kastner atlas.
+        roi_labels_retino = np.copy(kast_labels_full)    
+        # Partially overwrite these defs with pRF mapping defs, which are more 
+        # accurate when they exist. The numbers have same meaning across these 
+        # sets, so this is ok. 
+        roi_labels_retino[has_prf_label] = prf_labels_full[has_prf_label]
+    else:
+        roi_labels_retino = prf_labels_full;
+        
     roi_labels_face = face_labels_full
     roi_labels_place = place_labels_full
     roi_labels_body = body_labels_full

@@ -335,3 +335,76 @@ def paired_ttest_nonpar(vals1, vals2, n_iter=1000, rndseed=None):
                                  np.mean(shuff_diffs>=real_diff)) * 2
     
     return pval_twotailed, real_diff
+
+
+def fdr(pvals, alpha=None, parametric=True):
+    
+    """
+    % fdr() - compute false detection rate mask
+    %
+    % Usage:
+    %   >> [p_fdr, p_masked] = fdr( pvals, alpha);
+    %
+    % Inputs:
+    %   pvals   - vector or array of p-values
+    %   alpha   - threshold value (non-corrected). If no alpha is given
+    %             each p-value is used as its own alpha and FDR corrected
+    %             array is returned.
+    %   parametric - use parametric FDR? If False, use non-parametric FDR. Default=True
+                   - parametric = B-H method, non-parametric = B-Y method
+    %
+    % Outputs:
+    %   p_fdr    - pvalue used for threshold (based on independence
+    %              or positive dependence of measurements)
+    %   p_masked - p-value thresholded. Same size as pvals.
+    %
+    % Author: Arnaud Delorme, SCCN, 2008-
+    %         Based on a function by Tom Nichols
+    %
+    % Reference: Bejamini & Yekutieli (2001) The Annals of Statistics
+
+    % Copyright (C) 2002 Arnaud Delorme, Salk Institute, arno@salk.edu
+
+    Ported from Matlab to Python (and modified slightly) by MMH, 2022
+    
+    """
+
+    q = alpha
+
+    p = np.sort(pvals.ravel())
+
+    V = len(p);
+
+    I = np.arange(1,V+1);
+
+    if alpha is None:
+
+        p_fdr = np.ones(pvals.shape)
+        thresholds = np.exp(np.linspace(np.log(0.1),np.log(0.000001), 100));
+
+        for thresh in thresholds:
+            # calling the function recursively here
+            _, p_masked = fdr(pvals, thresh);
+            p_fdr[p_masked] = thresh   
+
+    else:
+        if parametric:
+            # standard FDR 
+            # B-H procedure, for positively correlated or independent tests
+            c = 1;
+        else:
+            # non-parametric FDR 
+            # B-Y procedure, for negatively correlated tests
+            c = np.sum(1/(np.arange(1,V+1)))
+        
+        abv_thresh = np.where(p<=I/V*q/c)[0]
+
+        if len(abv_thresh)>0:
+            p_fdr = p[np.max(abv_thresh)]
+        else:
+            p_fdr = 0
+
+
+    p_masked = pvals<=p_fdr
+    
+    return p_fdr, p_masked

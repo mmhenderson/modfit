@@ -2,6 +2,7 @@ import os
 import numpy as np
 import copy
 import cortex
+import PIL.Image 
 
 def maps_to_volumes(subject, maps, names, cmaps=None, mins=None, maxes=None, \
                     voxel_mask=None, xfmname=None, nii_shape=None, mask_3d = None, \
@@ -144,4 +145,18 @@ def get_full_volume(values, voxel_mask, shape):
     full_vals = np.moveaxis(full_vals, [0,1,2], [2,1,0])
     
     return full_vals
+
+
+def crop_image(fns, bbox_new=[600,900,2300,2500]):
+    
+    if isinstance(fns, str):
+        fns = [fns]
+    
+    for fn in fns:
+        
+        im = PIL.Image.open(fn)
+        
+        im_cropped = im.crop(bbox_new)
+        
+        im_cropped.save(fn)
     

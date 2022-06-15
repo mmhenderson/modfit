@@ -18,7 +18,8 @@ source ~/myenv/bin/activate
 cd ../
 cd feature_extraction
 
-subjects=(2 1 3 4 5 6 7 8)
+# subjects=(2 1 3 4 5 6 7 8)
+subjects=(999)
 # subjects=(2)
 for subject in ${subjects[@]}
 do

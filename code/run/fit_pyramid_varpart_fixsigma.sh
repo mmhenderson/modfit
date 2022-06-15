@@ -31,7 +31,7 @@ zscore_features=1
 ridge=1
 use_precomputed_prfs=1
 # sigmas=(0.020 0.031 0.048 0.074 0.114 0.176 0.271 0.419 0.647 1.000)
-sigmas=(0.020 0.031 0.048 0.074 0.114 0.176 0.271 0.419 0.647)
+sigmas=(1.000)
 
 which_prf_grid=5
 from_scratch=1

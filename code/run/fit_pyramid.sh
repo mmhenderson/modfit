@@ -30,6 +30,7 @@ voxel_batch_size=100
 zscore_features=1
 ridge=1
 use_precomputed_prfs=1
+# use_precomputed_prfs=0
 prfs_model_name=texture
 
 which_prf_grid=5
@@ -43,6 +44,7 @@ do_sem_disc=0
 do_varpart=1
 do_pyr_varpart=1
 include_solo_models=0
+match_ncomp_prfs=1
 
 fitting_type=texture_pyramid
 
@@ -54,7 +56,6 @@ use_pca_pyr_feats_hl=1
 for subject in ${subjects[@]}
 do
 
-    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --do_varpart $do_varpart --do_pyr_varpart $do_pyr_varpart --include_solo_models $include_solo_models
+    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --do_varpart $do_varpart --do_pyr_varpart $do_pyr_varpart --include_solo_models $include_solo_models --match_ncomp_prfs $match_ncomp_prfs
 
 done
-# 

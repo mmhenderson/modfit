@@ -382,7 +382,7 @@ class fwrf_feature_loader:
                         
                 if self.match_ncomp_prfs:
                     assert(np.all(is_defined_each_prf_hl))
-                    assert(not np.any(features_each_prf_hl==0))
+                    # assert(not np.any(features_each_prf_hl==0))
             else:
                 features_each_prf_hl = values[image_inds,self.n_ll_feats:,:]
                 is_defined_each_prf_hl = np.ones((self.n_hl_feats, len(self.prf_batch_inds[batch_to_use])),dtype=bool)

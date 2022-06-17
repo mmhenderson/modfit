@@ -147,16 +147,20 @@ def get_full_volume(values, voxel_mask, shape):
     return full_vals
 
 
-def crop_image(fns, bbox_new=[600,900,2300,2500]):
-    
+def crop_image(fns, fns_cropped, bbox_new=[600,900,2300,2500]):
+    """
+    Utility to crop images with a specified bounding box
+    Using this to crop my flatmap images to a specified size
+    """
     if isinstance(fns, str):
         fns = [fns]
+    if isinstance(fns_cropped, str):
+        fns_cropped = [fns_cropped]
     
-    for fn in fns:
+    for fn, fn_cropped in zip(fns, fns_cropped):
         
         im = PIL.Image.open(fn)
         
         im_cropped = im.crop(bbox_new)
         
-        im_cropped.save(fn)
-    
+        im_cropped.save(fn_cropped)

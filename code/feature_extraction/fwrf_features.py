@@ -277,9 +277,9 @@ class fwrf_feature_loader:
     def init_prf_batches(self, kwargs):
         
         self.prf_batch_size = kwargs['prf_batch_size'] if 'prf_batch_size' in kwargs.keys() else 100
-        n_prfs = initialize_fitting.get_prf_models(which_grid=self.which_prf_grid).shape[0]
-        n_prf_batches = int(np.ceil(n_prfs/self.prf_batch_size))          
-        self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), n_prfs])) \
+        self.n_prfs = initialize_fitting.get_prf_models(which_grid=self.which_prf_grid).shape[0]
+        n_prf_batches = int(np.ceil(self.n_prfs/self.prf_batch_size))          
+        self.prf_batch_inds = [np.arange(self.prf_batch_size*bb, np.min([self.prf_batch_size*(bb+1), self.n_prfs])) \
                                for bb in range(n_prf_batches)]
        
         self.features_each_prf_batch = None

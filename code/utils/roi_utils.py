@@ -41,23 +41,29 @@ class nsd_roi_def():
                                       'V3ab','IPS',\
                                       'OPA','PPA','RSC',\
                                       'OFA','FFA','EBA']
-                areas_merge = [ [['IPS0-1','IPS2-5'], ['FFA-1','FFA-2']], \
-                                ['IPS',                'FFA']]
+                
             else:
                 self.areas_include = ['V1','V2','V3','hV4', \
                                       'OPA','PPA','RSC', \
                                       'OFA','FFA','EBA']
-                areas_merge = [[['FFA-1','FFA-2']], ['FFA']] 
-                
         else:
             assert(isinstance(areas_include, list) or isinstance(areas_include, np.ndarray))
             assert(isinstance(areas_include[0], str))
             self.areas_include = areas_include
-        
-        if areas_merge is not None:
-            for a1, a2 in zip(areas_merge[0], areas_merge[1]):
-                # combining these sub-regions to make larger areas, for simplicity
-                self.merge_two_areas(a1[0], a1[1], a2)
+           
+        if areas_merge is None:
+            if self.use_kastner_areas:          
+                self.areas_merge = [ [['IPS0-1','IPS2-5'], ['FFA-1','FFA-2']], \
+                                ['IPS',                'FFA']]
+            else:
+                self.areas_merge = [ [['FFA-1','FFA-2']], ['FFA']]
+        else:
+            self.areas_merge = areas_merge
+            
+    
+        for a1, a2 in zip(self.areas_merge[0], self.areas_merge[1]):
+            # combining these sub-regions to make larger areas, for simplicity
+            self.merge_two_areas(a1[0], a1[1], a2)
             
         if np.any([area not in self.roi_names for area in self.areas_include]):
             print('at least one roi name in areas_include not recognized, inputs were: ')

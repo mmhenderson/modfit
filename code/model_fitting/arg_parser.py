@@ -19,8 +19,6 @@ def get_args():
                     help="analyze just this one session (enter integer)")
     parser.add_argument("--average_image_reps", type=nice_str2bool, default=0,
                     help="average over trial repetitions of same image?")
-    parser.add_argument("--compute_sessionwise_r2", type=nice_str2bool, default=0,
-                    help="compute r2 for each individual session?")
     parser.add_argument("--save_model_residuals", type=nice_str2bool, default=0, 
                     help="save model residuals for each voxel?")
     parser.add_argument("--use_model_residuals", type=nice_str2bool, default=0, 

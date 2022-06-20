@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 import distutils.util
+import time
 
 def nice_str2bool(x):
     return bool(distutils.util.strtobool(x))
@@ -47,12 +48,19 @@ def get_args():
     parser.add_argument("--zscore_features", type=nice_str2bool, default=True,
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
     
+    # these are ways of doing shuffling just once, as a quick test
     parser.add_argument("--shuffle_images", type=nice_str2bool,default=False,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_images", type=nice_str2bool,default=False,
                     help="want to use random gaussian values for images (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_voxel_data", type=nice_str2bool,default=False,
                     help="want to use random gaussian values for voxel data (control analysis)? 1 for yes, 0 for no")
+    
+    # shuffle_data will actually compute multiple shuffling iterations, for permutation test.
+    parser.add_argument("--shuffle_data", type=nice_str2bool,default=False,
+                    help="want to run permutation test? 1 for yes, 0 for no")
+    parser.add_argument("--n_shuff_iters", type=int,default=1000,
+                    help="how many shuffle iters?")
     
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
@@ -147,16 +155,16 @@ def get_args():
     
     if args.prf_fixed_sigma==0:
         args.prf_fixed_sigma=None
+        
+    
+    if args.shuffle_data:
+        if args.shuff_rnd_seed==0:
+            args.shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
+        print('\nPermutation test: random seed is %d\n'%args.shuff_rnd_seed)
     
     # print values of a few key things to the command line...
     if args.debug==1:
         print('USING DEBUG MODE...')
-    if args.shuffle_images==1:
-        print('\nWILL RANDOMLY SHUFFLE IMAGES\n')
-    if args.random_images==1:
-        print('\nWILL USE RANDOM NOISE IMAGES\n')
-    if args.random_voxel_data==1:
-        print('\nWILL USE RANDOM DATA\n')    
     
     return args
     

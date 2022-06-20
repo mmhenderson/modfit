@@ -15,6 +15,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/imStat/code/model_fitting
 
+# subjects=(5)
 subjects=(1 2 3 4 5 6 7 8)
 # subjects=(1)
 
@@ -44,7 +45,8 @@ do_sem_disc=0
 do_varpart=1
 do_pyr_varpart=1
 include_solo_models=0
-match_ncomp_prfs=1
+
+match_ncomp_prfs=0
 
 fitting_type=texture_pyramid
 
@@ -53,9 +55,13 @@ n_sf_pyr=4
 group_all_hl_feats=1
 use_pca_pyr_feats_hl=1
 
+shuffle_data=1
+n_shuff_iters=1000
+shuff_rnd_seed=0
+
 for subject in ${subjects[@]}
 do
 
-    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --do_varpart $do_varpart --do_pyr_varpart $do_pyr_varpart --include_solo_models $include_solo_models --match_ncomp_prfs $match_ncomp_prfs
+    python3 fit_model_new.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --use_pca_pyr_feats_hl $use_pca_pyr_feats_hl --do_varpart $do_varpart --do_pyr_varpart $do_pyr_varpart --include_solo_models $include_solo_models --match_ncomp_prfs $match_ncomp_prfs --shuffle_data $shuffle_data --shuff_rnd_seed $shuff_rnd_seed --n_shuff_iters $n_shuff_iters
 
 done

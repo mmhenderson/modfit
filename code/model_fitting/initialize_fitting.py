@@ -156,7 +156,7 @@ def get_save_path(model_name, args):
     
     # choose where to save results of fitting - always making a new file w current timestamp.
     # add these suffixes to the file name if it's one of the control analyses
-    if args.shuffle_images==True:
+    if args.shuffle_images_once==True:
         model_name = model_name + '_SHUFFLEIMAGES'
     if args.random_images==True:
         model_name = model_name + '_RANDOMIMAGES'

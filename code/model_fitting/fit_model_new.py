@@ -104,6 +104,7 @@ def fit_fwrf(args):
             dict2save.update({
             'n_shuff_iters': args.n_shuff_iters, 
             'shuff_rnd_seed': args.shuff_rnd_seed,
+            'shuff_batch_size': args.shuff_batch_size, 
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -209,7 +210,7 @@ def fit_fwrf(args):
                                     sessions=sessions, \
                                     voxel_mask=voxel_mask, volume_space=args.volume_space, \
                                     zscore_betas_within_sess=True, \
-                                    shuffle_images=args.shuffle_images,\
+                                    shuffle_images=args.shuffle_images_once,\
                                     average_image_reps=args.average_image_reps, \
                                     random_voxel_data=args.random_voxel_data)
         
@@ -445,6 +446,7 @@ def fit_fwrf(args):
                                             shuffle_data = args.shuffle_data, \
                                             shuff_rnd_seed = args.shuff_rnd_seed, \
                                             n_shuff_iters = args.n_shuff_iters, \
+                                            shuff_batch_size = args.shuff_batch_size, \
                                             dtype=np.float32, debug=args.debug)
                   
           

@@ -1,12 +1,5 @@
-from __future__ import division
-import sys
-import time
 import numpy as np
-import torch
-import scipy.stats
-
-from utils import numpy_utils, torch_utils, stats_utils
-
+from utils import stats_utils
 
 def get_feature_tuning(best_prf_inds, features_each_prf, val_voxel_data_pred, \
                        trials_use_each_prf = None, debug=False):
@@ -50,49 +43,3 @@ def get_feature_tuning(best_prf_inds, features_each_prf, val_voxel_data_pred, \
                 
     return corr_each_feature
 
-
-def get_features_each_prf(prf_models, image_inds_val, \
-                        feature_loader, zscore=False, debug=False,
-                        dtype=np.float32):
-    
-    """ 
-    Just loads the features in each pRF on each trial. 
-    Only used in special case when evaluating feature "tuning" of raw voxel data.
-    """
-    
-    params = best_params
-  
-    n_trials = len(image_inds_val)
-    
-    n_prfs = prf_models.shape[0]
-    
-    n_features_max = feature_loader.max_features
-   
-    features_each_prf = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
-    
-    start_time = time.time()    
-    with torch.no_grad(): # make sure local gradients are off to save memory
-        
-        # First looping over pRFs - there are fewer pRFs than voxels, so this will be faster 
-        # than looping over voxels first would be.
-        feature_loader.clear_big_features()
-        
-        for mm in range(n_prfs):
-            if mm>1 and debug:
-                break
-          
-            # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
-            # feature_inds_defined is [max_features]
-            all_feat_concat, feature_inds_defined = feature_loader.load(image_inds_val, mm, fitting_mode=False)
-            
-            if zscore:
-                m = np.mean(all_feat_concat, axis=0)
-                s = np.std(all_feat_concat, axis=0)
-                all_feat_concat = (all_feat_concat - m)/s
-                assert(not np.any(np.isnan(all_feat_concat)) and not np.any(np.isinf(all_feat_concat)))
-                  
-            # saving all these features for use later on
-            features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
-            
-                    
-    return features_each_prf

@@ -1,12 +1,5 @@
-from __future__ import division
-import sys
-import time
 import numpy as np
-import torch
-import scipy.stats
-
-from utils import numpy_utils, torch_utils, stats_utils
-
+from utils import stats_utils
 
 def get_semantic_discrim(best_prf_inds, labels_all, unique_labels_each, val_voxel_data_pred, \
                          trials_use_each_prf = None, debug=False):

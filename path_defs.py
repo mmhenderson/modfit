@@ -8,7 +8,7 @@
 #     "imStat" (main project folder with all our code, also where this file lives)
 #     "features" (precomputed features extracted for each pRF)
 root = '/user_data/mmhender/'
-project_name = 'imStat'
+project_name = 'model_fitting_code/'
 
 # if using a scratch directory local to the node i'm on, what is its path
 # (not used often)

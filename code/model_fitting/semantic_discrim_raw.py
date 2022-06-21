@@ -15,7 +15,10 @@ import distutils.util
 # import custom modules
 from utils import nsd_utils, roi_utils, default_paths
 
-import initialize_fitting, arg_parser, fwrf_predict
+from analyze_fits import semantic_selectivity
+
+import initialize_fitting
+
 
 try:
     device = initialize_fitting.init_cuda()
@@ -147,7 +150,6 @@ def get_discrim(args):
     # on where its spatial pRF is. 
     best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
     assert(len(best_model_each_voxel)==n_voxels)  
-    best_params_tmp = [None, None, None, None, None, best_model_each_voxel[:,np.newaxis]]
     
     ### ESTIMATE SEMANTIC DISCRIMINABILITY #########################################################################
     sys.stdout.flush()
@@ -166,7 +168,7 @@ def get_discrim(args):
     print(labels_all.shape)
     # Plug in the actual raw data here, not encoding model predictions.
     sem_discrim_each_axis, sem_corr_each_axis, n_sem_samp_each_axis, mean_each_sem_level = \
-            fwrf_predict.get_semantic_discrim(best_params_tmp, \
+            semantic_selectivity.get_semantic_discrim(best_model_each_voxel[:,np.newaxis], \
                                               labels_all, unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
                                               trials_use_each_prf = trials_use, \
@@ -178,7 +180,7 @@ def get_discrim(args):
     print('\nGoing to compute partial correlations, for these pairs of axes:')
     print([discrim_type_list[aa] for aa in axes_to_do])
     sem_partial_corrs, sem_partial_n_samp = \
-            fwrf_predict.get_semantic_partial_corrs(best_params_tmp, \
+            semantic_selectivity.get_semantic_partial_corrs(best_model_each_voxel[:,np.newaxis], \
                                               labels_all, axes_to_do=axes_to_do, \
                                               unique_labels_each=unique_labs_each, \
                                               val_voxel_data_pred=voxel_data_use,\
@@ -223,7 +225,7 @@ if __name__ == '__main__':
     parser.add_argument("--from_scratch",type=nice_str2bool,default=True,
                     help="Starting from scratch? 1 for yes, 0 for no")
     
-    parser.add_argument("--shuffle_images", type=nice_str2bool,default=False,
+    parser.add_argument("--shuffle_images_once", type=nice_str2bool,default=False,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_images", type=nice_str2bool,default=False,
                     help="want to use random gaussian values for images (control analysis)? 1 for yes, 0 for no")

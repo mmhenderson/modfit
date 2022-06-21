@@ -15,7 +15,10 @@ import distutils.util
 # import custom modules
 from utils import nsd_utils, roi_utils, default_paths
 
-import initialize_fitting, arg_parser, fwrf_predict
+import initialize_fitting
+
+from analyze_fits import feature_selectivity
+
 from feature_extraction import fwrf_features
 
 try:
@@ -128,9 +131,8 @@ def get_corrs(args):
     
     # will need these estimates in order to get the appropriate feature labels for each voxel, based
     # on where its spatial pRF is. 
-    best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject)
+    best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
     assert(len(best_model_each_voxel)==n_voxels)  
-    best_params_tmp = [None, None, None, None, None, best_model_each_voxel[:,np.newaxis]]
     
     ########## CREATE FEATURE LOADERS ###################################################################
     # these help to load sets of pre-computed features in an organized way.
@@ -139,26 +141,24 @@ def get_corrs(args):
     if args.feature_set=='gabor_solo':
     
         feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
-                                                                which_prf_grid=args.which_prf_grid,\
-                                                                feature_type='gabor_solo',\
-                                                                n_ori=12, n_sf=8,\
-                                                                nonlin_fn=True, \
-                                                                use_pca_feats=False)
+                                                        which_prf_grid=args.which_prf_grid,\
+                                                        feature_type='gabor_solo',\
+                                                        n_ori=12, n_sf=8,\
+                                                        nonlin_fn=True, \
+                                                        use_pca_feats=False)
     else:
         raise ValueError("args.feature_set must be gabor solo, or need to update this code")
                          
     ### ESTIMATE FEATURE SELECTIVITY #########################################################################
     sys.stdout.flush()
     
-    features_each_prf = fwrf_predict.get_features_each_prf(best_params_tmp, prf_models, \
-                                                           image_inds_val = image_inds_use, \
+    features_each_prf = fwrf_features.get_features_each_prf(image_inds = image_inds_use, \
                                                         feature_loader=feat_loader, \
                                                         zscore=True, debug=args.debug, \
-                                                        trials_use_each_prf = trials_use, \
                                                         dtype=np.float32)
             
-    corr_each_feature = fwrf_predict.get_feature_tuning(best_params_tmp, \
-                                                        features_each_prf, \
+    corr_each_feature = feature_selectivity.get_feature_tuning(best_prf_inds=best_model_each_voxel[:,np.newaxis] ,\
+                                                        features_each_prf=features_each_prf, \
                                                         val_voxel_data_pred = voxel_data_use, \
                                                         trials_use_each_prf = trials_use, \
                                                         debug=args.debug)
@@ -193,7 +193,9 @@ if __name__ == '__main__':
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which grid of candidate prfs?")
-     
+    parser.add_argument("--prfs_model_name", type=str, default='gabor', 
+                    help="model the prfs are from?")
+    
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     
@@ -201,7 +203,7 @@ if __name__ == '__main__':
     parser.add_argument("--from_scratch",type=nice_str2bool,default=True,
                     help="Starting from scratch? 1 for yes, 0 for no")
     
-    parser.add_argument("--shuffle_images", type=nice_str2bool,default=False,
+    parser.add_argument("--shuffle_images_once", type=nice_str2bool,default=False,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_images", type=nice_str2bool,default=False,
                     help="want to use random gaussian values for images (control analysis)? 1 for yes, 0 for no")

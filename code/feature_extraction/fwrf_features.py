@@ -462,3 +462,44 @@ class fwrf_feature_loader:
         print(features.shape)
         
         return features, feature_inds_defined
+    
+
+def get_features_each_prf(image_inds, feature_loader, \
+                          zscore=False, debug=False, \
+                          dtype=np.float32):
+    
+    """ 
+    Just loads the features in each pRF on each trial, and optionally z-score.
+    Returns [trials x features x pRFs]
+    """
+    
+    n_trials = len(image_inds)
+    
+    n_features_max = feature_loader.max_features
+   
+    n_prfs = feature_loader.n_prfs
+    
+    features_each_prf = np.full(fill_value=0, shape=(n_trials, n_features_max, n_prfs), dtype=dtype)
+     
+    feature_loader.clear_big_features()
+
+    for mm in range(n_prfs):
+        if mm>1 and debug:
+            break
+
+        # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
+        # feature_inds_defined is [max_features]
+        all_feat_concat, feature_inds_defined = feature_loader.load(image_inds, mm, fitting_mode=False)
+
+        if zscore:
+            m = np.mean(all_feat_concat, axis=0)
+            s = np.std(all_feat_concat, axis=0)
+            all_feat_concat = (all_feat_concat - m)/s
+            assert(not np.any(np.isnan(all_feat_concat)) and not np.any(np.isinf(all_feat_concat)))
+
+        # saving all these features for use later on
+        features_each_prf[:,feature_inds_defined,mm] = all_feat_concat
+         
+    feature_loader.clear_big_features()
+                    
+    return features_each_prf

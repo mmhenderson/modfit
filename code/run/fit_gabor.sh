@@ -2,6 +2,7 @@
 #SBATCH --partition=tarrq
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
+#SBATCH --exclude=mind-1-13
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -15,11 +16,11 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/imStat/code/model_fitting
 
 # subjects=(1 2 3 4 5 6 7 8)
-subjects=(1)
+subjects=(2)
 # debug=0
 debug=1
-# up_to_sess=1
-up_to_sess=40
+up_to_sess=1
+# up_to_sess=40
 
 average_image_reps=1
 # compute_sessionwise_r2=0

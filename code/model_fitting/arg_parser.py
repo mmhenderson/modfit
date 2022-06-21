@@ -49,7 +49,7 @@ def get_args():
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
     
     # these are ways of doing shuffling just once, as a quick test
-    parser.add_argument("--shuffle_images", type=nice_str2bool,default=False,
+    parser.add_argument("--shuffle_images_once", type=nice_str2bool,default=False,
                     help="want to shuffle the images randomly (control analysis)? 1 for yes, 0 for no")
     parser.add_argument("--random_images", type=nice_str2bool,default=False,
                     help="want to use random gaussian values for images (control analysis)? 1 for yes, 0 for no")
@@ -61,6 +61,11 @@ def get_args():
                     help="want to run permutation test? 1 for yes, 0 for no")
     parser.add_argument("--n_shuff_iters", type=int,default=1000,
                     help="how many shuffle iters?")
+    parser.add_argument("--shuff_batch_size", type=int,default=100,
+                    help="batch size over permutation iterations")
+    parser.add_argument("--shuff_rnd_seed", type=int,default=0,
+                    help="random seed to use for shuffling in permutation test.")
+   
     
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
@@ -95,8 +100,6 @@ def get_args():
     parser.add_argument("--voxel_batch_size", type=int,default=100,
                     help="number of voxels to analyze at once when fitting weights (smaller will help with out-of-memory errors)")
     
-    parser.add_argument("--shuff_rnd_seed", type=int,default=0,
-                    help="random seed to use for shuffling, when holding out part of training set for lambda selection.")
    
 
     # Stuff that is specific to 'gabor' models

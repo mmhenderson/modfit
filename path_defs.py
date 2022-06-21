@@ -5,7 +5,7 @@
 # Set path to your top-level directory
 # In here should be the subfolders:
 #     "nsd" which includes our pre-processed images and labels
-#     "imStat" (main project folder with all our code, also where this file lives)
+#     "model_fitting_code" (main project folder with all our code, also where this file lives)
 #     "features" (precomputed features extracted for each pRF)
 root = '/user_data/mmhender/'
 project_name = 'model_fitting_code/'

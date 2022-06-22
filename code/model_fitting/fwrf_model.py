@@ -160,6 +160,8 @@ class encoding_model():
         
         # This step clears any loaded arrays out of feature loader (no longer needed)
         self.feature_loader.clear_big_features()
+        gc.collect()
+        
         sys.stdout.flush()
        
     

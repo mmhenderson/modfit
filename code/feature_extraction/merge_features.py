@@ -14,7 +14,8 @@ class combined_feature_loader:
         self.do_varpart = do_varpart
         self.include_solo_models = include_solo_models
         self.max_features = np.sum(np.array([module.max_features for module in self.modules]))
-    
+        self.n_prfs = self.modules[0].n_prfs
+        
     def clear_big_features(self):
         
         for module in self.modules:

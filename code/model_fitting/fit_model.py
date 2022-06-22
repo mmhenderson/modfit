@@ -336,7 +336,7 @@ def fit_fwrf(args):
         assert(last_saved['debug']==args.debug)
         assert(last_saved['which_prf_grid']==args.which_prf_grid)
         assert(np.all(last_saved['lambdas']==lambdas))
-        assert(last_saved['saved_prfs_fn']==saved_prfs_fn)
+        assert(last_saved['saved_prfs_fn'].split('/')[7]==saved_prfs_fn.split('/')[7])
         assert(last_saved['saved_best_layer_fn']==saved_best_layer_fn)
         assert(last_saved['shuffle_data']==False)
         
@@ -462,27 +462,24 @@ def fit_fwrf(args):
                         image_inds_holdout, voxel_data_holdout_use,\
                         trials_use_each_prf_trn = trn_trials_use,\
                         trials_use_each_prf_holdout = holdout_trials_use)
-            
-            best_losses_tmp, best_lambdas_tmp, \
-            best_weights_tmp, best_biases_tmp, \
-            best_prf_models_tmp, \
-            features_mean_tmp, features_std_tmp, \
-                    = model.best_losses, model.best_lambdas, \
-                      model.best_weights, model.best_biases, \
-                      model.best_prf_models, \
-                      model.features_mean, model.features_std
-            
+            print('done with fitting')
+          
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
-            best_losses[voxel_subset_mask,:] = best_losses_tmp
-            best_lambdas[voxel_subset_mask,:] = best_lambdas_tmp      
-            best_weights[voxel_subset_mask,0:max_features,:] = best_weights_tmp
-            features_mean[:,0:max_features,vi] = features_mean_tmp
-            features_std[:,0:max_features,vi] = features_std_tmp
-            best_biases[voxel_subset_mask,:] = best_biases_tmp
-            best_prf_models[voxel_subset_mask,:] = best_prf_models_tmp
-            
+            best_losses[voxel_subset_mask,:] = model.best_losses
+            best_lambdas[voxel_subset_mask,:] = model.best_lambdas 
+            best_weights[voxel_subset_mask,0:max_features,:] = model.best_weights
+            features_mean[:,0:max_features,vi] = model.features_mean
+            features_std[:,0:max_features,vi] = model.features_std
+            best_biases[voxel_subset_mask,:] = model.best_biases
+            best_prf_models[voxel_subset_mask,:] = model.best_prf_models
+           
+            model.best_lambdas = None;
+            model.best_losses = None;
+            gc.collect()
+            sys.stdout.flush()
+
             voxel_subset_is_done_trn[vi] = True
-   
+            print('done with params')
         else:
             best_losses_tmp = best_losses[voxel_subset_mask,:]
             best_lambdas_tmp = best_lambdas[voxel_subset_mask,:]
@@ -507,10 +504,15 @@ def fit_fwrf(args):
             # this is why we can't resume from the middle of fitting.
             best_params = [prf_models[best_prf_models,:], best_weights[:,:,:,0], best_biases[:,:,0], \
                            features_mean, features_std, best_prf_models]
+            print('done making best_params')
         else:
             best_params = [prf_models[best_prf_models,:], best_weights, best_biases, \
                            features_mean, features_std, best_prf_models]
-        sys.stdout.flush()
+        
+        
+        
+        print('about to save')
+                  
         save_all(fn2save)   
             
         ############### VALIDATE MODEL ##################################################################

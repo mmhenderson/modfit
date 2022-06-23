@@ -9,8 +9,7 @@
 
 source ~/myenv/bin/activate
 
-cd /user_data/mmhender/imStat/code/model_fitting/
-
+cd /user_data/mmhender/modfit/code/model_fitting/
 # debug=0
 # up_to_sess=40
 debug=1

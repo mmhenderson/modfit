@@ -11,7 +11,7 @@ import pandas as pd
 from datetime import datetime
 
 # import custom modules
-from feature_extraction import gabor_feature_extractor, fwrf_features, semantic_features, merge_features
+from feature_extraction import fwrf_features, semantic_features, merge_features
 from utils import prf_utils, default_paths, nsd_utils
 from model_fitting import saved_fit_paths
 
@@ -573,7 +573,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
                                                             do_varpart=args.do_pyr_varpart,\
                                                             group_all_hl_feats=args.group_all_hl_feats, \
-                                                            match_ncomp_prfs=args.match_ncomp_prfs)       
+                                                            match_ncomp_prfs=args.match_ncomp_prfs, \
+                                                            include_solo_models=False)       
             fe.append(feat_loader)
             fe_names.append(ft)
             pyramid_feature_info = [feat_loader.feature_column_labels, feat_loader.feature_types_include]

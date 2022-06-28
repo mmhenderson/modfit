@@ -20,6 +20,8 @@ class fwrf_feature_loader:
         self.which_prf_grid = which_prf_grid
         self.init_prf_batches(kwargs)        
         self.feature_type = feature_type
+        self.include_solo_models = kwargs['include_solo_models'] \
+            if 'include_solo_models' in kwargs.keys() else False   
         
         if self.feature_type=='gabor_solo':
             self.init_gabor_solo(kwargs)
@@ -298,12 +300,13 @@ class fwrf_feature_loader:
         
         if self.do_varpart and self.n_feature_types>1:
 
-            # "Partial versions" will be listed as: [full model, model w only first set of features,
-            # model w only second set, ...             
-            partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]
-            masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) \
-                                     for ff in np.arange(0,self.n_feature_types)], axis=0)
-            masks = np.concatenate((masks, masks2), axis=0)
+            if (self.n_feature_types<=2) or self.include_solo_models:
+                # "Partial versions" will be listed as: [full model, model w only first set of features,
+                # model w only second set, ...             
+                partial_version_names += ['just_%s'%ff for ff in self.feature_group_names]
+                masks2 = np.concatenate([np.expand_dims(np.array(self.feature_column_labels==ff).astype('int'), axis=0) \
+                                         for ff in np.arange(0,self.n_feature_types)], axis=0)
+                masks = np.concatenate((masks, masks2), axis=0)
 
             if self.n_feature_types > 2:
                 # if more than two types, also include models where we leave out first set of features, 

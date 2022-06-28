@@ -105,7 +105,8 @@ def fit_fwrf(args):
             dict2save.update({
             'n_shuff_iters': args.n_shuff_iters, 
             'shuff_rnd_seed': args.shuff_rnd_seed,
-            'shuff_batch_size': args.shuff_batch_size, 
+            'shuff_batch_size': args.shuff_batch_size,
+            'voxel_batch_size_shuff': args.voxel_batch_size_shuff,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -297,10 +298,22 @@ def fit_fwrf(args):
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
         assert(not args.save_model_residuals)
+        assert(not args.shuffle_data) 
         
         # Create feature loaders here
         feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=ll) \
                             for ll in range(n_dnn_layers)]
+    elif args.shuffle_data:
+        best_layer_each_voxel = None;
+        saved_best_layer_fn = None;
+        # to prevent running out of memory, i'm batching the voxels at this stage 
+        # (doing all the shuffle iterations at once, for each batch)       
+        bs = args.voxel_batch_size_shuff
+        n_batches = int(np.ceil(n_voxels/bs))
+        voxel_subset_masks = [(np.arange(n_voxels)>=(nn*bs)) & (np.arange(n_voxels)<((nn+1)*bs)) \
+                        for nn in range(n_batches)]
+        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0) \
+                        for nn in range(n_batches)]
         
     else:
         # going to fit all voxels w same model
@@ -337,9 +350,13 @@ def fit_fwrf(args):
         assert(last_saved['debug']==args.debug)
         assert(last_saved['which_prf_grid']==args.which_prf_grid)
         assert(np.all(last_saved['lambdas']==lambdas))
+        print(last_saved['saved_best_layer_fn'])
+        print(saved_best_layer_fn)
+        print(last_saved['saved_best_layer_fn'].split('/')[7])
+        print(saved_best_layer_fn.split('/')[7])
         assert(last_saved['saved_prfs_fn'].split('/')[7]==saved_prfs_fn.split('/')[7])
-        assert(last_saved['saved_best_layer_fn']==saved_best_layer_fn)
-        assert(last_saved['shuffle_data']==False)
+        assert(last_saved['saved_best_layer_fn'].split('/')[7]==saved_best_layer_fn.split('/')[7])
+        assert('shuffle_data' not in last_saved.keys() or last_saved['shuffle_data']==False)
         
         voxel_subset_is_done_trn = last_saved['voxel_subset_is_done_trn']
         voxel_subset_is_done_val = last_saved['voxel_subset_is_done_val']
@@ -403,8 +420,8 @@ def fit_fwrf(args):
         if args.shuffle_data:
             val_cc = np.zeros((n_voxels, n_partial_versions, args.n_shuff_iters), dtype=np.float32)
             val_r2 = np.zeros((n_voxels, n_partial_versions, args.n_shuff_iters), dtype=np.float32) 
-            best_weights = np.zeros((n_voxels, max_features_overall, n_partial_versions, args.n_shuff_iters), dtype=np.float32)
-            best_biases = np.zeros((n_voxels, n_partial_versions, args.n_shuff_iters), dtype=np.float32)
+            best_weights = None # save memory by not permanently saving the weights...
+            best_biases = None
         else:            
             val_cc = np.zeros((n_voxels, n_partial_versions), dtype=np.float32)
             val_r2 = np.zeros((n_voxels, n_partial_versions), dtype=np.float32) 
@@ -431,7 +448,6 @@ def fit_fwrf(args):
         # pull out my current feature loader
         feat_loader_full = feat_loader_full_list[vi]
         max_features = feat_loader_full.max_features 
-        assert (best_weights.shape[1]>=max_features)
         
         
         ########## INITIALIZE ENCODING MODEL ##################################################
@@ -468,12 +484,13 @@ def fit_fwrf(args):
             # taking the fit params for this set of voxels and putting them into the full array over all voxels
             best_losses[voxel_subset_mask,:] = model.best_losses
             best_lambdas[voxel_subset_mask,:] = model.best_lambdas 
-            best_weights[voxel_subset_mask,0:max_features,:] = model.best_weights
             features_mean[:,0:max_features,vi] = model.features_mean
             features_std[:,0:max_features,vi] = model.features_std
-            best_biases[voxel_subset_mask,:] = model.best_biases
             best_prf_models[voxel_subset_mask,:] = model.best_prf_models
-           
+            if not args.shuffle_data:
+                best_weights[voxel_subset_mask,0:max_features,:] = model.best_weights
+                best_biases[voxel_subset_mask,:] = model.best_biases
+            
             model.best_lambdas = None;
             model.best_losses = None;
             gc.collect()
@@ -503,9 +520,8 @@ def fit_fwrf(args):
             # to keep the saved file from getting really big, only saving the weights for first 
             # permutation iteration.
             # this is why we can't resume from the middle of fitting.
-            best_params = [prf_models[best_prf_models,:], best_weights[:,:,:,0], best_biases[:,:,0], \
+            best_params = [prf_models[best_prf_models,:], None, None, \
                            features_mean, features_std, best_prf_models]
-            print('done making best_params')
         else:
             best_params = [prf_models[best_prf_models,:], best_weights, best_biases, \
                            features_mean, features_std, best_prf_models]

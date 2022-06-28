@@ -660,7 +660,7 @@ class encoding_model():
         voxels_to_do = np.where(self.best_prf_models==mm)[0]  
         n_voxel_batches = int(np.ceil(len(voxels_to_do)/self.voxel_batch_size))
 
-        print('about to load features') sys.stdout.flush()
+        print('about to load features'); sys.stdout.flush()
         # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
         # feature_inds_defined is [max_features]
         all_feat_concat, feature_inds_defined = self.feature_loader.load(self.image_inds_val, mm, fitting_mode=False)

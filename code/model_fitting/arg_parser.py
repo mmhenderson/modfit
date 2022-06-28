@@ -95,10 +95,12 @@ def get_args():
                     help="what date was the model fitting done (only if you're starting from validation step.)")
     
      
-    parser.add_argument("--sample_batch_size", type=int,default=50,
+    parser.add_argument("--sample_batch_size", type=int,default=500,
                     help="number of trials to analyze at once when making features (smaller will help with out-of-memory errors)")
-    parser.add_argument("--voxel_batch_size", type=int,default=100,
+    parser.add_argument("--voxel_batch_size", type=int,default=1000,
                     help="number of voxels to analyze at once when fitting weights (smaller will help with out-of-memory errors)")
+    parser.add_argument("--voxel_batch_size_shuff", type=int,default=1000,
+                    help="number of voxels to analyze at once for permutation test (smaller will help with out-of-memory errors)")
     
    
 

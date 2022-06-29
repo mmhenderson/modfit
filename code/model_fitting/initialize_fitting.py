@@ -80,8 +80,10 @@ def get_full_save_name(args):
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
             if args.use_pca_pyr_feats_hl:
                 model_name += '_pca_HL' 
-            if not args.group_all_hl_feats:
+            if not args.group_all_hl_feats and not args.group_similar_feats:
                 model_name += '_allsubsets'
+            elif args.group_similar_feats:
+                model_name += '_groupfeats'
             if args.match_ncomp_prfs:
                 model_name += '_match_ncomp_allprfs'
                 
@@ -573,6 +575,7 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
                                                             do_varpart=args.do_pyr_varpart,\
                                                             group_all_hl_feats=args.group_all_hl_feats, \
+                                                            group_similar_feats=args.group_similar_feats, \
                                                             match_ncomp_prfs=args.match_ncomp_prfs, \
                                                             include_solo_models=False)       
             fe.append(feat_loader)

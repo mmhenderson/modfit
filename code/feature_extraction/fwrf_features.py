@@ -2,6 +2,7 @@ import numpy as np
 import os
 import time
 import h5py
+import copy
 
 from utils import default_paths
 from feature_extraction import extract_alexnet_features, extract_clip_features, texture_statistics_pyramid
@@ -78,6 +79,7 @@ class fwrf_feature_loader:
         self.n_sf = kwargs['n_sf'] if 'n_sf' in kwargs.keys() else 4
         self.use_pca_feats_hl=kwargs['use_pca_feats_hl'] if 'use_pca_feats_hl' in kwargs.keys() else True
         self.group_all_hl_feats=kwargs['group_all_hl_feats'] if 'group_all_hl_feats' in kwargs.keys() else True
+        self.group_similar_feats=kwargs['group_similar_feats'] if 'group_similar_feats' in kwargs.keys() else False
         if (not self.include_ll) and (not self.include_hl):
             raise ValueError('cannot exclude both low and high level texture features.')
         if not self.include_hl:
@@ -165,6 +167,24 @@ class fwrf_feature_loader:
                 self.feature_group_names = ['lower-level']
             elif self.include_hl:
                 self.feature_group_names = ['higher-level']
+        elif self.group_similar_feats:
+            assert(self.include_ll and self.include_hl)
+            features_to_groups = np.array([0,1,2,3,3,4,5,5,6,7,8,9,7,9])
+            group_names = ['pixel','energy-mean','linear-mean','marginal',\
+                           'energy-auto','linear-auto',\
+                           'energy-cross-orient','linear-cross-orient',\
+                           'energy-cross-scale','linear-cross-scale']
+            columns_new = copy.deepcopy(self.feature_column_labels)
+            for gg in range(len(np.unique(features_to_groups))):
+                feature_inds = np.where(features_to_groups==gg)[0]
+                print(feature_inds)
+                print('group %d, %s: includes'%(gg, group_names[gg]))
+                print(np.array(self.feature_types_include)[feature_inds])
+                columns_new[np.isin(self.feature_column_labels,feature_inds)] = gg;
+            unvals, neach = np.unique(columns_new, return_counts=True)
+            print(unvals, neach)
+            self.feature_column_labels = columns_new;
+            self.feature_group_names = group_names;
         else:
             # otherwise treating each sub-set separately for variance partition.
             self.feature_group_names = self.feature_types_include

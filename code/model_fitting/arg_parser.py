@@ -124,14 +124,9 @@ def get_args():
                     help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
     parser.add_argument("--group_all_hl_feats", type=nice_str2bool,default=True, 
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
-    parser.add_argument("--group_similar_feats", type=nice_str2bool,default=True, 
-                    help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
     parser.add_argument("--do_pyr_varpart", type=nice_str2bool,default=False, 
                     help="want to do variance partition within texture model features? 1 for yes, 0 for no")
-    parser.add_argument("--match_ncomp_prfs", type=nice_str2bool,default=False, 
-                    help="want to use same ncomps all pRFs (for higher-level texture model)? 1 for yes, 0 for no")
     
-   
     # Specific to sketch tokens
     parser.add_argument("--use_pca_st_feats", type=nice_str2bool,default=False,
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")

@@ -122,7 +122,6 @@ def fit_fwrf(args):
             'use_pca_pyr_feats_hl': args.use_pca_pyr_feats_hl,
             'group_all_hl_feats': args.group_all_hl_feats,
             'do_pyr_varpart': args.do_pyr_varpart,
-            'match_ncomp_prfs': args.match_ncomp_prfs,
             })            
         if np.any(['gabor' in ft for ft in fitting_types]):
             dict2save.update({

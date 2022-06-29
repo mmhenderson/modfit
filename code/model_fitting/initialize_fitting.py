@@ -80,12 +80,9 @@ def get_full_save_name(args):
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
             if args.use_pca_pyr_feats_hl:
                 model_name += '_pca_HL' 
-            if not args.group_all_hl_feats and not args.group_similar_feats:
+            if not args.group_all_hl_feats:
                 model_name += '_allsubsets'
-            elif args.group_similar_feats:
-                model_name += '_groupfeats'
-            if args.match_ncomp_prfs:
-                model_name += '_match_ncomp_allprfs'
+           
                 
         elif 'gabor_solo' in ft:     
             fitting_types += [ft]
@@ -571,17 +568,13 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='pyramid_texture',\
                                                             n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
-                                                            include_ll=True, include_hl=True,\
                                                             use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
                                                             do_varpart=args.do_pyr_varpart,\
                                                             group_all_hl_feats=args.group_all_hl_feats, \
-                                                            group_similar_feats=args.group_similar_feats, \
-                                                            match_ncomp_prfs=args.match_ncomp_prfs, \
                                                             include_solo_models=False)       
             fe.append(feat_loader)
             fe_names.append(ft)
-            pyramid_feature_info = [feat_loader.feature_column_labels, feat_loader.feature_types_include]
-
+            
         elif 'sketch_tokens' in ft:
             feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
                                                             which_prf_grid=args.which_prf_grid, \
@@ -670,8 +663,8 @@ def make_feature_loaders(args, fitting_types, vi):
 
     # Now combine subsets of features into a single module
     if len(fe)>1:
-        feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart, \
-                                                                 include_solo_models=args.include_solo_models)
+        feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart,\
+                                                                  include_solo_models=args.include_solo_models)
     else:
         feat_loader_full = fe[0]
         

@@ -4,7 +4,7 @@ import time, h5py
 
 from utils import default_paths, numpy_utils, nsd_utils
 from model_fitting import initialize_fitting 
-from feature_extraction import texture_statistics_pyramid
+from feature_extraction import texture_feature_utils
 from sklearn import decomposition
 import argparse
 import pandas as pd
@@ -20,43 +20,43 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
                             debug=False, which_prf_grid=1, \
                             save_dtype=np.float32, compress=True):
 
-    path_to_load = default_paths.pyramid_texture_feat_path
-
-    print('\nusing prf grid %d\n'%(which_prf_grid))
-
-    features_file = os.path.join(path_to_load, 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%(subject,\
-                                                                               n_ori, n_sf, which_prf_grid))
-        
+    path_raw = default_paths.pyramid_texture_feat_path
+    path_pca = os.path.join(path_raw, 'PCA')
+    
+    features_file = os.path.join(path_raw, \
+                                 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%\
+                                 (subject,n_ori, n_sf, which_prf_grid))        
+    
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)   
-    path_to_save = os.path.join(path_to_load, 'PCA')
-    if not os.path.exists(path_to_save):
-        os.mkdir(path_to_save)
+    
+    if not os.path.exists(path_pca):
+        os.mkdir(path_pca)
 
-    # Params for the spatial aspect of the model (possible pRFs)
+   
+    # batching prfs for loading, because it is a bit faster
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
-
-    prf_batch_size = 50 # batching prfs for loading, because it is a bit faster
+    prf_batch_size = 50
     n_prfs = models.shape[0]
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))          
     prf_batch_inds = [np.arange(prf_batch_size*bb, np.min([prf_batch_size*(bb+1), n_prfs])) for bb in range(n_prf_batches)]
 
-    # compute dimensions of features/which columns are which feature type
-    feature_type_dims = np.array(texture_statistics_pyramid.feature_type_dims_all)
-    feature_type_names = np.array(texture_statistics_pyramid.feature_types_all)
-    feature_column_labels = np.squeeze(np.concatenate([fi*np.ones([1,feature_type_dims[fi]]) \
-                                for fi in range(len(feature_type_dims))], axis=1).astype('int'))
+    # define feature groupings/names
+    feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds_simplegroups()
+    feature_type_names = np.array(feature_type_names)
+    feature_type_dims = np.array([np.sum(feature_column_labels==ff) for ff in range(len(feature_type_names))])
+    
     # decide which features to do pca on in groups
-    gets_pca = np.ones((len(feature_type_dims),))==1
-    gets_pca[0:5] = False # skip all the 'lower-level' features, because they're already pretty small.
+    # skip all the 'lower-level' features, because they're already pretty small.
+    gets_pca = np.arange(4,10)
+
     print('will perform PCA on these sets of features:')
     print(feature_type_names[gets_pca])
-    print('will skip these sets of features:')
-    print(feature_type_names[~gets_pca])
-    feature_type_dims = feature_type_dims[gets_pca]
+    print(feature_type_dims[gets_pca])
+    
     feature_type_names = feature_type_names[gets_pca]
-    feature_inds = np.array([feature_column_labels==fi for fi in np.where(gets_pca)[0]])
-    assert(np.all(np.sum(feature_inds, axis=1)==feature_type_dims))
+    feature_type_dims = feature_type_dims[gets_pca]
+    feature_inds = np.array([feature_column_labels==fi for fi in gets_pca])
     
     if subject==999:
         # 999 is a code for the set of images that are independent of NSD images, 
@@ -84,6 +84,7 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
                 continue
 
             print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+            sys.stdout.flush()
             if prf_model_index not in prf_inds_loaded:
 
                 batch_to_use = np.where([prf_model_index in prf_batch_inds[bb] for \
@@ -140,9 +141,10 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
         print('final size of array to save (for %s):'%feature_type_name)
         print(scores_each_prf.shape)
         
-        fn2save = os.path.join(path_to_save, 'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
+        fn2save = os.path.join(path_pca, 'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
                                %(subject,n_ori, n_sf, feature_type_name, which_prf_grid))
         print('saving to %s'%fn2save)
+        sys.stdout.flush()
         t = time.time()
         with h5py.File(fn2save, 'w') as data_set:
             if compress==True:
@@ -153,8 +155,82 @@ def run_pca_texture_pyramid(subject, n_ori=4, n_sf=4, min_pct_var=95, max_pc_to_
             data_set.close() 
         elapsed = time.time() - t
         print('Took %.5f sec to write file'%elapsed)
+        sys.stdout.flush()
 
+        
+def concat_texture_pca_feats(subject, \
+                       n_ori=4, n_sf=4, \
+                       debug=False, which_prf_grid=5, \
+                       save_dtype=np.float32, 
+                       compress=True):
+    
 
+    path_raw = default_paths.pyramid_texture_feat_path
+    path_pca = os.path.join(path_raw, 'PCA')
+
+    features_file = os.path.join(path_raw, \
+                                 'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%\
+                                 (subject,n_ori, n_sf, which_prf_grid))        
+    is_ll = texture_feature_utils.is_low_level()
+    print('loading from %s'%features_file)
+    st = time.time()
+    sys.stdout.flush()
+    with h5py.File(features_file, 'r') as file:
+        feat_raw = np.array(file['/features'])[:,is_ll,:]
+        feat_shape = np.shape(file['/features'])
+        file.close()
+    elapsed = time.time() - st
+    print('loading took %.5f sec'%elapsed)
+    print(feat_raw.shape)
+    sys.stdout.flush()
+    
+    # define feature groupings/names
+    feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds_simplegroups()
+    feature_type_names = np.array(feature_type_names)
+
+    # names of features that we did PCA on 
+    gets_pca = np.arange(4,10)    
+    feature_type_names_pca = feature_type_names[gets_pca]
+
+    feat_all = feat_raw;
+
+    for fi, feature_type_name in enumerate(feature_type_names_pca):
+
+        fn2load = os.path.join(path_pca, 'S%d_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
+                               %(subject, n_ori, n_sf, feature_type_name, which_prf_grid))
+        print('loading from %s'%fn2load)
+        st = time.time()
+        sys.stdout.flush()
+        with h5py.File(fn2load, 'r') as file:
+            feat_pca = np.array(file['/features'])
+            file.close()
+        elapsed = time.time() - st
+        print('loading took %.5f sec'%elapsed)
+        print(feat_pca.shape)
+        sys.stdout.flush()
+        
+        feat_all = np.concatenate([feat_all, feat_pca], axis=1)
+
+    print('final shape is:')
+    print(feat_all.shape)
+    fn2save = os.path.join(path_pca, 'S%d_%dori_%dsf_PCA_concat_grid%d.h5py'\
+                               %(subject, n_ori, n_sf, which_prf_grid))
+    print('saving to %s'%fn2save)
+    sys.stdout.flush()
+    t = time.time()
+    with h5py.File(fn2save, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(feat_all), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(feat_all), dtype=save_dtype)
+        data_set['/features'][:,:,:] = feat_all
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
+    
+    
+        
 def run_pca_gabor(subject, min_pct_var=95, max_pc_to_retain=96, debug=False, which_prf_grid=1, \
                           save_dtype=np.float32, compress=True):
 
@@ -770,6 +846,12 @@ if __name__ == '__main__':
         n_sf=4
         run_pca_texture_pyramid(subject=args.subject, n_ori=n_ori, n_sf=n_sf, \
                                 min_pct_var=args.min_pct_var, max_pc_to_retain=args.max_pc_to_retain,\
+                                debug=args.debug==1,  \
+                                which_prf_grid=args.which_prf_grid)
+    elif args.type=='texture_concat':
+        n_ori=4
+        n_sf=4
+        concat_texture_pca_feats(subject=args.subject, n_ori=n_ori, n_sf=n_sf, \
                                 debug=args.debug==1,  \
                                 which_prf_grid=args.which_prf_grid)
     elif args.type=='alexnet':

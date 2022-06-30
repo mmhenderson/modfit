@@ -14,7 +14,7 @@ class semantic_feature_loader:
         self.remove_missing = kwargs['remove_missing'] if 'remove_missing' in kwargs.keys() else False
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False
         
-        self.get_categ_exclude()
+        self.__get_categ_exclude__()
       
         if self.feature_set=='indoor_outdoor':
             self.features_file = os.path.join(default_paths.stim_labels_root, \
@@ -89,7 +89,7 @@ class semantic_feature_loader:
 
         self.features_in_prf = None
         
-    def get_categ_exclude(self):
+    def __get_categ_exclude__(self):
         
         if self.remove_missing:
             # find any features that are missing in the training set for any subject, in any pRF.
@@ -120,7 +120,7 @@ class semantic_feature_loader:
 
         return masks, partial_version_names
 
-    def load_precomputed_features(self, image_inds, prf_model_index):
+    def __load_precomputed_features__(self, image_inds, prf_model_index):
 
         if self.same_labels_all_prfs:
             print('Loading pre-computed features from %s'%self.features_file)        
@@ -239,10 +239,10 @@ class semantic_feature_loader:
         print(self.features_in_prf.shape)
         
     
-    def load(self, image_inds, prf_model_index, fitting_mode = True):
+    def load(self, image_inds, prf_model_index):
     
         if (not self.same_labels_all_prfs) or (self.features_in_prf is None):
-            self.load_precomputed_features(image_inds, prf_model_index)
+            self.__load_precomputed_features__(image_inds, prf_model_index)
         
         features = self.features_in_prf
         feature_inds_defined = self.is_defined_in_prf

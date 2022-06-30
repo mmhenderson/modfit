@@ -19,28 +19,28 @@ class fwrf_feature_loader:
         
         self.subject = subject            
         self.which_prf_grid = which_prf_grid
-        self.init_prf_batches(kwargs)        
+        self.__init_prf_batches__(kwargs)        
         self.feature_type = feature_type
         self.include_solo_models = kwargs['include_solo_models'] \
             if 'include_solo_models' in kwargs.keys() else False   
         
         if self.feature_type=='gabor_solo':
-            self.init_gabor_solo(kwargs)
+            self.__init_gabor_solo__(kwargs)
         elif self.feature_type=='sketch_tokens':
-            self.init_sketch_tokens(kwargs)
+            self.__init_sketch_tokens__(kwargs)
         elif self.feature_type=='pyramid_texture':
-            self.init_pyramid_texture(kwargs)
+            self.__init_pyramid_texture__(kwargs)
         elif self.feature_type=='alexnet':
-            self.init_alexnet(kwargs)
+            self.__init_alexnet__(kwargs)
         elif self.feature_type=='clip':
-            self.init_clip(kwargs)
+            self.__init_clip__(kwargs)
         else:
             raise ValueError('feature type %s not recognized')
 
         if not os.path.exists(self.features_file):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%self.features_file)
 
-    def init_gabor_solo(self, kwargs):
+    def __init_gabor_solo__(self, kwargs):
         
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False        
         self.n_ori = kwargs['n_ori'] if 'n_ori' in kwargs.keys() else 12
@@ -68,7 +68,7 @@ class fwrf_feature_loader:
         self.do_varpart = False
         self.n_feature_types=1
         
-    def init_pyramid_texture(self, kwargs):
+    def __init_pyramid_texture__(self, kwargs):
         
         pyramid_texture_feat_path = default_paths.pyramid_texture_feat_path
         self.do_varpart=kwargs['do_varpart'] if 'do_varpart' in kwargs.keys() else True
@@ -111,7 +111,7 @@ class fwrf_feature_loader:
 
         
       
-    def init_sketch_tokens(self, kwargs):
+    def __init_sketch_tokens__(self, kwargs):
 
         sketch_token_feat_path = default_paths.sketch_token_feat_path
 
@@ -139,7 +139,7 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
     
-    def init_alexnet(self,kwargs):
+    def __init_alexnet__(self,kwargs):
     
         self.padding_mode = kwargs['padding_mode'] if 'padding_mode' in kwargs.keys() else 'reflect'
         if 'layer_name' not in kwargs.keys():
@@ -171,7 +171,7 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
         
-    def init_clip(self, kwargs):
+    def __init_clip__(self, kwargs):
         
         self.model_architecture = kwargs['model_architecture'] if 'model_architecture' in kwargs.keys() else 'RN50'
         if 'layer_name' not in kwargs.keys():
@@ -204,7 +204,7 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
     
-    def init_prf_batches(self, kwargs):
+    def __init_prf_batches__(self, kwargs):
         
         self.prf_batch_size = kwargs['prf_batch_size'] if 'prf_batch_size' in kwargs.keys() else 100
         self.n_prfs = initialize_fitting.get_prf_models(which_grid=self.which_prf_grid).shape[0]
@@ -248,7 +248,7 @@ class fwrf_feature_loader:
 
         return masks, partial_version_names
 
-    def load_features_prf_batch(self, image_inds, prf_model_index):
+    def __load_features_prf_batch__(self, image_inds, prf_model_index):
         
         # loading features for pRFs in batches to speed up a little
         t = time.time()
@@ -287,14 +287,14 @@ class fwrf_feature_loader:
             print([np.sum(n) for n in nan_inds])
             
     
-    def load(self, image_inds, prf_model_index, fitting_mode = True):
+    def load(self, image_inds, prf_model_index):
          
         if image_inds.dtype=='bool' or np.all(np.isin(np.unique(image_inds),[0,1])):
             print('\nWARNING: image_inds (len %d) looks like a boolean array'%len(image_inds))
             print('you might need to do np.where(image_inds) first\n')
             
         if prf_model_index not in self.prf_inds_loaded:            
-            self.load_features_prf_batch(image_inds, prf_model_index)
+            self.__load_features_prf_batch__(image_inds, prf_model_index)
         
         # get features for the current pRF from the loaded batch 
         index_into_batch = np.where(prf_model_index==self.prf_inds_loaded)[0][0]
@@ -347,7 +347,7 @@ def get_features_each_prf(image_inds, feature_loader, \
 
         # all_feat_concat is size [ntrials x nfeatures] (where nfeatures can be <max_features)
         # feature_inds_defined is [max_features]
-        all_feat_concat, feature_inds_defined = feature_loader.load(image_inds, mm, fitting_mode=False)
+        all_feat_concat, feature_inds_defined = feature_loader.load(image_inds, mm)
 
         if zscore:
             m = np.mean(all_feat_concat, axis=0)

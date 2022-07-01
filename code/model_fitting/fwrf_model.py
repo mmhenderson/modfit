@@ -375,13 +375,13 @@ class encoding_model():
                                 full_model_improved, voxels_to_fit, \
                                 mm, pp, voxel_batch_inds)              
                 elif self.bootstrap_data:
-                    self.__fit_voxel_batch_bootstrap__(_cof, _xout, \
+                    self.__fit_voxel_batch_bootstrap__(_xtrn, _xout, \
                                 trn_data_use, out_data_use, \
                                 nonzero_inds_full, \
                                 full_model_improved, voxels_to_fit, \
                                 mm, pp, voxel_batch_inds)   
                 else:
-                    self.__fit_voxel_batch__(_xtrn, _xout, \
+                    self.__fit_voxel_batch__(_cof, _xout, \
                                 trn_data_use, out_data_use, \
                                 nonzero_inds_full, \
                                 full_model_improved, voxels_to_fit, \
@@ -506,17 +506,11 @@ class encoding_model():
             # will be size [voxels x features x n_shuff_iters]
             betas = np.moveaxis(betas,[0,1,2],[2,0,1])
 
-            print('size of best betas:')
-            print(betas.shape)
-            
             betas_all[:,:,batch_inds] = betas
             
             betas = None
             gc.collect()
-            
-        print('size of betas_all:')
-        print(betas_all.shape)
-            
+         
         # for permutation analysis, we already fit pRFs so always saving all voxels.
         voxel_inds_save = voxel_batch_inds
 
@@ -587,16 +581,10 @@ class encoding_model():
             # choose betas that go with best lambda (reduce to size [features x voxels])
             betas = np.array([betas[best_lambda_index[ii],:,ii] for ii in range(len(best_lambda_index))])
 
-            print('size of best betas:')
-            print(betas.shape)
-            
             betas_all[:,:,ii] = betas
             
             betas = None
             gc.collect()
-            
-        print('size of betas_all:')
-        print(betas_all.shape)
             
         # for permutation analysis, we already fit pRFs so always saving all voxels.
         voxel_inds_save = voxel_batch_inds
@@ -844,8 +832,9 @@ class encoding_model():
         # Next looping over all voxels with this same pRF, in batches        
         for vv in range(n_voxel_batches):
 
-            print('Getting predictions for voxel batch %d of %d'%(vv, n_voxel_batches))
-            sys.stdout.flush()
+            if np.mod(vv, 100)==0:
+                print('Getting predictions for voxel batch %d of %d'%(vv, n_voxel_batches))
+                sys.stdout.flush()
         
             vinds = np.arange(self.voxel_batch_size*vv, np.min([self.voxel_batch_size*(vv+1), len(voxels_to_do)]))
             voxel_batch_inds = voxels_to_do[vinds]

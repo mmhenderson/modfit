@@ -77,9 +77,10 @@ def get_full_save_name(args):
                 model_name += '_ridge'
             else:
                 model_name += '_OLS'
-            model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)        
-            if args.use_pca_pyr_feats_hl:
-                model_name += '_pca_HL' 
+            model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)  
+            if args.pca_type is not None:
+                model_name += '_%s'%args.pca_type
+              
             if not args.group_all_hl_feats:
                 model_name += '_allsubsets'
            
@@ -570,7 +571,7 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='pyramid_texture',\
                                                             n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
-                                                            use_pca_feats_hl = args.use_pca_pyr_feats_hl,\
+                                                            pca_type=args.pyr_pca_type,\
                                                             do_varpart=args.do_pyr_varpart,\
                                                             group_all_hl_feats=args.group_all_hl_feats, \
                                                             include_solo_models=False)       

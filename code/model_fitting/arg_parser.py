@@ -128,8 +128,8 @@ def get_args():
                     help="number of orientation channels to use")
     parser.add_argument("--n_sf_pyr", type=int,default=4,
                     help="number of spatial frequency channels to use")
-    parser.add_argument("--use_pca_pyr_feats_hl", type=nice_str2bool,default=True,
-                    help="want to do PCA on higher level texture features before fitting? 1 for yes, 0 for no")
+    parser.add_argument("--pyr_pca_type", type=str,default=None,
+                    help="what pca type was used for texture features?")
     parser.add_argument("--group_all_hl_feats", type=nice_str2bool,default=True, 
                     help="want to simplify groups of features in texture model? 1 for yes, 0 for no")
     parser.add_argument("--do_pyr_varpart", type=nice_str2bool,default=False, 
@@ -165,8 +165,9 @@ def get_args():
     
     if args.prf_fixed_sigma==0:
         args.prf_fixed_sigma=None
+    if args.pyr_pca_type=='None':
+        args.pyr_pca_type = None
         
-    
     if args.shuffle_data:
         if args.shuff_rnd_seed==0:
             args.shuff_rnd_seed = int(time.strftime('%M%H%d', time.localtime()))

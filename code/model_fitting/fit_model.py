@@ -125,7 +125,7 @@ def fit_fwrf(args):
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
-            'use_pca_pyr_feats_hl': args.use_pca_pyr_feats_hl,
+            'pyr_pca_type': args.pyr_pca_type,
             'group_all_hl_feats': args.group_all_hl_feats,
             'do_pyr_varpart': args.do_pyr_varpart,
             })            

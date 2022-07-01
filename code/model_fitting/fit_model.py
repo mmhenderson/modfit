@@ -74,6 +74,7 @@ def fit_fwrf(args):
         'voxel_subset_is_done_trn': voxel_subset_is_done_trn,
         'voxel_subset_is_done_val': voxel_subset_is_done_val,
         'trial_subset': args.trial_subset, 
+        'solve_method': args.solve_method,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if args.use_model_residuals:
@@ -477,7 +478,8 @@ def fit_fwrf(args):
                                             bootstrap_data = args.bootstrap_data, \
                                             boot_rnd_seed = args.boot_rnd_seed, \
                                             n_boot_iters = args.n_boot_iters, \
-                                            dtype=np.float32, debug=args.debug)
+                                            dtype=np.float32, debug=args.debug, \
+                                            solve_method=args.solve_method)
                   
           
         ########### FIT ENCODING MODEL ###################################################################

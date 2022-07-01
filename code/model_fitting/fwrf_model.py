@@ -26,6 +26,8 @@ class encoding_model():
         default_lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, \
                                       dtype=np.float32, base=np.e) - 0.01
         self.lambdas = kwargs['lambdas'] if 'lambdas' in kwargs.keys() else default_lambdas
+        self.feature_groups_ridge = kwargs['feature_groups_ridge'] if 'feature_groups_ridge' in kwargs.keys() else None
+        self.solve_method = kwargs['solve_method'] if 'solve_method' in kwargs.keys() else 1
         
         self.best_model_each_voxel = kwargs['best_model_each_voxel'] \
             if 'best_model_each_voxel' in kwargs.keys() else None
@@ -129,9 +131,6 @@ class encoding_model():
         # clear any stored features from feature loader's memory    
         self.feature_loader.clear_big_features()
         
-        start_time = time.time()
-        vox_loop_time = 0
-
         with torch.no_grad(): # make sure local gradients are off to save memory
                 
             # Looping over pRFs here
@@ -148,7 +147,13 @@ class encoding_model():
                     
                 print('\nProcessing prf %d of %d'%(mm, self.n_prfs))
 
+                st = time.time()
+                
                 self.__fit_one_prf__(mm)
+                
+                elapsed = time.time() - st
+                print('solve method %d: took %.5f s to fit prf %d'%(self.solve_method, elapsed, mm))
+                sys.stdout.flush()
                 
                 gc.collect()
         
@@ -356,10 +361,12 @@ class encoding_model():
 
             # Do part of the matrix math involved in ridge regression optimization out of the loop, 
             # because this part will be same for all the voxels.
-            _cof = self.__cofactor_fn_cpu__(_xtrn) 
-            # else:
-                # _cof = torch.stack([self.__cofactor_fn_cpu__(_xtrn[self.boot_inds_trn[:,ii],:])\
-                #                    for ii in range(self.n_boot_iters)], axis=0)
+            if self.solve_method==1:
+                _cof = self.__cofactor_fn_cpu__(_xtrn) 
+            elif self.solve_method==2:
+                _cof = self.__cofactor_fn_gpu1__(_xtrn)
+            elif self.solve_method==3:
+                _cof = self.__cofactor_fn_gpu2__(_xtrn)
                 
              # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
             for vv in range(n_voxel_batches):
@@ -665,6 +672,31 @@ class encoding_model():
         # put back to whatever way it was before, so that we can continue with other operations as usual
         return cof.to(type_orig)
 
+    def __cofactor_fn_gpu1__(self, _x):
+
+        mult = _x.T @ _x
+        ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
+     
+        _f = torch.stack([(mult+ridge_term*l).inverse() \
+                       for l in self.lambdas], axis=0)
+        # [lambdas x features x features] x [images x features]
+        _cof = torch.tensordot(_f, \
+                              _x, \
+                              dims=[[2],[1]]) 
+        # return [lambdas x features x samples]
+        
+        return _cof
+    
+    def __cofactor_fn_gpu2__(self, _x):
+
+        mult = _x.T @ _x
+        ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
+     
+        _cof = torch.stack([torch.linalg.solve(mult+ridge_term*l, _x.T) \
+                      for l in self.lambdas], axis=0)
+        # return [lambdas x features x samples]
+        
+        return _cof
 
 
     def __loss_fn__(self, _cofactor, _vtrn, _xout, _vout):

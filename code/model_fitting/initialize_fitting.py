@@ -144,6 +144,8 @@ def get_full_save_name(args):
             
     if args.shuffle_data:
         model_name += '_permutation_test'
+    if args.bootstrap_data:
+        model_name += '_bootstrap_test'
         
     print(fitting_types)
     print(model_name)

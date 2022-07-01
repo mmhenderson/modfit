@@ -66,6 +66,14 @@ def get_args():
     parser.add_argument("--shuff_rnd_seed", type=int,default=0,
                     help="random seed to use for shuffling in permutation test.")
    
+   
+    parser.add_argument("--bootstrap_data", type=nice_str2bool,default=False,
+                    help="want to run bootstrap test? 1 for yes, 0 for no")
+    parser.add_argument("--n_boot_iters", type=int,default=1000,
+                    help="how many shuffle iters?")
+    parser.add_argument("--boot_rnd_seed", type=int,default=0,
+                    help="random seed to use for shuffling in bootstrap test.")
+   
     
     parser.add_argument("--debug",type=nice_str2bool,default=False,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
@@ -99,7 +107,7 @@ def get_args():
                     help="number of trials to analyze at once when making features (smaller will help with out-of-memory errors)")
     parser.add_argument("--voxel_batch_size", type=int,default=1000,
                     help="number of voxels to analyze at once when fitting weights (smaller will help with out-of-memory errors)")
-    parser.add_argument("--voxel_batch_size_shuff", type=int,default=1000,
+    parser.add_argument("--voxel_batch_size_outer", type=int,default=1000,
                     help="number of voxels to analyze at once for permutation test (smaller will help with out-of-memory errors)")
     
    

@@ -106,7 +106,13 @@ def fit_fwrf(args):
             'n_shuff_iters': args.n_shuff_iters, 
             'shuff_rnd_seed': args.shuff_rnd_seed,
             'shuff_batch_size': args.shuff_batch_size,
-            'voxel_batch_size_shuff': args.voxel_batch_size_shuff,
+            'voxel_batch_size_outer': args.voxel_batch_size_outer,
+            })
+        if args.bootstrap_data:
+            dict2save.update({
+            'n_boot_iters': args.n_boot_iters, 
+            'boot_rnd_seed': args.boot_rnd_seed,
+            'voxel_batch_size_outer': args.voxel_batch_size_outer,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
@@ -154,11 +160,12 @@ def fit_fwrf(args):
     if args.use_model_residuals and len(args.residuals_model_name)==0:
         raise ValueError('must specify the name of model the residuals are from')
         
-    if args.shuffle_data:
+    if args.shuffle_data or args.bootstrap_data:
         # for permutation test to work, need these conditions met (haven't tested otherwise)
         assert args.from_scratch
         assert not (args.do_sem_disc  or args.do_tuning)
         assert args.use_precomputed_prfs
+        assert not (args.shuffle_data and args.bootstrap_data)
         
     val_r2 = None; 
     val_cc = None;
@@ -297,17 +304,17 @@ def fit_fwrf(args):
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
         assert(not args.save_model_residuals)
-        assert(not args.shuffle_data) 
+        assert(not args.shuffle_data and not args.bootstrap_data) 
         
         # Create feature loaders here
         feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=ll) \
                             for ll in range(n_dnn_layers)]
-    elif args.shuffle_data:
+    elif args.shuffle_data or args.bootstrap_data:
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;
         # to prevent running out of memory, i'm batching the voxels at this stage 
         # (doing all the shuffle iterations at once, for each batch)       
-        bs = args.voxel_batch_size_shuff
+        bs = args.voxel_batch_size_outer
         n_batches = int(np.ceil(n_voxels/bs))
         voxel_subset_masks = [(np.arange(n_voxels)>=(nn*bs)) & (np.arange(n_voxels)<((nn+1)*bs)) \
                         for nn in range(n_batches)]
@@ -416,9 +423,13 @@ def fit_fwrf(args):
         best_prf_models = np.zeros((n_voxels, n_partial_versions), dtype=int)
         features_mean = np.zeros((n_prfs, max_features_overall,len(voxel_subset_masks)), dtype=np.float32)
         features_std = np.zeros((n_prfs, max_features_overall,len(voxel_subset_masks)), dtype=np.float32)
-        if args.shuffle_data:
-            val_cc = np.zeros((n_voxels, n_partial_versions, args.n_shuff_iters), dtype=np.float32)
-            val_r2 = np.zeros((n_voxels, n_partial_versions, args.n_shuff_iters), dtype=np.float32) 
+        if args.shuffle_data or args.bootstrap_data:
+            if args.shuffle_data:
+                it = args.n_shuff_iters
+            else:
+                it = args.n_boot_iters
+            val_cc = np.zeros((n_voxels, n_partial_versions, it), dtype=np.float32)
+            val_r2 = np.zeros((n_voxels, n_partial_versions, it), dtype=np.float32) 
             best_weights = None # save memory by not permanently saving the weights...
             best_biases = None
         else:            
@@ -463,6 +474,9 @@ def fit_fwrf(args):
                                             shuff_rnd_seed = args.shuff_rnd_seed, \
                                             n_shuff_iters = args.n_shuff_iters, \
                                             shuff_batch_size = args.shuff_batch_size, \
+                                            bootstrap_data = args.bootstrap_data, \
+                                            boot_rnd_seed = args.boot_rnd_seed, \
+                                            n_boot_iters = args.n_boot_iters, \
                                             dtype=np.float32, debug=args.debug)
                   
           
@@ -486,7 +500,7 @@ def fit_fwrf(args):
             features_mean[:,0:max_features,vi] = model.features_mean
             features_std[:,0:max_features,vi] = model.features_std
             best_prf_models[voxel_subset_mask,:] = model.best_prf_models
-            if not args.shuffle_data:
+            if not args.shuffle_data and not args.bootstrap_data:
                 best_weights[voxel_subset_mask,0:max_features,:] = model.best_weights
                 best_biases[voxel_subset_mask,:] = model.best_biases
             
@@ -515,7 +529,7 @@ def fit_fwrf(args):
                 features_mean_tmp, features_std_tmp
 
         # this is the list of params that gets saved, make sure to update it each time
-        if args.shuffle_data:
+        if args.shuffle_data or args.bootstrap_data:
             # to keep the saved file from getting really big, only saving the weights for first 
             # permutation iteration.
             # this is why we can't resume from the middle of fitting.

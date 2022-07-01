@@ -78,8 +78,8 @@ def get_full_save_name(args):
             else:
                 model_name += '_OLS'
             model_name += '_%dori_%dsf'%(args.n_ori_pyr, args.n_sf_pyr)  
-            if args.pca_type is not None:
-                model_name += '_%s'%args.pca_type
+            if args.pyr_pca_type is not None:
+                model_name += '_%s'%args.pyr_pca_type
               
             if not args.group_all_hl_feats:
                 model_name += '_allsubsets'

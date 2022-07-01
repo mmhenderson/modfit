@@ -93,6 +93,8 @@ def run_pca_texture_pyramid(subject,
         subject_df = nsd_utils.get_subj_df(subject)
         trninds = np.array(subject_df['shared1000']==False)
 
+    n_trials = len(trninds)
+    
     pca_filename_list = []
   
     # going to loop over one set of features at a time

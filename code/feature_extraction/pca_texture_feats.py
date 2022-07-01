@@ -29,7 +29,7 @@ def run_pca_texture_pyramid(subject,
     path_pca = os.path.join(path_raw, 'PCA')
     if debug:
         path_pca = os.path.join(path_raw, 'PCA_debug')
-    
+
     n_ori=4; n_sf=4;    
     if debug:
         prf_batch_size=2
@@ -41,50 +41,49 @@ def run_pca_texture_pyramid(subject,
                                                pca_type=None, 
                                                prf_batch_size=prf_batch_size)
     features_file = floader.features_file
-    
+
     if not os.path.exists(path_pca):
         os.mkdir(path_pca)
 
     # batching prfs for loading, because it is a bit faster
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)  
     n_prfs = models.shape[0]
-   
+
     # can do the pca a few different ways, depending on how we want to group the features together.
     if pca_type=='pcaHL':
-        
+
         feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds()
         # do higher-level feats only
         gets_pca = np.arange(5,14)
-        
+
     elif pca_type=='pcaAll':
-        
+
         feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds()
         # do all features
         gets_pca = np.arange(14)
 
     elif pca_type=='pcaHL_simple':
-        
+
         feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds_simplegroups()
         # do higher-level feats only
         gets_pca = np.arange(4,10)
 
     elif pca_type=='pcaHL_sepscales':
-        
+
         feature_column_labels, feature_type_names = texture_feature_utils.get_feature_inds_sepscales()
         # do higher-level feats only
         gets_pca = np.arange(15,41) 
-    
+
     feature_type_names = np.array(feature_type_names)
     feature_type_dims = np.array([np.sum(feature_column_labels==ff) for ff in range(len(feature_type_names))])
 
     print('will perform PCA on these sets of features:')
     print(feature_type_names[gets_pca])
     print(feature_type_dims[gets_pca])
-    
-    feature_type_names = feature_type_names[gets_pca]
-    feature_type_dims = feature_type_dims[gets_pca]
+
+    feature_type_names_pca = feature_type_names[gets_pca]
     feature_inds = np.array([feature_column_labels==fi for fi in gets_pca])
-    
+
     if subject==999:
         # 999 is a code for the set of images that are independent of NSD images, 
         # not shown to any participant.
@@ -94,13 +93,11 @@ def run_pca_texture_pyramid(subject,
         subject_df = nsd_utils.get_subj_df(subject)
         trninds = np.array(subject_df['shared1000']==False)
 
-    n_trials = len(trninds)
-    
     pca_filename_list = []
   
     # going to loop over one set of features at a time
     # (this isn't the fastest way but uses less memory at a time)
-    for fi, feature_type_name in enumerate(feature_type_names):
+    for fi, feature_type_name in enumerate(feature_type_names_pca):
    
         print('\nProcessing feature subset: %s\n'%feature_type_name)
         scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
@@ -187,12 +184,12 @@ def run_pca_texture_pyramid(subject,
         sys.stdout.flush()
         
         feature_column_labels_pca = np.array(feature_column_labels[is_ll])
-        n_ll_feats = np.sum(is_ll)
     else:
-        feat_raw = None
-        
+        feat_raw = None       
         feature_column_labels_pca = np.array([])
-        n_ll_feats=0;
+        
+
+    n_raw_types = len(np.unique(feature_column_labels_pca))
 
     # loop over the reduced-dim files
     for fi, pca_filename in enumerate(pca_filename_list):
@@ -208,14 +205,14 @@ def run_pca_texture_pyramid(subject,
         print(feat_pca.shape)
         sys.stdout.flush()
         n_pc = feat_pca.shape[1]
-        
+
         if feat_raw is None and fi==0:
             feat_all = feat_pca
         else:
             feat_all = np.concatenate([feat_all, feat_pca], axis=1)
-            
+
         feature_column_labels_pca = np.concatenate([feature_column_labels_pca, \
-                                                    (fi+n_ll_feats)*np.ones(n_pc,)], axis=0)
+                                                    (fi+n_raw_types)*np.ones((n_pc,))], axis=0)
 
     print('final shape is:')
     print(feat_all.shape)
@@ -234,15 +231,16 @@ def run_pca_texture_pyramid(subject,
     elapsed = time.time() - t
 
     print('Took %.5f sec to write file'%elapsed)
-    
+
+
     # save the labels for which columns of the concatenated array correspond to which feature types
     fn2save_labels = os.path.join(path_pca, 'S%d_%dori_%dsf_featurelabels_%s_grid%d.npy'\
                                %(subject, n_ori, n_sf, pca_type, which_prf_grid))
     print('saving to %s'%fn2save_labels)
+    print(feature_column_labels_pca, feature_type_names)
     np.save(fn2save_labels, {'feature_column_labels': feature_column_labels_pca, \
                              'feature_type_names': feature_type_names})
-    
-    
+
     
     # remove the smaller intermediate files, to save disk space
     

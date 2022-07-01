@@ -29,20 +29,18 @@ feature_type_names_simple = ['pixel','energy-mean','linear-mean','marginal',\
 
 def get_feature_inds():    
 
-    filename = os.path.join(default_paths.pyramid_texture_feat_path, \
-                           'feature_column_labels_4ori_4sf.csv')
-    df = pd.read_csv(filename)
-    feature_column_labels  = np.array(df['feature_type_raw']).astype(int)
+    feature_column_labels = np.concatenate([np.ones((nf,))*fi \
+                            for fi, nf in enumerate(feature_type_dims_raw)], axis=0)
        
     return feature_column_labels, feature_type_names_raw
 
 def get_feature_inds_simplegroups():
 
-    feature_column_labels = get_feature_inds()[0]
-    columns_new = np.zeros(np.shape(feature_column_labels))
+    columns_raw = get_feature_inds()[0]
+    columns_new = np.zeros(np.shape(columns_raw))
     for gg in range(len(np.unique(features_to_groups))):
         feature_inds = np.where(features_to_groups==gg)[0]
-        columns_new[np.isin(feature_column_labels,feature_inds)] = gg;
+        columns_new[np.isin(columns_raw,feature_inds)] = gg;
    
     return columns_new, feature_type_names_simple
 
@@ -80,7 +78,7 @@ def get_feature_inds_pca(subject, pca_type='pcaHL', \
                          which_prf_grid=5):
 
     filename = os.path.join(default_paths.pyramid_texture_feat_path,'PCA', \
-                            'S%d_4ori_4sf_featurelabels_%s_concat_grid%d.npy'\
+                            'S%d_4ori_4sf_featurelabels_%s_grid%d.npy'\
                                %(subject, pca_type, which_prf_grid))
     lab = np.load(filename, allow_pickle=True).item()
     cols = lab['feature_column_labels'].astype(int)
@@ -181,6 +179,8 @@ def make_feature_column_labels():
     feature_column_labels_all = np.array(feature_column_labels_all).astype(int)
     scale_labels_all = np.array(scale_labels_all).astype(int)
 
+    assert(np.all(feature_column_labels_all==get_feature_inds()[0]))
+           
     # some other ways of grouping the features, which will be useful for our 
     # variance partition analyses
     feature_columns_simple = get_feature_inds_simplegroups()[0]

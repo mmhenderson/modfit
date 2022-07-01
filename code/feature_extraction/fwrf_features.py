@@ -8,6 +8,7 @@ from utils import default_paths
 from feature_extraction import extract_alexnet_features, extract_clip_features, texture_feature_utils
 from model_fitting import initialize_fitting
 
+
 """
 Code to load pre-computed features from various models (gabor, alexnet, semantic, etc.)
 Features have been computed at various spatial locations in a grid (pRF positions/sizes)
@@ -74,19 +75,19 @@ class fwrf_feature_loader:
         self.do_varpart=kwargs['do_varpart'] if 'do_varpart' in kwargs.keys() else True
         self.n_ori = kwargs['n_ori'] if 'n_ori' in kwargs.keys() else 4
         self.n_sf = kwargs['n_sf'] if 'n_sf' in kwargs.keys() else 4
-        self.use_pca_feats_hl=kwargs['use_pca_feats_hl'] if 'use_pca_feats_hl' in kwargs.keys() else True
+        self.pca_type=kwargs['pca_type'] if 'pca_type' in kwargs.keys() else None
+        
         self.group_all_hl_feats=kwargs['group_all_hl_feats'] if 'group_all_hl_feats' in kwargs.keys() else True
         
-        if self.use_pca_feats_hl:
+        if self.pca_type is not None:
             self.use_pca_feats=True
             # will use features where higher-level sub-sets have been reduced in dim with PCA.
             self.features_file = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                                              'S%d_%dori_%dsf_PCA_concat_grid%d.h5py'%\
-                                              (self.subject, self.n_ori, self.n_sf, self.which_prf_grid))
+                                              'S%d_%dori_%dsf_%s_concat_grid%d.h5py'%\
+                                              (self.subject, self.n_ori, self.n_sf, \
+                                               self.pca_type, self.which_prf_grid))
             self.feature_column_labels, self.feature_type_names = \
-                texture_feature_utils.get_feature_inds_pca_concat(self.subject, n_ori=self.n_ori, \
-                                                                  n_sf=self.n_sf, which_prf_grid=self.which_prf_grid)
-               
+                texture_feature_utils.get_feature_inds_pca(self.subject, self.pca_type, self.which_prf_grid)
         else:
             self.use_pca_feats=False
             # will load from raw array (641 features).
@@ -96,10 +97,12 @@ class fwrf_feature_loader:
             self.feature_column_labels, self.feature_type_names = \
                 texture_feature_utils.get_feature_inds_simplegroups();
         
+        
         self.max_features = len(self.feature_column_labels)
         if self.group_all_hl_feats:
+            n_ll_feats = 4;
             # group the first 4 and last 6 sets of features.   
-            self.feature_column_labels = (self.feature_column_labels>=4).astype('int')
+            self.feature_column_labels = (self.feature_column_labels>=n_ll_feats).astype('int')
             self.feature_group_names = ['lower-level', 'higher-level']
         else:
             # treat all 10 sets as separate groups

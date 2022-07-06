@@ -64,6 +64,7 @@ def fit_fwrf(args):
         'partial_version_names': partial_version_names,        
         'zscore_features': args.zscore_features, 
         'ridge': args.ridge,
+        'set_lambda_per_group': args.set_lambda_per_group, 
         'debug': args.debug,
         'up_to_sess': args.up_to_sess,
         'single_sess': args.single_sess,
@@ -467,6 +468,7 @@ def fit_fwrf(args):
                                             best_model_each_voxel = best_model_each_voxel_use, \
                                             zscore=args.zscore_features, \
                                             add_bias=True, \
+                                            set_lambda_per_group = args.set_lambda_per_group, \
                                             voxel_batch_size=args.voxel_batch_size,\
                                             sample_batch_size=args.sample_batch_size,\
                                             device=device,\

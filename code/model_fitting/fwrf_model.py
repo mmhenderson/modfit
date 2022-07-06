@@ -6,7 +6,7 @@ import gc
 
 import torch
 
-from utils import torch_utils, stats_utils
+from utils import torch_utils, stats_utils, numpy_utils
 
 """
 General code for fitting a 'feature weighted receptive field' model to fmri data - looping over many candidate pRF 
@@ -22,11 +22,7 @@ class encoding_model():
                  **kwargs):
         
         self.feature_loader = feature_loader
-        
-        default_lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, \
-                                      dtype=np.float32, base=np.e) - 0.01
-        self.lambdas = kwargs['lambdas'] if 'lambdas' in kwargs.keys() else default_lambdas
-        self.feature_groups_ridge = kwargs['feature_groups_ridge'] if 'feature_groups_ridge' in kwargs.keys() else None
+
         self.solve_method = kwargs['solve_method'] if 'solve_method' in kwargs.keys() else 1
         
         self.best_model_each_voxel = kwargs['best_model_each_voxel'] \
@@ -59,14 +55,17 @@ class encoding_model():
         # Decide whether to do any "partial" versions of the models (leaving out subsets of features)
         # Purpose is for variance partition
         self.masks, self.partial_version_names = self.feature_loader.get_partial_versions()
+        self.masks = self.masks.T.astype(bool)
         self.n_partial_versions = len(self.partial_version_names) # will be one if skipping varpart
     
+        
         if self.add_bias:
             # including intercept 
             self.masks = np.concatenate([self.masks, \
-                             np.ones([self.masks.shape[0],1])], axis=1) 
-        self.masks = np.transpose(self.masks)
+                             np.ones((1,self.n_partial_versions), dtype=bool)], axis=0) 
         # masks is [n_features_total (including intercept) x n_partial_versions]
+        
+        self.__init_lambda_vecs__(kwargs)
         
         self.n_prfs = self.feature_loader.n_prfs
         if self.prfs_fit_mask is not None:
@@ -87,6 +86,44 @@ class encoding_model():
             self.__init_bootstrap__(kwargs)
              
             
+    def __init_lambda_vecs__(self, kwargs):
+        
+        default_lambdas = np.logspace(np.log(0.01),np.log(10**5+0.01),9, \
+                                      dtype=np.float32, base=np.e) - 0.01
+        self.lambdas = kwargs['lambdas'] \
+            if 'lambdas' in kwargs.keys() else default_lambdas
+        self.set_lambda_per_group = kwargs['set_lambda_per_group'] \
+            if 'set_lambda_per_group' in kwargs.keys() else False
+
+        if self.set_lambda_per_group:  
+            # allow different "groups" of features to have their own lambda values
+            self.feature_group_inds = self.feature_loader.get_feature_group_inds()
+        else:
+            # use a single lambda for all features
+            self.feature_group_inds = np.zeros((self.max_features,),dtype=int)
+            
+        un, n_each = np.unique(self.feature_group_inds, return_counts=True)
+        n_feature_groups = len(un)
+        lambda_combs = numpy_utils.list_all_combs(self.lambdas, n_feature_groups)
+        lambda_vecs = np.concatenate([np.tile(lambda_combs[:,ii:ii+1], [1,n_each[ii]]) \
+                                      for ii in range(n_feature_groups)], axis=1 )
+        assert(lambda_vecs.shape[1]==self.feature_loader.max_features)
+        
+        if self.add_bias:
+            # add a zero for the intercept feature
+            lambda_vecs = np.concatenate([lambda_vecs, \
+                                          np.zeros((lambda_vecs.shape[0],1))], axis=1)
+          
+        self.lambda_vectors = [[] for pp in range(self.n_partial_versions)]
+        for pp in range(self.n_partial_versions):
+            
+            vecs = lambda_vecs[:,self.masks[:,pp]]
+            unrows, inds = np.unique(vecs, axis=0, return_index=True)
+           
+            # remove any duplicate rows, will speed things up later on
+            self.lambda_vectors[pp] = lambda_vecs[inds,:]
+                   
+          
     def __init_shuffle__(self, kwargs):
         
         
@@ -147,13 +184,7 @@ class encoding_model():
                     
                 print('\nProcessing prf %d of %d'%(mm, self.n_prfs))
 
-                st = time.time()
-                
                 self.__fit_one_prf__(mm)
-                
-                elapsed = time.time() - st
-                print('solve method %d: took %.5f s to fit prf %d'%(self.solve_method, elapsed, mm))
-                sys.stdout.flush()
                 
                 gc.collect()
         
@@ -286,7 +317,7 @@ class encoding_model():
             # voxels whose best pRF was the current one.
             voxels_to_fit = np.where(self.best_model_each_voxel==mm)[0]
             full_model_improved = None
-            
+         
         if len(voxels_to_fit)==0:
             print('No voxels have this pRF saved as their best model, skipping it.')
             return
@@ -350,10 +381,10 @@ class encoding_model():
 
             # nonzero_inds_full is length max_features (or max_features+1 if bias=True)
             # same size as the final params matrices will be.
-            nonzero_inds_full = np.logical_and(self.masks[:,pp], feature_inds_defined)             
+            nonzero_inds_full = self.masks[:,pp] & feature_inds_defined            
             # nonzero_inds_full is restricted to just indices that are defined for this prf 
             # (same size as features)
-            nonzero_inds_short = self.masks[feature_inds_defined,pp]==1
+            nonzero_inds_short = self.masks[feature_inds_defined,pp]
 
             # Send matrices to gpu    
             _xtrn = torch_utils._to_torch(trn_features[:, nonzero_inds_short], device=self.device)
@@ -361,12 +392,12 @@ class encoding_model():
 
             # Do part of the matrix math involved in ridge regression optimization out of the loop, 
             # because this part will be same for all the voxels.
-            if self.solve_method==1:
-                _cof = self.__cofactor_fn_cpu__(_xtrn) 
-            elif self.solve_method==2:
-                _cof = self.__cofactor_fn_gpu1__(_xtrn)
-            elif self.solve_method==3:
-                _cof = self.__cofactor_fn_gpu2__(_xtrn)
+            # if self.solve_method==1:
+            _cof = self.__cofactor_fn_cpu__(_xtrn, self.lambda_vectors[pp][:,nonzero_inds_full]) 
+#             elif self.solve_method==2:
+#                 _cof = self.__cofactor_fn_gpu1__(_xtrn)
+#             elif self.solve_method==3:
+#                 _cof = self.__cofactor_fn_gpu2__(_xtrn)
                 
              # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
             for vv in range(n_voxel_batches):
@@ -567,7 +598,7 @@ class encoding_model():
             _vout = _vout[self.boot_inds_out[:,ii],:]
             
             # apply resampling order to design matrix too
-            _cof = self.__cofactor_fn_cpu__(_xtrn[self.boot_inds_trn[:,ii],:])
+            _cof = self.__cofactor_fn_cpu__(_xtrn[self.boot_inds_trn[:,ii],:], self.lambda_vectors[pp][:,nonzero_inds_full])
             
             # Fit weights and get prediction loss here
             _beta, _loss = self.__loss_fn__(_cof, \
@@ -621,7 +652,7 @@ class encoding_model():
         gc.collect()
            
                 
-    def __cofactor_fn_cpu__(self, _x):
+    def __cofactor_fn_cpu__(self, _x, lambda_vectors):
 
         '''
         Generating a matrix needed to solve ridge regression model for each lambda value.
@@ -638,14 +669,14 @@ class encoding_model():
         type_orig = _x.dtype
         # switch to this specific format which works with inverse
         _x = _x.to('cpu').to(torch.float64)
-
+       
         mult = _x.T @ _x
         ridge_term = torch.eye(_x.size()[1], device='cpu', dtype=torch.float64)
-    
+        
         try: 
            
             _f = torch.stack([(mult+ridge_term*l).inverse() \
-                       for l in self.lambdas], axis=0)
+                       for l in lambda_vectors], axis=0)
             
         except RuntimeError:
             # problem with inverse - print some info to help diagnose the problem.
@@ -656,7 +687,7 @@ class encoding_model():
             print('Rank of _x:')
             print(torch.matrix_rank(_x))
             # to prevent a crash, replace 0 with a small lambda value, just temporarily
-            lambdas_adjusted = copy.deepcopy(self.lambdas)
+            lambdas_adjusted = copy.deepcopy(lambda_vectors)
             lambdas_adjusted[lambdas_adjusted==0] = 10e-9
             print('Trying again with these lambda values:')
             print(lambdas_adjusted)
@@ -672,31 +703,31 @@ class encoding_model():
         # put back to whatever way it was before, so that we can continue with other operations as usual
         return cof.to(type_orig)
 
-    def __cofactor_fn_gpu1__(self, _x):
+#     def __cofactor_fn_gpu1__(self, _x):
 
-        mult = _x.T @ _x
-        ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
+#         mult = _x.T @ _x
+#         ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
      
-        _f = torch.stack([(mult+ridge_term*l).inverse() \
-                       for l in self.lambdas], axis=0)
-        # [lambdas x features x features] x [images x features]
-        _cof = torch.tensordot(_f, \
-                              _x, \
-                              dims=[[2],[1]]) 
-        # return [lambdas x features x samples]
+#         _f = torch.stack([(mult+ridge_term*l).inverse() \
+#                        for l in self.lambda_vectors], axis=0)
+#         # [lambdas x features x features] x [images x features]
+#         _cof = torch.tensordot(_f, \
+#                               _x, \
+#                               dims=[[2],[1]]) 
+#         # return [lambdas x features x samples]
         
-        return _cof
+#         return _cof
     
-    def __cofactor_fn_gpu2__(self, _x):
+#     def __cofactor_fn_gpu2__(self, _x):
 
-        mult = _x.T @ _x
-        ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
+#         mult = _x.T @ _x
+#         ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
      
-        _cof = torch.stack([torch.linalg.solve(mult+ridge_term*l, _x.T) \
-                      for l in self.lambdas], axis=0)
-        # return [lambdas x features x samples]
+#         _cof = torch.stack([torch.linalg.solve(mult+ridge_term*l, _x.T) \
+#                       for l in self.lambda_vectors], axis=0)
+#         # return [lambdas x features x samples]
         
-        return _cof
+#         return _cof
 
 
     def __loss_fn__(self, _cofactor, _vtrn, _xout, _vout):
@@ -885,7 +916,7 @@ class encoding_model():
         
                 # masks describes the indices of the features that are included in this partial model
                 # n_features_max in length
-                features_to_use = self.masks[0:self.max_features,pp]==1
+                features_to_use = self.masks[0:self.max_features,pp]
                 print('Includes %d features'%np.sum(features_to_use))
                 sys.stdout.flush()
         

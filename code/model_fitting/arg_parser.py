@@ -47,6 +47,8 @@ def get_args():
     
     parser.add_argument("--ridge", type=nice_str2bool, default=True,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
+    parser.add_argument("--set_lambda_per_group", type=nice_str2bool, default=True,
+                    help="want to allow lambda to differ between diff feature groups?? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=nice_str2bool, default=True,
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
     

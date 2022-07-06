@@ -97,15 +97,20 @@ class fwrf_feature_loader:
             self.feature_column_labels, self.feature_type_names = \
                 texture_feature_utils.get_feature_inds_simplegroups();
         
-        
         self.max_features = len(self.feature_column_labels)
+        
+        # when fitting ridge regression model, which features have same corresponding lambda?
+        n_ll_feats = 4;
+        self.feature_groups_ridge = (self.feature_column_labels>=n_ll_feats).astype('int')
+        
+        # when doing variance partition, which features go together?
         if self.group_all_hl_feats:
-            n_ll_feats = 4;
             # group the first 4 and last 6 sets of features.   
             self.feature_column_labels = (self.feature_column_labels>=n_ll_feats).astype('int')
             self.feature_group_names = ['lower-level', 'higher-level']
         else:
             # treat all 10 sets as separate groups
+            self.feature_column_labels = self.feature_column_labels
             self.feature_group_names = self.feature_type_names
         self.n_feature_types = len(self.feature_group_names)
        
@@ -251,6 +256,15 @@ class fwrf_feature_loader:
 
         return masks, partial_version_names
 
+    def get_feature_group_inds(self):
+        
+        if hasattr(self, 'feature_groups_ridge'):
+            group_inds = self.feature_groups_ridge
+        else:
+            group_inds = np.zeros((self.max_features,),dtype=int)
+            
+        return group_inds
+        
     def __load_features_prf_batch__(self, image_inds, prf_model_index):
         
         # loading features for pRFs in batches to speed up a little

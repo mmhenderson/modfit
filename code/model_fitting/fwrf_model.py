@@ -23,8 +23,6 @@ class encoding_model():
         
         self.feature_loader = feature_loader
 
-        self.solve_method = kwargs['solve_method'] if 'solve_method' in kwargs.keys() else 1
-        
         self.best_model_each_voxel = kwargs['best_model_each_voxel'] \
             if 'best_model_each_voxel' in kwargs.keys() else None
         # are we fitting prfs now, or were they done before?
@@ -392,13 +390,8 @@ class encoding_model():
 
             # Do part of the matrix math involved in ridge regression optimization out of the loop, 
             # because this part will be same for all the voxels.
-            # if self.solve_method==1:
             _cof = self.__cofactor_fn_cpu__(_xtrn, self.lambda_vectors[pp][:,nonzero_inds_full]) 
-#             elif self.solve_method==2:
-#                 _cof = self.__cofactor_fn_gpu1__(_xtrn)
-#             elif self.solve_method==3:
-#                 _cof = self.__cofactor_fn_gpu2__(_xtrn)
-                
+             
              # Now looping over batches of voxels (only reason is because can't store all in memory at same time)
             for vv in range(n_voxel_batches):
                 
@@ -702,33 +695,6 @@ class encoding_model():
         
         # put back to whatever way it was before, so that we can continue with other operations as usual
         return cof.to(type_orig)
-
-#     def __cofactor_fn_gpu1__(self, _x):
-
-#         mult = _x.T @ _x
-#         ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
-     
-#         _f = torch.stack([(mult+ridge_term*l).inverse() \
-#                        for l in self.lambda_vectors], axis=0)
-#         # [lambdas x features x features] x [images x features]
-#         _cof = torch.tensordot(_f, \
-#                               _x, \
-#                               dims=[[2],[1]]) 
-#         # return [lambdas x features x samples]
-        
-#         return _cof
-    
-#     def __cofactor_fn_gpu2__(self, _x):
-
-#         mult = _x.T @ _x
-#         ridge_term = torch.eye(_x.size()[1], device=_x.device, dtype=_x.dtype)
-     
-#         _cof = torch.stack([torch.linalg.solve(mult+ridge_term*l, _x.T) \
-#                       for l in self.lambda_vectors], axis=0)
-#         # return [lambdas x features x samples]
-        
-#         return _cof
-
 
     def __loss_fn__(self, _cofactor, _vtrn, _xout, _vout):
         '''

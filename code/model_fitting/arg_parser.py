@@ -42,9 +42,6 @@ def get_args():
     parser.add_argument("--fitting_type3", type=str,default='',
                     help="additional fitting type, for variance partition?")
     
-    parser.add_argument("--solve_method", type=int,default=1,
-                    help="method for computing inverse in fitting")
-    
     parser.add_argument("--ridge", type=nice_str2bool, default=True,
                     help="want to do ridge regression (lambda>0)? 1 for yes, 0 for no")
     parser.add_argument("--set_lambda_per_group", type=nice_str2bool, default=True,

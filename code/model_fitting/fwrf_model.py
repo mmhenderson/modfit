@@ -74,12 +74,12 @@ class encoding_model():
         # do perm test?
         self.shuffle_data = kwargs['shuffle_data'] \
             if 'shuffle_data' in kwargs.keys() else False
-        if self.shuffle_data:
-            self.__init_shuffle__(kwargs)
-   
         # do bootstrap? (resample w replacement)        
         self.bootstrap_data = kwargs['bootstrap_data'] \
             if 'bootstrap_data' in kwargs.keys() else False
+        
+        if self.shuffle_data:
+            self.__init_shuffle__(kwargs)
         if self.bootstrap_data:
             self.__init_bootstrap__(kwargs)
              
@@ -143,6 +143,8 @@ class encoding_model():
             if 'n_boot_iters' in kwargs.keys() else None
         self.boot_rnd_seed = kwargs['boot_rnd_seed'] \
             if 'boot_rnd_seed' in kwargs.keys() else None
+        self.boot_val_only = kwargs['boot_val_only'] \
+            if 'boot_val_only' in kwargs.keys() else False
         assert(not self.shuffle_data and not self.fitting_prfs_now)
         
     
@@ -243,7 +245,7 @@ class encoding_model():
                                              n_params, \
                                              self.n_partial_versions, \
                                              self.n_shuff_iters), dtype=self.dtype)
-        elif self.bootstrap_data:
+        elif self.bootstrap_data and not self.boot_val_only:
             self.best_w_params = np.zeros(shape=(self.n_voxels, \
                                              n_params, \
                                              self.n_partial_versions, \
@@ -285,7 +287,7 @@ class encoding_model():
                 self.shuff_inds_trn[:,xx] = np.random.permutation(n_trn)
                 self.shuff_inds_out[:,xx] = np.random.permutation(n_out)
             
-        if self.bootstrap_data:
+        if self.bootstrap_data and not self.boot_val_only:
             # prep for bootstrap resampling, if doing
             if self.trials_use_each_prf_trn is not None:
                 raise ValueError('cannot specify a trial subset when also doing bootstrap')
@@ -405,7 +407,7 @@ class encoding_model():
                                 nonzero_inds_full, \
                                 full_model_improved, voxels_to_fit, \
                                 mm, pp, voxel_batch_inds)              
-                elif self.bootstrap_data:
+                elif self.bootstrap_data and not self.boot_val_only:
                     self.__fit_voxel_batch_bootstrap__(_xtrn, _xout, \
                                 trn_data_use, out_data_use, \
                                 nonzero_inds_full, \
@@ -1031,11 +1033,19 @@ class encoding_model():
                                          voxel_data_use, 
                                          voxel_batch_inds, pp):
 
-        # weights is [voxels x features x n_boot_iters]
-        weights = self.best_weights[voxel_batch_inds,:,pp,:][:,features_to_use, :]
-        # biases is [voxels x n_boot_iters]
-        bias = self.best_biases[voxel_batch_inds,pp,:]
-        
+        if self.boot_val_only:
+            # use normal (non-bootstrapped) weights, but bootstrap when getting R2
+            weights = self.best_weights[voxel_batch_inds,:,pp][:,features_to_use]
+            bias = self.best_biases[voxel_batch_inds,pp]
+            _weights = torch_utils._to_torch(weights, device=self.device)
+            _bias = torch_utils._to_torch(bias, device=self.device)
+        else:
+            # use weights computed on bootstrap resampled data
+            # weights is [voxels x features x n_boot_iters]
+            weights = self.best_weights[voxel_batch_inds,:,pp,:][:,features_to_use, :]
+            # biases is [voxels x n_boot_iters]
+            bias = self.best_biases[voxel_batch_inds,pp,:]
+
         n_trials_use = np.sum(trials_use)
         assert(n_trials_use==features.shape[0]) 
         # pred_block = np.full(fill_value=0, shape=(n_trials_use, len(voxel_batch_inds), self.n_boot_iters), dtype=self.dtype)
@@ -1051,9 +1061,10 @@ class encoding_model():
             # swap dims to [#voxels, #samples, features]
             _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
 
-            _weights = torch_utils._to_torch(weights[:,:,ii], device=self.device)
-            _bias = torch_utils._to_torch(bias[:,ii], device=self.device)
-   
+            if not self.boot_val_only:
+                _weights = torch_utils._to_torch(weights[:,:,ii], device=self.device)
+                _bias = torch_utils._to_torch(bias[:,ii], device=self.device)
+
             # weights is [voxels x features]
             # _r will be [voxels x trials x 1] - then [trials x voxels]
             _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 

@@ -113,6 +113,7 @@ def fit_fwrf(args):
             dict2save.update({
             'n_boot_iters': args.n_boot_iters, 
             'boot_rnd_seed': args.boot_rnd_seed,
+            'boot_val_only': args.boot_val_only,
             'voxel_batch_size_outer': args.voxel_batch_size_outer,
             })
         if np.any(['semantic' in ft for ft in fitting_types]):
@@ -479,6 +480,7 @@ def fit_fwrf(args):
                                             bootstrap_data = args.bootstrap_data, \
                                             boot_rnd_seed = args.boot_rnd_seed, \
                                             n_boot_iters = args.n_boot_iters, \
+                                            boot_val_only = args.boot_val_only, \
                                             dtype=np.float32, debug=args.debug)
                   
           

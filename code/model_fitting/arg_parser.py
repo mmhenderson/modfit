@@ -70,6 +70,8 @@ def get_args():
    
     parser.add_argument("--bootstrap_data", type=nice_str2bool,default=False,
                     help="want to run bootstrap test? 1 for yes, 0 for no")
+    parser.add_argument("--boot_val_only", type=nice_str2bool,default=False,
+                    help="want to run bootstrapping just during validation (faster)? 1 for yes, 0 for no")
     parser.add_argument("--n_boot_iters", type=int,default=1000,
                     help="how many shuffle iters?")
     parser.add_argument("--boot_rnd_seed", type=int,default=0,

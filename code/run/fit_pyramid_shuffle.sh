@@ -15,7 +15,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/modfit/code/model_fitting
 
-subjects=(1 2)
+subjects=(3 4 5 6 7 8)
  
 debug=0
 up_to_sess=40
@@ -39,7 +39,7 @@ do_val=1
 do_tuning=0
 do_sem_disc=0
 
-do_pyr_varpart=1
+do_pyr_varpart=0
 
 fitting_type=texture_pyramid
 
@@ -51,13 +51,13 @@ pyr_pca_type=pcaHL
 
 set_lambda_per_group=1
 
-shuffle_data=0
+shuffle_data=1
 n_shuff_iters=1000
 shuff_rnd_seed=0
 shuff_batch_size=100
 voxel_batch_size_outer=5000
 
-bootstrap_data=1
+bootstrap_data=0
 n_boot_iters=1000
 boot_rnd_seed=0
 

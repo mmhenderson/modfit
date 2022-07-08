@@ -16,7 +16,7 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/modfit/code/feature_extraction
 
-subjects=(1)
+subjects=(2 3 4 5 6 7 8)
 
 for subject in ${subjects[@]}
 do
@@ -25,17 +25,17 @@ do
 
     python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
 
-    pca_type=pcaHL_simple
+#     pca_type=pcaHL_simple
 
-    python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
+#     python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
     
-    pca_type=pcaHL_sepscales
+#     pca_type=pcaHL_sepscales
 
-    python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
+#     python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
 
-    pca_type=pcaAll
+#     pca_type=pcaAll
 
-    python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
+#     python3 pca_texture_feats.py --subject $subject --debug $debug --pca_type $pca_type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
 
     
 done

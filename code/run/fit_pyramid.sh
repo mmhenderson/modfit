@@ -16,8 +16,8 @@ source ~/myenv/bin/activate
 cd /user_data/mmhender/modfit/code/model_fitting
 
 # subjects=(5)
-# subjects=(2 3 4 5 6 7 8)
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1)
 # 
 debug=0
 up_to_sess=40
@@ -52,15 +52,13 @@ n_ori_pyr=4
 n_sf_pyr=4
 group_all_hl_feats=1
 
-pyr_pca_type_list=(pcaHL pcaHL_simple pcaHL_sepscales pcaAll)
+pyr_pca_type=pcaHL
+
+set_lambda_per_group=1
 
 for subject in ${subjects[@]}
 do
-
-    for pyr_pca_type in ${pyr_pca_type_list[@]}  
-    do
-        python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --do_pyr_varpart $do_pyr_varpart --pyr_pca_type $pyr_pca_type
-    
-    done
+   
+    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --prfs_model_name $prfs_model_name --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --do_pyr_varpart $do_pyr_varpart --pyr_pca_type $pyr_pca_type --set_lambda_per_group $set_lambda_per_group 
     
 done

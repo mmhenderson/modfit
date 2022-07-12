@@ -6,8 +6,8 @@ import pyrtools as pt
 from utils import numpy_utils, torch_utils, texture_utils, prf_utils, default_paths
 from feature_extraction import texture_feature_utils
 
-feature_types_all = texture_feature_utils.feature_types_all
-feature_type_dims_all = texture_feature_utils.feature_type_dims_all
+feature_types_all = texture_feature_utils.feature_type_names_raw
+feature_type_dims_all = texture_feature_utils.feature_type_dims_raw
 
 class texture_feature_extractor(nn.Module):
     

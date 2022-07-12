@@ -75,6 +75,7 @@ def fit_fwrf(args):
         'voxel_subset_is_done_trn': voxel_subset_is_done_trn,
         'voxel_subset_is_done_val': voxel_subset_is_done_val,
         'trial_subset': args.trial_subset, 
+        'do_corrcoef': args.do_corrcoef,
         }
         # Might be some more things to save, depending what kind of fitting this is
         if args.use_model_residuals:
@@ -481,6 +482,7 @@ def fit_fwrf(args):
                                             boot_rnd_seed = args.boot_rnd_seed, \
                                             n_boot_iters = args.n_boot_iters, \
                                             boot_val_only = args.boot_val_only, \
+                                            do_corrcoef = args.do_corrcoef, \
                                             dtype=np.float32, debug=args.debug)
                   
           

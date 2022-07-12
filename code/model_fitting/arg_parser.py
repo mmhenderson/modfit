@@ -48,6 +48,8 @@ def get_args():
                     help="want to allow lambda to differ between diff feature groups?? 1 for yes, 0 for no")
     parser.add_argument("--zscore_features", type=nice_str2bool, default=True,
                     help="want to z-score each feature right before fitting encoding model? 1 for yes, 0 for no")
+    parser.add_argument("--do_corrcoef", type=nice_str2bool, default=True,
+                    help="want to compute validation set correlation coefficient, in addition to R2? 1 for yes, 0 for no")
     
     # these are ways of doing shuffling just once, as a quick test
     parser.add_argument("--shuffle_images_once", type=nice_str2bool,default=False,

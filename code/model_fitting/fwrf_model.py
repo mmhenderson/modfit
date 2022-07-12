@@ -30,6 +30,7 @@ class encoding_model():
         
         self.zscore = kwargs['zscore'] if 'zscore' in kwargs.keys() else True
         self.add_bias = kwargs['add_bias'] if 'add_bias' in kwargs.keys() else True
+        self.do_corrcoef = kwargs['do_corrcoef'] if 'do_corrcoef' in kwargs.keys() else True
         self.voxel_batch_size = kwargs['voxel_batch_size'] \
             if 'voxel_batch_size' in kwargs.keys() else 100
         self.sample_batch_size = kwargs['sample_batch_size'] \
@@ -900,8 +901,14 @@ class encoding_model():
                                                  trials_use, \
                                                  voxel_data_use, 
                                                  voxel_batch_inds, pp)
-                elif self.bootstrap_data:
+                elif self.bootstrap_data and not self.boot_val_only:
                     self.__get_preds_one_batch_bootstrap__(features, \
+                                                 features_to_use, \
+                                                 trials_use, \
+                                                 voxel_data_use, 
+                                                 voxel_batch_inds, pp)
+                elif self.bootstrap_data and self.boot_val_only:
+                    self.__get_preds_one_batch_bootstrap_val_only__(features, \
                                                  features_to_use, \
                                                  trials_use, \
                                                  voxel_data_use, 
@@ -947,7 +954,8 @@ class encoding_model():
             pred_block[trial_batch_inds] = torch_utils.get_value(_r) 
 
         # Now for this batch of voxels and this partial version of the model, measure performance.
-        self.val_cc[voxel_batch_inds,pp] = stats_utils.get_corrcoef(voxel_data_use[:,voxel_batch_inds], pred_block)
+        if self.do_corrcoef:
+            self.val_cc[voxel_batch_inds,pp] = stats_utils.get_corrcoef(voxel_data_use[:,voxel_batch_inds], pred_block)
         self.val_r2[voxel_batch_inds,pp] = stats_utils.get_r2(voxel_data_use[:,voxel_batch_inds], pred_block)
 
         # Make sure to save the trial-wise predictions, for use in analyses later on 
@@ -1011,7 +1019,8 @@ class encoding_model():
             # use the randomized validation set order here
             shuff_order = self.shuff_inds_val[:,xx]
             shuff_dat = voxel_data_use[:,voxel_batch_inds][shuff_order,:]
-            self.val_cc[voxel_batch_inds,pp,xx] = stats_utils.get_corrcoef(shuff_dat, pred_block[:,:,xx])
+            if self.do_corrcoef:
+                self.val_cc[voxel_batch_inds,pp,xx] = stats_utils.get_corrcoef(shuff_dat, pred_block[:,:,xx])
             self.val_r2[voxel_batch_inds,pp,xx] = stats_utils.get_r2(shuff_dat, pred_block[:,:,xx])
 
         # We don't need to save every trial-wise prediction here because they'll get very large.
@@ -1033,18 +1042,11 @@ class encoding_model():
                                          voxel_data_use, 
                                          voxel_batch_inds, pp):
 
-        if self.boot_val_only:
-            # use normal (non-bootstrapped) weights, but bootstrap when getting R2
-            weights = self.best_weights[voxel_batch_inds,:,pp][:,features_to_use]
-            bias = self.best_biases[voxel_batch_inds,pp]
-            _weights = torch_utils._to_torch(weights, device=self.device)
-            _bias = torch_utils._to_torch(bias, device=self.device)
-        else:
-            # use weights computed on bootstrap resampled data
-            # weights is [voxels x features x n_boot_iters]
-            weights = self.best_weights[voxel_batch_inds,:,pp,:][:,features_to_use, :]
-            # biases is [voxels x n_boot_iters]
-            bias = self.best_biases[voxel_batch_inds,pp,:]
+        # use weights computed on bootstrap resampled data
+        # weights is [voxels x features x n_boot_iters]
+        weights = self.best_weights[voxel_batch_inds,:,pp,:][:,features_to_use, :]
+        # biases is [voxels x n_boot_iters]
+        bias = self.best_biases[voxel_batch_inds,pp,:]
 
         n_trials_use = np.sum(trials_use)
         assert(n_trials_use==features.shape[0]) 
@@ -1061,9 +1063,8 @@ class encoding_model():
             # swap dims to [#voxels, #samples, features]
             _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
 
-            if not self.boot_val_only:
-                _weights = torch_utils._to_torch(weights[:,:,ii], device=self.device)
-                _bias = torch_utils._to_torch(bias[:,ii], device=self.device)
+            _weights = torch_utils._to_torch(weights[:,:,ii], device=self.device)
+            _bias = torch_utils._to_torch(bias[:,ii], device=self.device)
 
             # weights is [voxels x features]
             # _r will be [voxels x trials x 1] - then [trials x voxels]
@@ -1078,7 +1079,8 @@ class encoding_model():
             # Measure performance
             # Make sure to apply re-sampling order to the validation set data here.
             shuff_dat = voxel_data_use[:,voxel_batch_inds][self.boot_inds_val[:,ii],:]
-            self.val_cc[voxel_batch_inds,pp,ii] = stats_utils.get_corrcoef(shuff_dat, _r)
+            if self.do_corrcoef:
+                self.val_cc[voxel_batch_inds,pp,ii] = stats_utils.get_corrcoef(shuff_dat, _r)
             self.val_r2[voxel_batch_inds,pp,ii] = stats_utils.get_r2(shuff_dat, _r)
 
         # We don't need to save every trial-wise prediction here because they'll get very large.
@@ -1092,8 +1094,58 @@ class encoding_model():
         _r = None;
         
         gc.collect()
+        
+    def __get_preds_one_batch_bootstrap_val_only__(self, features, \
+                                                 features_to_use, \
+                                                 trials_use, \
+                                                 voxel_data_use, 
+                                                 voxel_batch_inds, pp):
 
 
+        _weights = torch_utils._to_torch(self.best_weights[voxel_batch_inds,:,pp], device=self.device)   
+        _weights = _weights[:, features_to_use]
+        _bias = torch_utils._to_torch(self.best_biases[voxel_batch_inds,pp], device=self.device)
 
+        n_trials_use = np.sum(trials_use)
+        pred_block = np.full(fill_value=0, shape=(n_trials_use, len(voxel_batch_inds)), dtype=self.dtype)
 
+        # Now looping over validation set trials in batches
+        n_trial_batches = int(np.ceil(n_trials_use/self.sample_batch_size))
+        for ti in range(n_trial_batches):
 
+            trial_batch_inds = np.arange(self.sample_batch_size*ti, np.min([self.sample_batch_size*(ti+1), n_trials_use]))
+
+            # features is [trials x features x voxels]
+            _features = torch_utils._to_torch(features[trial_batch_inds,:,:], device=self.device)
+            # swap dims to [voxels x trials x features]
+            _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
+            # weights is [voxels x features]
+            # _r will be [voxels x trials x 1] - then [trials x voxels]
+            _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
+
+            if _bias is not None:
+                _r = _r + torch.tile(torch.unsqueeze(_bias, 0), [_r.shape[0],1])
+
+            pred_block[trial_batch_inds] = torch_utils.get_value(_r) 
+
+        for ii in range(self.n_boot_iters):
+            
+            if not np.mod(ii, 100):
+                print('computing bootstrap resampled validation acc, iter %d of %d'%(ii, self.n_boot_iters))
+
+            # Measure performance, using this bootstrap resampled set of trials
+            resamp_dat = voxel_data_use[:,voxel_batch_inds][self.boot_inds_val[:,ii],:]
+            resamp_pred = pred_block[self.boot_inds_val[:,ii],:]
+               
+            if self.do_corrcoef:
+                self.val_cc[voxel_batch_inds,pp,ii] = stats_utils.get_corrcoef(resamp_dat, resamp_pred)
+            self.val_r2[voxel_batch_inds,pp,ii] = stats_utils.get_r2(resamp_dat, resamp_pred)
+
+        # Make sure to save the trial-wise predictions, for use in analyses later on 
+        pred_these_trials = self.pred_voxel_data[trials_use,:,pp]
+        pred_these_trials[:,voxel_batch_inds] = pred_block
+        self.pred_voxel_data[trials_use,:,pp] = pred_these_trials
+
+        sys.stdout.flush()
+
+            

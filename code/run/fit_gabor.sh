@@ -53,21 +53,10 @@ use_pca_gabor_feats=0
 
 gabor_nonlin_fn=1
 
-shuffle_data=0
-n_shuff_iters=1000
-shuff_rnd_seed=0
-# shuff_rnd_seed=451819
-
-
 for subject in ${subjects[@]}
 do
-    
-    solve_methods=(1 2 3)
-    for solve_method in ${solve_methods[@]}
-    do
+  
    
-        python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --use_pca_gabor_feats $use_pca_gabor_feats --save_model_residuals $save_model_residuals --shuffle_data $shuffle_data --shuff_rnd_seed $shuff_rnd_seed --n_shuff_iters $n_shuff_iters --solve_method $solve_method
-    
-    done
+    python3 fit_model.py --subject $subject --debug $debug --up_to_sess $up_to_sess --average_image_reps $average_image_reps --sample_batch_size $sample_batch_size --voxel_batch_size $voxel_batch_size --zscore_features $zscore_features --ridge $ridge --use_precomputed_prfs $use_precomputed_prfs --which_prf_grid $which_prf_grid --from_scratch $from_scratch --date_str $date_str --do_val $do_val --do_tuning $do_tuning --do_sem_disc $do_sem_disc --overwrite_sem_disc $overwrite_sem_disc --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --gabor_nonlin_fn $gabor_nonlin_fn --use_pca_gabor_feats $use_pca_gabor_feats --save_model_residuals $save_model_residuals 
     
 done

@@ -44,7 +44,7 @@ do_val=1
 do_tuning=0
 do_sem_disc=0
 
-do_pyr_varpart=0
+do_pyr_varpart=1
 
 fitting_type=texture_pyramid
 

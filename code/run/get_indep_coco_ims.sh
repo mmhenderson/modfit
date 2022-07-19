@@ -8,7 +8,7 @@
 
 source ~/myenv/bin/activate
 
-cd /user_data/mmhender/imStat/code/utils/run/
+cd /user_data/mmhender/modfit/code/utils/run/
 
 debug=0
 

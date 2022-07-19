@@ -23,7 +23,10 @@ def extract_features(subject, n_ori=4, n_sf=4, sample_batch_size=100, \
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
     else:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path
-               
+        
+    if not os.path.exists(gabor_texture_feat_path):
+        os.makedirs(gabor_texture_feat_path)
+        
     # Load and prepare the image set to work with 
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were

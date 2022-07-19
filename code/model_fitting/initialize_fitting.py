@@ -591,6 +591,7 @@ def make_feature_loaders(args, fitting_types, vi):
             fe_names.append(ft)
 
         elif 'alexnet' in ft:
+            n_dnn_layers = 5;
             if args.alexnet_layer_name=='all_conv':
                 names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
                 for ll in range(n_dnn_layers):
@@ -621,6 +622,7 @@ def make_feature_loaders(args, fitting_types, vi):
                 fe_names.append(ft)
 
         elif 'clip' in ft:
+            n_dnn_layers = 16;
             if args.clip_layer_name=='all_resblocks':
                 names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
                 for ll in range(n_dnn_layers):

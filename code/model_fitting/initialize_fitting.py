@@ -485,7 +485,14 @@ def load_model_residuals(args, sessions):
         my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M_%S"))
     except:
         my_dates.sort(key=lambda date: datetime.strptime(date, "%b-%d-%Y_%H%M"))
-    most_recent_date = my_dates[-1]
+    
+    try:
+        most_recent_date = my_dates[-1]
+    except:
+        print(my_dates)
+        print(os.path.join(subject_dir, args.residuals_model_name))
+        raise RuntimeError('cannot find file')
+        
     if args.debug:
         most_recent_date += '_DEBUG'
     residuals_dir = os.path.join(subject_dir,args.residuals_model_name,'%s'%most_recent_date)

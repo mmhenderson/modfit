@@ -918,6 +918,7 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
     models = initialize_fitting.get_prf_models(which_prf_grid)
     n_prfs = models.shape[0]
 
+   
     subjects = np.array(list(np.arange(1,9)) + [999])
     n_subjects = len(subjects)
     n_axes = len(axes_to_do)
@@ -927,6 +928,9 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
     
     for si, ss in enumerate(subjects):
     
+        if debug and si>0:
+            continue
+            
         labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(ss, which_prf_grid))
         if si==0:

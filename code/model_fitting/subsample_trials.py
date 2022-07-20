@@ -12,7 +12,10 @@ import initialize_fitting
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-
+save_path = os.path.join(default_paths.stim_labels_root, 'resampled_trial_orders')
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
+    
 def balance_orient_vs_categories(subject, which_prf_grid=5, axes_to_do=[0,2,3], n_samp_iters=1000, \
                                  debug=False):
        

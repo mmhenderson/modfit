@@ -6,16 +6,23 @@ from utils import coco_utils
 
 nsd_root = default_paths.nsd_root
 path_to_save = default_paths.stim_root
+labels_path = default_paths.stim_labels_root
 features_path = os.path.join(default_paths.root, 'features')
+
 print('nsd_root: %s'%nsd_root)
 print('path_to_save: %s'%path_to_save)
 print('features_path: %s'%features_path)
+print('labels_path: %s'%labels_path)
 
 if not os.path.exists(path_to_save):
     os.makedirs(path_to_save)
 
 if not os.path.exists(features_path):
     os.makedirs(features_path)
+    
+if not os.path.exists(labels_path):
+    os.makedirs(labels_path)
+    
 sys.stdout.flush()
 
 if __name__ == '__main__':

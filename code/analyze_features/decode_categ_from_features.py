@@ -9,6 +9,8 @@ from utils import default_paths, nsd_utils, stats_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import default_feature_loaders
 
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
                  feature_type='gabor_solo', \
                  which_prf_grid=1, debug=False, \
@@ -129,7 +131,7 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
 
             X = features_in_prf[inds2use,:]
             y = labels[inds2use]
-            tst_acc, tst_dprime = decode_lda(X, y, n_crossval_folds=10)
+            tst_acc, tst_dprime = decode_lda(X, y, n_crossval_folds=10, debug=debug)
             
             acc_each_prf[prf_model_index,aa] = tst_acc
             dprime_each_prf[prf_model_index, aa] = tst_dprime
@@ -146,12 +148,13 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
                       'discrim_type_list': discrim_type_list})
 
     
-def decode_lda(X, y, n_crossval_folds=10):
+def decode_lda(X, y, n_crossval_folds=10, debug=False):
     
     n_trials = X.shape[0]
     assert(len(y)==n_trials)
     un_values = np.unique(y)
-    assert(len(un_values)>1)
+    if not debug:
+        assert(len(un_values)>1)
     
     n_per_fold = int(np.ceil(n_trials/n_crossval_folds))
     

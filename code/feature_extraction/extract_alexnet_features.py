@@ -10,7 +10,7 @@ import torchvision.models as models
 import torch.nn as nn
 
 #import custom modules
-from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils
+from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, coco_utils
 from model_fitting import initialize_fitting
 
 
@@ -52,11 +52,17 @@ def get_features_each_prf(subject, use_node_storage=False, debug=False, \
     if not os.path.exists(alexnet_feat_path):
         os.makedirs(alexnet_feat_path)
       
-    # Load and prepare the image set to work with (all images for the current subject, 10,000 ims)
-    stim_root = default_paths.stim_root
-    image_data = nsd_utils.get_image_data(subject)  
-    image_data = nsd_utils.image_uncolorize_fn(image_data)
-   
+    # Load and prepare the image set to work with 
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        image_data = coco_utils.load_indep_coco_images(n_pix=240)
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+    else: 
+        # load all images for the current subject, 10,000 ims
+        image_data = nsd_utils.get_image_data(subject)  
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+    
     n_images = image_data.shape[0]
     
     # Params for the spatial aspect of the model (possible pRFs)

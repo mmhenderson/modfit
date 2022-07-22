@@ -44,10 +44,15 @@ def run_pca_gabor(subject, min_pct_var=95, max_pc_to_retain=96, debug=False, whi
     print('Took %.5f seconds to load file'%elapsed)
     features_each_prf = values
 
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+        
     n_trials = len(trninds)
     
     
@@ -142,10 +147,15 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
 
     zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
 
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+        
     n_trials = len(trninds)
     
     
@@ -166,7 +176,8 @@ def run_pca_sketch_tokens(subject, min_pct_var=95, max_pc_to_retain=150, debug=F
         
         features_in_prf_z = np.zeros_like(features_in_prf)
         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+        if np.sum(~trninds)>0:
+            features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
            
         print('Size of features array for this image set and prf is:')
         print(features_in_prf_z.shape)
@@ -246,10 +257,15 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
     
     zgroup_labels = np.ones(shape=(1,n_features))
 
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+        
 
     scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
     actual_max_ncomp=0
@@ -287,10 +303,12 @@ def run_pca_alexnet(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, 
         
         features_in_prf_z = np.zeros_like(features_in_prf)
         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
-        # if any feature channels had no variance, fix them now
-        zero_var = (np.var(features_in_prf[trninds,:], axis=0)==0) | \
-                    (np.var(features_in_prf[~trninds,:], axis=0)==0)
+        zero_var = np.var(features_in_prf[trninds,:], axis=0)==0
+        if np.sum(~trninds)>0:
+            features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+            # if any feature channels had no variance, fix them now
+            zero_var = zero_var | (np.var(features_in_prf[~trninds,:], axis=0)==0)
+          
         features_in_prf_z[:,zero_var] = features_in_prf_z[0,zero_var]
         
         print('Size of features array for this image set and prf is:')
@@ -373,11 +391,15 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         
     zgroup_labels = np.ones(shape=(1,n_features))
 
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
-
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+        
     scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
     actual_max_ncomp=0
     
@@ -418,10 +440,12 @@ def run_pca_clip(subject, layer_name, min_pct_var=95, max_pc_to_retain=None, deb
         
         features_in_prf_z = np.zeros_like(features_in_prf)
         features_in_prf_z[trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[trninds,:], zgroup_labels)
-        features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
-        # if any feature channels had no variance, fix them now
-        zero_var = (np.var(features_in_prf[trninds,:], axis=0)==0) | \
-                    (np.var(features_in_prf[~trninds,:], axis=0)==0)
+        zero_var = np.var(features_in_prf[trninds,:], axis=0)==0
+        if np.sum(~trninds)>0:
+            features_in_prf_z[~trninds,:] = numpy_utils.zscore_in_groups(features_in_prf[~trninds,:], zgroup_labels)
+            # if any feature channels had no variance, fix them now
+            zero_var = zero_var | (np.var(features_in_prf[~trninds,:], axis=0)==0)
+      
         features_in_prf_z[:,zero_var] = features_in_prf_z[0,zero_var]
         
         print('Size of features array for this image set and prf is:')
@@ -503,10 +527,15 @@ def run_pca_semantic(subject, semantic_feature_set, min_pct_var=95, max_pc_to_re
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
     n_prfs = models.shape[0]
    
-    # training / validation data always split the same way - shared 1000 inds are validation.
-    subject_df = nsd_utils.get_subj_df(subject)
-    valinds = np.array(subject_df['shared1000'])
-    trninds = np.array(subject_df['shared1000']==False)
+    if subject==999:
+        # 999 is a code for the set of images that are independent of NSD images, 
+        # not shown to any participant.
+        trninds = np.ones((10000,),dtype=bool)
+    else:            
+        # training / validation data always split the same way - shared 1000 inds are validation.
+        subject_df = nsd_utils.get_subj_df(subject)
+        trninds = np.array(subject_df['shared1000']==False)
+        
     n_trials = len(trninds)
     
     for prf_model_index in range(n_prfs):

@@ -359,11 +359,8 @@ def fit_fwrf(args):
         assert(last_saved['debug']==args.debug)
         assert(last_saved['which_prf_grid']==args.which_prf_grid)
         assert(np.all(last_saved['lambdas']==lambdas))
-        print(last_saved['saved_best_layer_fn'])
-        print(saved_best_layer_fn)
-        print(last_saved['saved_best_layer_fn'].split('/')[7])
-        print(saved_best_layer_fn.split('/')[7])
-        assert(last_saved['saved_prfs_fn'].split('/')[7]==saved_prfs_fn.split('/')[7])
+        if 'saved_prfs_fn' in list(last_saved.keys()):
+            assert(last_saved['saved_prfs_fn'].split('/')[7]==saved_prfs_fn.split('/')[7])
         assert(last_saved['saved_best_layer_fn'].split('/')[7]==saved_best_layer_fn.split('/')[7])
         assert('shuffle_data' not in last_saved.keys() or last_saved['shuffle_data']==False)
         

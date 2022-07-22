@@ -16,7 +16,8 @@ source ~/myenv/bin/activate
 
 cd /user_data/mmhender/modfit/code/feature_extraction
 
-subjects=(2 3 4 5 6 7 8)
+# subjects=(2 3 4 5 6 7 8)
+subjects=(999)
 
 for subject in ${subjects[@]}
 do

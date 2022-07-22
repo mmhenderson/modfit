@@ -7,17 +7,28 @@
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
 #SBATCH --time=8-00:00:00
 
+
+echo $SLURM_JOBID
+echo $SLURM_NODELIST
+
+source ~/myenv/bin/activate
+
+# change this path
+ROOT=/user_data/mmhender/modfit/
+
+# put the code directory on your python path
+PYTHONPATH=:${ROOT}code/${PYTHONPATH}
+
+cd ${ROOT}code/feature_extraction/
+
 debug=0
 use_node_storage=0
 which_prf_grid=5
 min_pct_var=95
 max_pc_to_retain=100
 
-source ~/myenv/bin/activate
+subjects=(999)
 
-cd /user_data/mmhender/imStat/code/feature_extraction/
-
-subjects=(6 7 8)
 for subject in ${subjects[@]}
 do
 

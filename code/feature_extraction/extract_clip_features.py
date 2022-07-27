@@ -254,10 +254,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     n_blocks = len(resnet_block_names)  
-    if args.subject==6:
-        blocks_to_do = np.arange(13,16)
-    else:
-        blocks_to_do = np.arange(16)
+
+    blocks_to_do = np.arange(n_blocks)
                                 
     for ll in blocks_to_do:
 

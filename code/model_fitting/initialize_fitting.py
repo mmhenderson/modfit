@@ -5,7 +5,7 @@ These are all semi-general functions that are run before model fitting (file nam
 
 import torch
 import time
-import os
+import os, sys
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -678,8 +678,18 @@ def make_feature_loaders(args, fitting_types, vi):
 
     # Now combine subsets of features into a single module
     if len(fe)>1:
+        if args.fitting_type2=='semantic' and args.fitting_type3=='':
+            print('trying to compute lambda_groups')
+            n_vis_fts = np.sum(['semantic' not in ft for ft in fitting_types])
+            n_sem_fts = np.sum(['semantic' in ft for ft in fitting_types])
+            lambda_groups = np.array([0 for ii in range(n_vis_fts)] + [1 for ii in range(n_sem_fts)])
+            print(lambda_groups)
+            sys.stdout.flush()
+        else:
+            lambda_groups = np.arange(len(fe))
         feat_loader_full = merge_features.combined_feature_loader(fe, fe_names, do_varpart = args.do_varpart,\
-                                                                  include_solo_models=args.include_solo_models)
+                                                                  include_solo_models=args.include_solo_models, 
+                                                                  lambda_groups = lambda_groups)
     else:
         feat_loader_full = fe[0]
         

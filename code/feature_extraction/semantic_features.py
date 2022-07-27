@@ -122,6 +122,12 @@ class semantic_feature_loader:
 
         return masks, partial_version_names
 
+    def get_feature_group_inds(self):
+        
+        group_inds = np.zeros((self.max_features,),dtype=int)
+            
+        return group_inds
+    
     def __load_precomputed_features__(self, image_inds, prf_model_index):
 
         if self.same_labels_all_prfs:

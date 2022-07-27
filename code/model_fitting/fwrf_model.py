@@ -97,6 +97,11 @@ class encoding_model():
         if self.set_lambda_per_group:  
             # allow different "groups" of features to have their own lambda values
             self.feature_group_inds = self.feature_loader.get_feature_group_inds()
+            print('group inds:')
+            print(self.feature_group_inds)
+            print(np.unique(self.feature_group_inds, return_counts=True))
+            sys.stdout.flush()
+            
         else:
             # use a single lambda for all features
             self.feature_group_inds = np.zeros((self.max_features,),dtype=int)

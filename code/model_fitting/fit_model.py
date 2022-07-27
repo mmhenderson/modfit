@@ -346,6 +346,7 @@ def fit_fwrf(args):
         partial_masks[vi] = partial_masks_tmp
         assert(len(partial_version_names)==n_partial_versions)
         
+    sys.stdout.flush()
                                  
     ###### LOAD LAST SAVED MODEL ############################################################################
     if not args.from_scratch:
@@ -359,9 +360,14 @@ def fit_fwrf(args):
         assert(last_saved['debug']==args.debug)
         assert(last_saved['which_prf_grid']==args.which_prf_grid)
         assert(np.all(last_saved['lambdas']==lambdas))
-        if 'saved_prfs_fn' in list(last_saved.keys()):
+        if 'saved_prfs_fn' in list(last_saved.keys()) and (last_saved['saved_prfs_fn'] is not None):
             assert(last_saved['saved_prfs_fn'].split('/')[7]==saved_prfs_fn.split('/')[7])
-        assert(last_saved['saved_best_layer_fn'].split('/')[7]==saved_best_layer_fn.split('/')[7])
+        else:
+            assert(saved_prfs_fn is None)
+        if 'saved_best_layer_fn' in list(last_saved.keys()) and (last_saved['saved_best_layer_fn'] is not None):
+            assert(last_saved['saved_best_layer_fn'].split('/')[7]==saved_best_layer_fn.split('/')[7])
+        else:
+            assert(saved_best_layer_fn is None)
         assert('shuffle_data' not in last_saved.keys() or last_saved['shuffle_data']==False)
         
         voxel_subset_is_done_trn = last_saved['voxel_subset_is_done_trn']
@@ -459,7 +465,8 @@ def fit_fwrf(args):
         feat_loader_full = feat_loader_full_list[vi]
         max_features = feat_loader_full.max_features 
         
-        
+        sys.stdout.flush()
+            
         ########## INITIALIZE ENCODING MODEL ##################################################
         
         model = fwrf_model.encoding_model(feat_loader_full, lambdas=lambdas, \
@@ -490,6 +497,7 @@ def fit_fwrf(args):
             print('\nStarting training (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
             print(len(image_inds_trn))
 
+            sys.stdout.flush()
             
             model.fit(image_inds_trn, voxel_data_trn_use, \
                         image_inds_holdout, voxel_data_holdout_use,\

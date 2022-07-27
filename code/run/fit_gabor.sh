@@ -21,7 +21,8 @@ PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 
 cd ${ROOT}code/model_fitting/
 
-subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1 2 3 4 5 6 7 8)
+subjects=(2)
 # subjects=(1)
 
 debug=0

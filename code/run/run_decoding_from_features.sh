@@ -27,9 +27,10 @@ which_prf_grid=5
 subjects=(999)
 
 # feature_types=(gabor_solo)
-feature_types=(pyramid_texture)
+# feature_types=(pyramid_texture)
 # feature_types=(sketch_tokens) 
-# feature_types=(alexnet clip)
+# feature_types=(alexnet)
+feature_types=(clip)
 
 balance_downsample=1
 

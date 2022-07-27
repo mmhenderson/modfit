@@ -25,3 +25,6 @@ coco_api_path = '/user_data/mmhender/toolboxes/coco_annot'
 # Path to where the raw COCO images are stored
 # https://cocodataset.org/
 coco_ims_path = '/lab_data/tarrlab/common/datasets/COCO'
+
+# only need this path if using floc stimuli (categories)
+floc_image_root = '/lab_data/tarrlab/maggie/fLoc_stimuli/'

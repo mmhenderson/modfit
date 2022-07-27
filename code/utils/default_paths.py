@@ -45,3 +45,5 @@ beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
 
 coco_api_path = path_defs.coco_api_path
 coco_ims_path = path_defs.coco_ims_path
+
+floc_image_root = path_defs.floc_image_root

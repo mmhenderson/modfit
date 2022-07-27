@@ -15,38 +15,23 @@ try:
 except:
     device = 'cpu:0'
     
-def extract_features(subject, n_ori=4, n_sf=4, sample_batch_size=100, \
-                     use_node_storage=False, nonlin_fn=False, \
-                     which_prf_grid=1, debug=False):
+def extract_features(image_data,\
+                     n_ori=4, n_sf=4, \
+                     sample_batch_size=100, \
+                     nonlin_fn=False, \
+                     which_prf_grid=5, debug=False):
     
-    if use_node_storage:
-        gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
-    else:
-        gabor_texture_feat_path = default_paths.gabor_texture_feat_path
-        
-    if not os.path.exists(gabor_texture_feat_path):
-        os.makedirs(gabor_texture_feat_path)
-        
-    # Load and prepare the image set to work with 
-    if subject==999:
-        # 999 is a code i am using to indicate the independent set of coco images, which were
-        # not actually shown to any NSD participants
-        image_data = coco_utils.load_indep_coco_images(n_pix=240)
-        image_data = nsd_utils.image_uncolorize_fn(image_data)
-    else: 
-        # load all images for the current subject, 10,000 ims
-        image_data = nsd_utils.get_image_data(subject)  
-        image_data = nsd_utils.image_uncolorize_fn(image_data)
-       
-    fn2save = os.path.join(gabor_texture_feat_path, \
-                               'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(subject, n_ori, n_sf))
-    if debug:
-        fn2save += '_DEBUG'
-    if nonlin_fn:
-        fn2save += '_nonlin'
-        
-    fn2save += '_grid%d.h5py'%which_prf_grid   
-        
+    """ Extract Gabor features for the images in image_data, 
+        within each pRF of a specified grid
+    
+    Input: 
+    image_data, size [n_images x n_color_channels x n_pix x n_pix]
+    
+    Returns:   
+    features_each_prf, size [n_images x n_features x n_prfs]   
+    
+    """
+ 
     n_pix = image_data.shape[2]
     n_images = image_data.shape[0]
     n_batches = int(np.ceil(n_images/sample_batch_size))
@@ -112,19 +97,9 @@ def extract_features(subject, n_ori=4, n_sf=4, sample_batch_size=100, \
                 features_each_prf[batch_inds,:,mm] = features_batch
 
                 sys.stdout.flush()
-
+                
+    return features_each_prf
                                               
-    
-    print('Writing prf features to %s\n'%fn2save)
-    
-    t = time.time()
-    with h5py.File(fn2save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float32)
-        data_set['/features'][:,:,:] = features_each_prf
-        data_set.close()  
-    elapsed = time.time() - t
-    
-    print('Took %.5f sec to write file'%elapsed)
     
     
 def get_avg_features_in_prf(_fmaps_fn, images, prf_params, sample_batch_size, aperture, device, \
@@ -178,6 +153,56 @@ def get_avg_features_in_prf(_fmaps_fn, images, prf_params, sample_batch_size, ap
     return features
 
 
+def run_one_subject(subject, args):
+    
+    
+    if args.use_node_storage:
+        gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
+    else:
+        gabor_texture_feat_path = default_paths.gabor_texture_feat_path
+        
+    if not os.path.exists(gabor_texture_feat_path):
+        os.makedirs(gabor_texture_feat_path)
+        
+    # Load and prepare the image set to work with 
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        image_data = coco_utils.load_indep_coco_images(n_pix=240)
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+    else: 
+        # load all images for the current subject, 10,000 ims
+        image_data = nsd_utils.get_image_data(subject)  
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
+       
+    filename_save = os.path.join(gabor_texture_feat_path, \
+                               'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(subject, args.n_ori, args.n_sf))
+    if args.debug:
+        filename_save += '_DEBUG'
+    if args.nonlin_fn:
+        filename_save += '_nonlin'
+        
+    filename_save += '_grid%d.h5py'%args.which_prf_grid   
+        
+    features_each_prf = extract_features(image_data, \
+                                         n_ori=args.n_ori, n_sf=args.n_sf, \
+                                         sample_batch_size=args.sample_batch_size, \
+                                         nonlin_fn=args.nonlin_fn, \
+                                         which_prf_grid=args.which_prf_grid, debug=args.debug)
+    
+    
+    print('Writing prf features to %s\n'%filename_save)
+    
+    t = time.time()
+    with h5py.File(filename_save, 'w') as data_set:
+        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float32)
+        data_set['/features'][:,:,:] = features_each_prf
+        data_set.close()  
+    elapsed = time.time() - t
+    
+    print('Took %.5f sec to write file'%elapsed)
+    
+
     
 if __name__ == '__main__':
     
@@ -204,9 +229,5 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, n_ori = args.n_ori, n_sf = args.n_sf, \
-                     sample_batch_size = args.sample_batch_size, \
-                     use_node_storage = args.use_node_storage==1, \
-                     nonlin_fn=args.nonlin_fn==1, \
-                     which_prf_grid = args.which_prf_grid, \
-                     debug = args.debug==1)
+    run_one_subject(subject = args.subject, args=args)
+    

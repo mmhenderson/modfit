@@ -46,6 +46,12 @@ def run_pca_texture_pyramid(subject=None,
             weights_image_set = 'S%d'%subject
             use_precomputed_weights = True
             assert(save_weights==False)
+            if image_set=='floc':
+                labels_file = os.path.join(default_paths.floc_image_root,'floc_image_labels.csv')
+                labels = pd.read_csv(labels_file)
+                fit_inds = np.ones((labels.shape[0],),dtype=bool)
+            else:
+                raise ValueError('image_set %s not recognized'%image_set)
             
     else:
         # run PCA on features from a non-NSD image set
@@ -75,7 +81,11 @@ def run_pca_texture_pyramid(subject=None,
         prf_batch_size=2
     else:
         prf_batch_size=100;
-    floader = fwrf_features.fwrf_feature_loader(subject=subject, \
+    if image_set is not None:
+        floader_sub=None
+    else:
+        floader_sub=subject
+    floader = fwrf_features.fwrf_feature_loader(subject=floader_sub, \
                                                image_set=image_set, \
                                                which_prf_grid=which_prf_grid, 
                                                feature_type='pyramid_texture', 

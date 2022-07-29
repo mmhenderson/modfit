@@ -721,17 +721,14 @@ class encoding_model():
 
 
     def validate(self, \
-                 voxel_data_val, \
-                 image_inds_val, \
+                 voxel_data_val=None, \
+                 image_inds_val=None, \
                  **kwargs):
         
         self.trials_use_each_prf_val = kwargs['trials_use_each_prf_val'] \
-            if 'trials_use_each_prf_val' in kwargs.keys() else None
-        
-        print('initializing for validation'); sys.stdout.flush()
+                if 'trials_use_each_prf_val' in kwargs.keys() else None
         self.__init_for_val__(voxel_data_val, image_inds_val); 
-        print('done initializing for validation'); sys.stdout.flush()
-        
+            
         with torch.no_grad(): # make sure local gradients are off to save memory
         
             # First looping over pRFs - there are fewer pRFs than voxels, so this will be faster 
@@ -757,18 +754,16 @@ class encoding_model():
         self.image_inds_val = None
         self.shuff_inds_val = None
         gc.collect()
-        
+
     def __init_for_val__(self, voxel_data_val, \
                              image_inds_val, \
                              **kwargs):
         
         self.voxel_data_val = voxel_data_val;
         self.image_inds_val = image_inds_val;
-        self.n_voxels = self.voxel_data_val.shape[1]
-        
+        self.n_voxels = self.best_weights.shape[0]           
         self.n_val_trials = len(self.image_inds_val)
-        assert(self.voxel_data_val.shape[1]==self.n_voxels)
-
+        
         print('about to preallocate arrays'); sys.stdout.flush()
         # val_cc is the correlation coefficient bw real and predicted responses across trials, for each voxel.
         if self.shuffle_data:
@@ -822,7 +817,7 @@ class encoding_model():
                 
     def __val_one_prf__(self, mm):
 
-        
+
         voxels_to_do = np.where(self.best_prf_models==mm)[0]  
         n_voxel_batches = int(np.ceil(len(voxels_to_do)/self.voxel_batch_size))
 
@@ -863,7 +858,7 @@ class encoding_model():
             trials_use = np.ones((self.n_val_trials,),dtype=bool)
             voxel_data_use = self.voxel_data_val
 
-        print('prf %d: using %d validation set trials'%(mm, voxel_data_use.shape[0]))
+        print('prf %d: using %d validation set trials'%(mm, np.sum(trials_use)))
         sys.stdout.flush()
         
         # Next looping over all voxels with this same pRF, in batches        
@@ -925,7 +920,7 @@ class encoding_model():
                                                  voxel_data_use, 
                                                  voxel_batch_inds, pp)
                 gc.collect()
-                        
+                    
     def __get_preds_one_batch__(self, features, \
                                          features_to_use, \
                                          trials_use, \
@@ -958,10 +953,11 @@ class encoding_model():
 
             pred_block[trial_batch_inds] = torch_utils.get_value(_r) 
 
-        # Now for this batch of voxels and this partial version of the model, measure performance.
-        if self.do_corrcoef:
-            self.val_cc[voxel_batch_inds,pp] = stats_utils.get_corrcoef(voxel_data_use[:,voxel_batch_inds], pred_block)
-        self.val_r2[voxel_batch_inds,pp] = stats_utils.get_r2(voxel_data_use[:,voxel_batch_inds], pred_block)
+        if voxel_data_use is not None:
+            # Now for this batch of voxels and this partial version of the model, measure performance.
+            if self.do_corrcoef:
+                self.val_cc[voxel_batch_inds,pp] = stats_utils.get_corrcoef(voxel_data_use[:,voxel_batch_inds], pred_block)
+            self.val_r2[voxel_batch_inds,pp] = stats_utils.get_r2(voxel_data_use[:,voxel_batch_inds], pred_block)
 
         # Make sure to save the trial-wise predictions, for use in analyses later on 
         pred_these_trials = self.pred_voxel_data[trials_use,:,pp]

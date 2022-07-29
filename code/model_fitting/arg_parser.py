@@ -30,6 +30,9 @@ def get_args():
     parser.add_argument("--trial_subset", type=str,default='all', 
                     help="fit for a subset of trials only? default all trials")
    
+    parser.add_argument("--image_set", type=str,default='none', 
+                    help="if evaluating on an independent image set, what is it called?")
+   
     parser.add_argument("--which_prf_grid", type=int,default=5,
                     help="which grid of candidate prfs?")
     parser.add_argument("--prf_fixed_sigma", type=float, default=None, 

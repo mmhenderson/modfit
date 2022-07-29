@@ -338,6 +338,7 @@ if __name__ == '__main__':
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which pRF grid to use?")
     
+    
     args = parser.parse_args()
     
     if args.subject==0:

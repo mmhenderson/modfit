@@ -262,6 +262,7 @@ def proc_one_subject(subject, args):
                           which_prf_grid=args.which_prf_grid,\
                           min_pct_var=args.min_pct_var,\
                           max_pc_to_retain=args.max_pc_to_retain, \
+                          save_weights = args.save_pca_weights, \
                           debug=args.debug)
         
         # now removing the large intermediate files, leaving only the pca versions
@@ -274,7 +275,7 @@ def proc_one_subject(subject, args):
             print('big file removed.')
 
             
-def proc_other_image_set(image_set, args):
+def proc_other_image_set(image_set, args, use_subj_pca=True):
     
     if args.use_node_storage:
         clip_feat_path = default_paths.clip_feat_path_localnode
@@ -302,6 +303,11 @@ def proc_other_image_set(image_set, args):
     prf_batch_inds = [np.arange(pb*prf_batch_size, np.min([(pb+1)*prf_batch_size, n_prfs])) \
                       for pb in range(n_prf_batches)]
     
+    if use_subj_pca:
+        subjects_pca = np.arange(1,9)
+    else:
+        subjects_pca = [None]
+        
     for ll in blocks_to_do:
 
         # each batch will be in a separate file, since they're big features
@@ -324,14 +330,18 @@ def proc_other_image_set(image_set, args):
         sys.stdout.flush()
             
         layer = 'block%d'%(ll)
-        pca_feats.run_pca(image_set=image_set, \
-                          feature_type='clip', \
-                          layer_name = layer, \
-                          which_prf_grid=args.which_prf_grid,\
-                          min_pct_var=args.min_pct_var,\
-                          max_pc_to_retain=args.max_pc_to_retain, \
-                          debug=args.debug)
-        
+        for ss in subjects_pca:
+            
+            pca_feats.run_pca(subject=ss, \
+                              image_set=image_set, \
+                              feature_type='clip', \
+                              layer_name = layer, \
+                              which_prf_grid=args.which_prf_grid,\
+                              min_pct_var=args.min_pct_var,\
+                              max_pc_to_retain=args.max_pc_to_retain, \
+                              save_weights = False,
+                              debug=args.debug)
+
         # now removing the large intermediate files, leaving only the pca versions
         for big_fn in save_batch_filenames:
             
@@ -374,7 +384,10 @@ if __name__ == '__main__':
                     help="max pc to retain? enter 0 for None")
     parser.add_argument("--min_pct_var", type=int,default=95,
                     help="min pct var to explain? default 95")
+    parser.add_argument("--save_pca_weights", type=int,default=0,
+                    help="want to save the weights to reproduce the pca later? 1 for yes, 0 for no")
     
+
     args = parser.parse_args()
     
     if args.subject==0:

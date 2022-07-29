@@ -5,7 +5,7 @@ import time, h5py
 from utils import default_paths, nsd_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import texture_feature_utils, pca_feats, fwrf_features
-do_pca = pca_feats.do_pca
+compute_pca = pca_feats.compute_pca
 
 import argparse
 import pandas as pd
@@ -21,10 +21,48 @@ PCA is done separately within each pRF position, and the results for all pRFs ar
 def run_pca_texture_pyramid(subject=None,
                             image_set=None,
                             pca_type='pcaHL',\
+                            save_weights=False, \
                             min_pct_var=95, max_pc_to_retain=150, \
                             debug=False, which_prf_grid=1, \
                             save_dtype=np.float32, compress=True):
 
+    if subject is not None:
+        
+        if image_set is None:
+            # run PCA on the features for this NSD subject
+            image_set = 'S%d'%subject
+            use_precomputed_weights = False
+            if subject==999:
+                # 999 is a code for the set of images that are independent of NSD images, 
+                # not shown to any participant.
+                fit_inds = np.ones((10000,),dtype=bool)
+            else:            
+                # training / validation data always split the same way - shared 1000 inds are validation.
+                subject_df = nsd_utils.get_subj_df(subject)
+                fit_inds = np.array(subject_df['shared1000']==False)
+        else:
+            # if both subject and image set are specified, this means we should use the weights 
+            # from the NSD subject and apply them to the features from image_set
+            weights_image_set = 'S%d'%subject
+            use_precomputed_weights = True
+            assert(save_weights==False)
+            
+    else:
+        # run PCA on features from a non-NSD image set
+        assert(image_set is not None)
+        use_precomputed_weights = False
+        subject=0
+        if image_set=='floc':
+            labels_file = os.path.join(default_paths.floc_image_root,'floc_image_labels.csv')
+            labels = pd.read_csv(labels_file)
+            fit_inds = np.ones((labels.shape[0],),dtype=bool)
+        else:
+            raise ValueError('image_set %s not recognized'%image_set)
+   
+    n_trials = len(fit_inds)
+    
+    
+    
     path_raw = default_paths.pyramid_texture_feat_path
     if debug:
         path_raw = os.path.join(path_raw, 'DEBUG')
@@ -85,28 +123,7 @@ def run_pca_texture_pyramid(subject=None,
     feature_type_names_pca = feature_type_names[gets_pca]
     feature_inds = np.array([feature_column_labels==fi for fi in gets_pca])
 
-    
-    if subject is not None:
-        image_set = 'S%d'%subject
-        if subject==999:
-            # 999 is a code for the set of images that are independent of NSD images, 
-            # not shown to any participant.
-            fit_inds = np.ones((10000,),dtype=bool)
-        else:            
-            # training / validation data always split the same way - shared 1000 inds are validation.
-            subject_df = nsd_utils.get_subj_df(subject)
-            fit_inds = np.array(subject_df['shared1000']==False)
-    else:
-        assert(image_set is not None)
-        subject=0
-        if image_set=='floc':
-            labels_file = os.path.join(default_paths.floc_image_root,'floc_image_labels.csv')
-            labels = pd.read_csv(labels_file)
-            fit_inds = np.ones((labels.shape[0],),dtype=bool)
-        else:
-            raise ValueError('image_set %s not recognized'%image_set)
-   
-    n_trials = len(fit_inds)
+    max_pc_to_retain_overall = max_pc_to_retain
     
     pca_filename_list = []
   
@@ -114,10 +131,36 @@ def run_pca_texture_pyramid(subject=None,
     # (this isn't the fastest way but uses less memory at a time)
     for fi, feature_type_name in enumerate(feature_type_names_pca):
    
+        n_feat_orig = np.sum(feature_inds[fi,:])
+        if max_pc_to_retain_overall is None:
+            max_pc_to_retain = n_feat_orig
+        else:
+            max_pc_to_retain = np.minimum(max_pc_to_retain_overall, n_feat_orig)
+
         print('\nProcessing feature subset: %s\n'%feature_type_name)
         scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
         actual_max_ncomp = 0;        
         
+        if use_precomputed_weights:
+            wts_dir = os.path.join(path_pca, 'weights')
+            load_weights_filename = os.path.join(wts_dir,'%s_%dori_%dsf_PCA_%s_only_weights_grid%d.npy'\
+                               %(weights_image_set,n_ori, n_sf, feature_type_name, which_prf_grid))
+            print('loading pre-computed pca weights from %s'%(load_weights_filename))
+            w = np.load(load_weights_filename, allow_pickle=True).item()
+            pca_wts = w['pca_wts']
+            pca_premean = w['pca_premean']
+            pca_ncomp = w['pca_ncomp']
+            filename_save = os.path.join(path_pca, '%s_%dori_%dsf_PCA_%s_only_wtsfrom%s_grid%d.h5py'\
+                               %(image_set,n_ori, n_sf, feature_type_name, weights_image_set, which_prf_grid))
+        else:
+            filename_save = os.path.join(path_pca, '%s_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
+                               %(image_set,n_ori, n_sf, feature_type_name, which_prf_grid))
+        if save_weights:
+            
+            pca_wts = np.zeros((n_feat_orig, max_pc_to_retain, n_prfs), dtype=save_dtype)
+            pca_premean = np.zeros((n_feat_orig, n_prfs), dtype=save_dtype)
+            pca_ncomp = np.zeros((n_prfs,),dtype=save_dtype)
+            
         for prf_model_index in range(n_prfs):
 
             if debug and prf_model_index>1:
@@ -135,20 +178,39 @@ def run_pca_texture_pyramid(subject=None,
             print('Processing %s, size of array before PCA:'%feature_type_name)
             print(features_in_prf.shape)
 
-            _, wts, pre_mean, ev = do_pca(features_in_prf[fit_inds,:], max_pc_to_retain=max_pc_to_retain)
-            feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
-            scores = feat_submean @ wts.T
-
-            n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
-            if np.size(n_comp_needed)>0:
-                n_comp_needed = n_comp_needed[0][0]+1
+            if use_precomputed_weights:
+                
+                # project into pca subspace using saved wts
+                wts = pca_wts[:,:,prf_model_index]
+                pre_mean = pca_premean[:,prf_model_index]
+                n_comp_needed = int(pca_ncomp[prf_model_index])
+                
+                feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
+                scores = feat_submean @ wts
+                
             else:
-                n_comp_needed = scores.shape[1]
-            print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+                
+                # compute pca weights here
+                _, wts, pre_mean, ev = compute_pca(features_in_prf[fit_inds,:], max_pc_to_retain=max_pc_to_retain)
+                feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
+                scores = feat_submean @ wts.T
+
+                n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+                if np.size(n_comp_needed)>0:
+                    n_comp_needed = n_comp_needed[0][0]+1
+                else:
+                    n_comp_needed = scores.shape[1]
+                print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+            
             actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
 
             scores_each_prf[:,0:n_comp_needed,prf_model_index] = scores[:,0:n_comp_needed]
             scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
+            
+            if save_weights:
+                pca_wts[:,:,prf_model_index] = wts.T
+                pca_premean[:,prf_model_index] = pre_mean
+                pca_ncomp[prf_model_index] = n_comp_needed
 
         # To save space, get rid of portion of array that ended up all nans
         if debug:
@@ -161,8 +223,7 @@ def run_pca_texture_pyramid(subject=None,
         print('final size of array to save (for %s):'%feature_type_name)
         print(scores_each_prf.shape)
         
-        filename_save = os.path.join(path_pca, '%s_%dori_%dsf_PCA_%s_only_grid%d.h5py'\
-                               %(image_set,n_ori, n_sf, feature_type_name, which_prf_grid))
+        
         print('saving to %s'%filename_save)
         pca_filename_list.append(filename_save)
         sys.stdout.flush()
@@ -178,12 +239,28 @@ def run_pca_texture_pyramid(subject=None,
         print('Took %.5f sec to write file'%elapsed)
         sys.stdout.flush()
         
+        if save_weights:
+            wts_dir = os.path.join(path_pca, 'weights')
+            if not os.path.exists(wts_dir):
+                os.makedirs(wts_dir)
+            save_weights_filename = os.path.join(wts_dir,'%s_%dori_%dsf_PCA_%s_only_weights_grid%d.npy'\
+                               %(image_set,n_ori, n_sf, feature_type_name, which_prf_grid))
+            wts = {'pca_wts': pca_wts, 'pca_premean': pca_premean, 'pca_ncomp': pca_ncomp}
+            print('saving the weights for this pca to %s'%save_weights_filename)
+            np.save(save_weights_filename, wts, allow_pickle=True)
+        
         
     # Now going to concatenate all files together, for easier loading later
-    concat_filename = os.path.join(path_pca, '%s_%dori_%dsf_%s_concat_grid%d.h5py'\
-                                   %(image_set, n_ori, n_sf, pca_type, which_prf_grid))
-    concat_labels_filename = os.path.join(path_pca, '%s_%dori_%dsf_featurelabels_%s_grid%d.npy'\
-                                   %(image_set, n_ori, n_sf, pca_type, which_prf_grid))
+    if use_precomputed_weights:
+        concat_filename = os.path.join(path_pca, '%s_%dori_%dsf_%s_concat_wtsfrom%s_grid%d.h5py'\
+                                   %(image_set, n_ori, n_sf, pca_type, weights_image_set, which_prf_grid))
+        concat_labels_filename = os.path.join(path_pca, '%s_%dori_%dsf_featurelabels_%s_wtsfrom%s_grid%d.npy'\
+                                   %(image_set, n_ori, n_sf, pca_type, weights_image_set, which_prf_grid))
+    else:
+        concat_filename = os.path.join(path_pca, '%s_%dori_%dsf_%s_concat_grid%d.h5py'\
+                                       %(image_set, n_ori, n_sf, pca_type, which_prf_grid))
+        concat_labels_filename = os.path.join(path_pca, '%s_%dori_%dsf_featurelabels_%s_grid%d.npy'\
+                                       %(image_set, n_ori, n_sf, pca_type, which_prf_grid))
 
     
     # first grab the raw low-level features (if using)
@@ -287,6 +364,10 @@ if __name__ == '__main__':
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which pRF grid to use?")
     
+    parser.add_argument("--save_weights", type=int,default=0,
+                    help="want to save the weights to reproduce the pca later? 1 for yes, 0 for no")
+
+    
     args = parser.parse_args()
     
     if args.subject==0:
@@ -303,5 +384,6 @@ if __name__ == '__main__':
                             min_pct_var=args.min_pct_var, \
                             max_pc_to_retain=args.max_pc_to_retain,\
                             debug=args.debug==1,  \
-                            which_prf_grid=args.which_prf_grid)
+                            which_prf_grid=args.which_prf_grid, \
+                            save_weights = args.save_weights)
     

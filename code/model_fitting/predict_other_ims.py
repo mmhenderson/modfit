@@ -16,7 +16,7 @@ import pandas as pd
 from utils import default_paths, floc_utils
 
 import initialize_fitting, arg_parser
-import fwrf_model_new as fwrf_model
+import fwrf_model
 
 from analyze_fits import semantic_selectivity
 

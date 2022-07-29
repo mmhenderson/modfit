@@ -13,49 +13,11 @@ if torch.cuda.is_available():
     device = initialize_fitting.init_cuda()
 else:
     device = 'cpu:0'
-    
-def extract_features(subject, use_node_storage=False, debug=False, which_prf_grid=1):
-    
-    if use_node_storage:
-        sketch_token_feat_path = default_paths.sketch_token_feat_path_localnode
-    else:
-        sketch_token_feat_path = default_paths.sketch_token_feat_path
-
-    # Params for the spatial aspect of the model (possible pRFs)
-    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
-    
-    # Fix these params
-#     map_resolution = 227  
-    map_resolution = 240
-    n_prf_sd_out = 2
-    batch_size = 100
-    mult_patch_by_prf = True
-    do_avg_pool = True
-      
-    features_file = os.path.join(sketch_token_feat_path, 'S%d_features_%d.h5py'%(subject, map_resolution))
-    if not os.path.exists(features_file):
-        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    features_each_prf = get_features_each_prf(features_file, models, \
-                            mult_patch_by_prf=mult_patch_by_prf, \
-                            do_avg_pool=do_avg_pool, batch_size=batch_size, aperture=1.0, \
-                                            debug=debug, device=device)
+# This code applies pRF weights to each sketch tokens feature map, to get final features
+# in each pRF. Before running this, need to use the matlab code get_st_features.m to get 
+# the full feature maps.
 
-    fn2save = os.path.join(sketch_token_feat_path, \
-                           'S%d_features_each_prf_grid%d.h5py'%(subject, which_prf_grid))
-
-    print('Writing prf features to %s\n'%fn2save)
-    
-    t = time.time()
-    with h5py.File(fn2save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float32)
-        data_set['/features'][:,:,:] = features_each_prf
-        data_set.close()  
-    elapsed = time.time() - t
-    
-    print('Took %.5f sec to write file'%elapsed)
-
-    
 
 def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_pool=True, \
                           batch_size=100, aperture=1.0, debug=False, device=None):
@@ -141,20 +103,135 @@ def get_features_each_prf(features_file, models, mult_patch_by_prf=True, do_avg_
                       
     return features_each_prf
 
+
+def proc_one_subject(subject, args):
+    
+    if args.use_node_storage:
+        sketch_token_feat_path = default_paths.sketch_token_feat_path_localnode
+    else:
+        sketch_token_feat_path = default_paths.sketch_token_feat_path
+    if args.debug:
+        sketch_token_feat_path = os.path.join(sketch_token_feat_path,'DEBUG')
+        save_path = os.path.join(sketch_token_feat_path,'DEBUG')
+    else:
+        save_path = sketch_token_feat_path
+        
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
+    
+    # These params are fixed
+    map_resolution = 240
+    n_prf_sd_out = 2
+    mult_patch_by_prf = True
+    do_avg_pool = True
+ 
+    features_file = os.path.join(sketch_token_feat_path, 'S%d_features_%d.h5py'%(subject, map_resolution))
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
+        
+    features_each_prf = get_features_each_prf(features_file, models, \
+                            mult_patch_by_prf=mult_patch_by_prf, \
+                            do_avg_pool=do_avg_pool, batch_size=args.batch_size, aperture=1.0, \
+                            debug=args.debug, device=device)
+
+    filename_save = os.path.join(save_path, \
+                           'S%d_features_each_prf_grid%d.h5py'%(subject, args.which_prf_grid))
+
+    save_features(features_each_prf, filename_save)
+
+    
+def proc_other_image_set(image_set, args):
+    
+    if args.use_node_storage:
+        sketch_token_feat_path = default_paths.sketch_token_feat_path_localnode
+    else:
+        sketch_token_feat_path = default_paths.sketch_token_feat_path
+    if args.debug:
+        sketch_token_feat_path = os.path.join(sketch_token_feat_path,'DEBUG')
+        save_path = os.path.join(sketch_token_feat_path,'DEBUG')
+    else:
+        save_path = sketch_token_feat_path
+        
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
+    
+    # These params are fixed
+    map_resolution = 240
+    n_prf_sd_out = 2
+    mult_patch_by_prf = True
+    do_avg_pool = True
+  
+    features_file = os.path.join(sketch_token_feat_path, '%s_features_%d.h5py'%(image_set, map_resolution))
+    if not os.path.exists(features_file):
+        raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
+        
+    features_each_prf = get_features_each_prf(features_file, models, \
+                            mult_patch_by_prf=mult_patch_by_prf, \
+                            do_avg_pool=do_avg_pool, batch_size=args.batch_size, aperture=1.0, \
+                            debug=args.debug, device=device)
+
+    filename_save = os.path.join(save_path, \
+                           '%s_features_each_prf_grid%d.h5py'%(image_set, args.which_prf_grid))
+
+    save_features(features_each_prf, filename_save)
+    
+    
+def save_features(features_each_prf, filename_save):
+    
+    print('Writing prf features to %s\n'%filename_save)
+    
+    t = time.time()
+    with h5py.File(filename_save, 'w') as data_set:
+        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=np.float32)
+        data_set['/features'][:,:,:] = features_each_prf
+        data_set.close()  
+    elapsed = time.time() - t
+    
+    print('Took %.5f sec to write file'%elapsed)
+    
+
     
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--subject", type=int,default=1,
+    parser.add_argument("--subject", type=int,default=0,
                     help="number of the subject, 1-8")
+    parser.add_argument("--image_set", type=str,default='none',
+                    help="name of the image set to use (if not an NSD subject)")
     parser.add_argument("--use_node_storage", type=int,default=0,
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")
+    parser.add_argument("--batch_size", type=int,default=100,
+                    help="batch size to use for feature extraction")
     
     args = parser.parse_args()
     
-    extract_features(subject = args.subject, use_node_storage = args.use_node_storage, debug = args.debug==1, which_prf_grid=args.which_prf_grid)
+    if args.subject==0:
+        args.subject=None
+    if args.image_set=='none':
+        args.image_set=None
+                         
+    args.debug = (args.debug==1)     
+    
+    print(args.subject)
+    print(args.image_set)
+    
+    if args.subject is not None:
+        
+        proc_one_subject(subject = args.subject, args=args)
+        
+    elif args.image_set is not None:
+        
+        proc_other_image_set(image_set=args.image_set, args=args)
+        
+    

@@ -6,7 +6,7 @@ import time
 import h5py
 
 #import custom modules
-from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths, coco_utils
+from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths, coco_utils, floc_utils
 from model_fitting import initialize_fitting
 from feature_extraction import gabor_feature_extractor
 
@@ -153,17 +153,19 @@ def get_avg_features_in_prf(_fmaps_fn, images, prf_params, sample_batch_size, ap
     return features
 
 
-def run_one_subject(subject, args):
-    
-    
+def proc_one_subject(subject, args):
+
     if args.use_node_storage:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
     else:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path
-        
+       
+    if args.debug:
+        gabor_texture_feat_path = os.path.join(gabor_texture_feat_path,'DEBUG')
+       
     if not os.path.exists(gabor_texture_feat_path):
         os.makedirs(gabor_texture_feat_path)
-        
+     
     # Load and prepare the image set to work with 
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were
@@ -174,11 +176,10 @@ def run_one_subject(subject, args):
         # load all images for the current subject, 10,000 ims
         image_data = nsd_utils.get_image_data(subject)  
         image_data = nsd_utils.image_uncolorize_fn(image_data)
-       
+
     filename_save = os.path.join(gabor_texture_feat_path, \
-                               'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(subject, args.n_ori, args.n_sf))
-    if args.debug:
-        filename_save += '_DEBUG'
+                               'S%d_features_each_prf_%dori_%dsf_gabor_solo'%\
+                                 (subject, args.n_ori, args.n_sf))
     if args.nonlin_fn:
         filename_save += '_nonlin'
         
@@ -190,6 +191,45 @@ def run_one_subject(subject, args):
                                          nonlin_fn=args.nonlin_fn, \
                                          which_prf_grid=args.which_prf_grid, debug=args.debug)
     
+    save_features(features_each_prf, filename_save)
+
+    
+def proc_other_image_set(image_set, args):
+       
+    if args.use_node_storage:
+        gabor_texture_feat_path = default_paths.gabor_texture_feat_path_localnode
+    else:
+        gabor_texture_feat_path = default_paths.gabor_texture_feat_path
+    
+    if args.debug:
+        gabor_texture_feat_path = os.path.join(gabor_texture_feat_path,'DEBUG')
+        
+    if not os.path.exists(gabor_texture_feat_path):
+        os.makedirs(gabor_texture_feat_path)
+        
+    if image_set=='floc':
+        image_data = floc_utils.load_floc_images(npix=240)
+    else:
+        raise ValueError('image set %s not recognized'%image_set)
+        
+    filename_save = os.path.join(gabor_texture_feat_path, \
+                       '%s_features_each_prf_%dori_%dsf_gabor_solo'%(image_set, args.n_ori, args.n_sf))
+
+    if args.nonlin_fn:
+        filename_save += '_nonlin'
+        
+    filename_save += '_grid%d.h5py'%args.which_prf_grid   
+        
+    features_each_prf = extract_features(image_data, \
+                                         n_ori=args.n_ori, n_sf=args.n_sf, \
+                                         sample_batch_size=args.sample_batch_size, \
+                                         nonlin_fn=args.nonlin_fn, \
+                                         which_prf_grid=args.which_prf_grid, debug=args.debug)
+    
+    save_features(features_each_prf, filename_save)
+                                    
+    
+def save_features(features_each_prf, filename_save):
     
     print('Writing prf features to %s\n'%filename_save)
     
@@ -208,8 +248,10 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--subject", type=int,default=1,
+    parser.add_argument("--subject", type=int,default=0,
                     help="number of the subject, 1-8")
+    parser.add_argument("--image_set", type=str,default='none',
+                    help="name of the image set to use (if not an NSD subject)")
     parser.add_argument("--n_ori", type=int,default=4,
                     help="how many orientation channels?")
     parser.add_argument("--n_sf", type=int,default=4,
@@ -229,5 +271,19 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    run_one_subject(subject = args.subject, args=args)
+    if args.subject==0:
+        args.subject=None
+    if args.image_set=='none':
+        args.image_set=None
+        
+    args.debug = (args.debug==1)     
+    
+    if args.subject is not None:
+        
+        proc_one_subject(subject = args.subject, args=args)
+        
+    elif args.image_set is not None:
+        
+        proc_other_image_set(image_set=args.image_set, args=args)
+        
     

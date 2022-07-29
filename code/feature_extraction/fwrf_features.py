@@ -30,6 +30,8 @@ class fwrf_feature_loader:
         self.feature_type = feature_type
         self.include_solo_models = kwargs['include_solo_models'] \
             if 'include_solo_models' in kwargs.keys() else False   
+        self.pca_subject = kwargs['pca_subject'] \
+            if 'pca_subject' in kwargs.keys() else None
         
         if self.feature_type=='gabor_solo':
             self.__init_gabor_solo__(kwargs)
@@ -57,7 +59,12 @@ class fwrf_feature_loader:
         gabor_texture_feat_path = default_paths.gabor_texture_feat_path
         if self.use_pca_feats:
             assert(self.nonlin_fn==True)
-            self.features_file = os.path.join(gabor_texture_feat_path, 'PCA', \
+            if self.pca_subject is not None:
+                self.features_file = os.path.join(gabor_texture_feat_path, 'PCA', \
+                                          '%s_%dori_%dsf_nonlin_PCA_wtsfromS%d_grid%d.h5py'\
+                                           %(self.image_set, self.n_ori, self.n_sf, self.pca_subject, self.which_prf_grid))  
+            else:
+                self.features_file = os.path.join(gabor_texture_feat_path, 'PCA', \
                                           '%s_%dori_%dsf_nonlin_PCA_grid%d.h5py'\
                                            %(self.image_set, self.n_ori, self.n_sf, self.which_prf_grid))  
             with h5py.File(self.features_file, 'r') as file:
@@ -88,13 +95,22 @@ class fwrf_feature_loader:
         
         if self.pca_type is not None:
             self.use_pca_feats=True
-            # will use features where higher-level sub-sets have been reduced in dim with PCA.
-            self.features_file = os.path.join(pyramid_texture_feat_path, 'PCA', \
+             # will use features where higher-level sub-sets have been reduced in dim with PCA.
+            if self.pca_subject is not None:
+                self.features_file = os.path.join(pyramid_texture_feat_path, 'PCA', \
+                                              '%s_%dori_%dsf_%s_concat_wtsfromS%d_grid%d.h5py'%\
+                                              (self.image_set, self.n_ori, self.n_sf, \
+                                               self.pca_type, self.pca_subject, self.which_prf_grid))
+                self.feature_column_labels, self.feature_type_names = \
+                texture_feature_utils.get_feature_inds_pca('S%d'%self.pca_subject, self.pca_type, self.which_prf_grid)
+                
+            else:
+                self.features_file = os.path.join(pyramid_texture_feat_path, 'PCA', \
                                               '%s_%dori_%dsf_%s_concat_grid%d.h5py'%\
                                               (self.image_set, self.n_ori, self.n_sf, \
                                                self.pca_type, self.which_prf_grid))
-            self.feature_column_labels, self.feature_type_names = \
-                texture_feature_utils.get_feature_inds_pca(self.image_set, self.pca_type, self.which_prf_grid)
+                self.feature_column_labels, self.feature_type_names = \
+                    texture_feature_utils.get_feature_inds_pca(self.image_set, self.pca_type, self.which_prf_grid)
         else:
             self.use_pca_feats=False
             # will load from raw array (641 features).
@@ -135,8 +151,13 @@ class fwrf_feature_loader:
                                         if 'use_residual_st_feats' in kwargs.keys() else False
            
         if self.use_pca_feats:
-            self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
-                                          '%s_PCA_grid%d.h5py'%(self.image_set, self.which_prf_grid))  
+            if self.pca_subject is not None:
+                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
+                                              '%s_PCA_wtsfromS%d_grid%d.h5py'%\
+                                                  (self.image_set, self.pca_subject, self.which_prf_grid))
+            else:
+                self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
+                                              '%s_PCA_grid%d.h5py'%(self.image_set, self.which_prf_grid))  
             with h5py.File(self.features_file, 'r') as file:
                 feat_shape = np.shape(file['/features'])
                 file.close()
@@ -168,8 +189,13 @@ class fwrf_feature_loader:
         n_features_each_layer = extract_alexnet_features.n_features_each_layer
 
         if self.use_pca_feats:        
-            self.features_file = os.path.join(alexnet_feat_path, 'PCA', \
-              '%s_%s_reflect_PCA_grid%d.h5py'%(self.image_set, self.layer_name, self.which_prf_grid))
+            if self.pca_subject is not None:
+                self.features_file = os.path.join(alexnet_feat_path, 'PCA', \
+                  '%s_%s_reflect_PCA_wtsfromS%d_grid%d.h5py'%\
+                      (self.image_set, self.layer_name, self.pca_subject, self.which_prf_grid))
+            else:
+                self.features_file = os.path.join(alexnet_feat_path, 'PCA', \
+                  '%s_%s_reflect_PCA_grid%d.h5py'%(self.image_set, self.layer_name, self.which_prf_grid))
         else:
             raise RuntimeError('have to use pca feats for alexnet') 
 
@@ -201,9 +227,14 @@ class fwrf_feature_loader:
         n_features_each_layer = extract_clip_features.n_features_each_resnet_block
 
         if self.use_pca_feats:
-            self.features_file = os.path.join(clip_feat_path, 'PCA', \
-              '%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
-                                         self.layer_name, self.which_prf_grid))  
+            if self.pca_subject is not None:
+                self.features_file = os.path.join(clip_feat_path, 'PCA', \
+                  '%s_%s_%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                         self.layer_name, self.pca_subject, self.which_prf_grid))  
+            else:
+                self.features_file = os.path.join(clip_feat_path, 'PCA', \
+                  '%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                             self.layer_name, self.which_prf_grid))  
         else:
             raise RuntimeError('have to use pca feats for clip')
             

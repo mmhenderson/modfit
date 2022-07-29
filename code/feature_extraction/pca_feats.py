@@ -256,13 +256,12 @@ def run_pca(subject=None, \
         
     elif feature_type=='clip':
 
+        path_to_load = default_paths.clip_feat_path
         if debug:
-            path_to_load = os.path.join(default_paths.clip_feat_path, 'DEBUG')
+            path_to_save = os.path.join(default_paths.clip_feat_path, 'DEBUG','PCA')
         else:
-            path_to_load = default_paths.clip_feat_path
-            
-        path_to_save = os.path.join(path_to_load, 'PCA')
-
+            path_to_save = os.path.join(default_paths.clip_feat_path, 'PCA')
+        
         model_architecture = 'RN50'
         n_prf_batches = 15
         raw_filename = [os.path.join(path_to_load, '%s_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%\

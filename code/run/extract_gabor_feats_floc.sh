@@ -20,20 +20,18 @@ echo $PYTHONPATH
 cd ${ROOT}modfit/code/feature_extraction
 
 # to test the code, use debug=1
-debug=1
+debug=0
 use_node_storage=0
 n_ori=12
 n_sf=8
 
 sample_batch_size=100
 which_prf_grid=5
-gabor_solo=1
+
 nonlin_fn=1
 
-# sublist=(1)
 subject=0
 image_set=floc
-
 
 python3 extract_gabor_features.py --subject $subject --image_set $image_set --n_ori=$n_ori --n_sf=$n_sf --sample_batch_size $sample_batch_size --use_node_storage $use_node_storage --which_prf_grid $which_prf_grid --nonlin_fn $nonlin_fn --debug $debug
  

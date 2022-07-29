@@ -1,7 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:0
-#SBATCH --mem=64G
+#SBATCH --partition=tarrq
+#SBATCH --gres=gpu:1
+#SBATCH --mem=32G
+#SBATCH --exclude=mind-1-13
 #SBATCH --cpus-per-task=4
 #SBATCH --open-mode=append
 #SBATCH --output=./sbatch_output/output-%A-%x-%u.out 
@@ -18,24 +19,26 @@ ROOT=/user_data/mmhender/modfit/
 # put the code directory on your python path
 PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 
-cd ${ROOT}code/feature_extraction/
+cd ${ROOT}code/model_fitting/
 
-debug=0
-type_list=(gabor)
 # subjects=(1 2 3 4 5 6 7 8)
 subjects=(1)
-max_pc_to_retain=96
-min_pct_var=95
+
+debug=0
+# debug=1
 
 which_prf_grid=5
 
+fitting_type=gabor_solo
+
+n_ori_gabor=12
+n_sf_gabor=8
+
+image_set=floc
+
 for subject in ${subjects[@]}
 do
-    for type in ${type_list[@]}
-    do
-
-        python3 pca_feats.py --subject $subject --debug $debug --type $type --max_pc_to_retain $max_pc_to_retain --min_pct_var $min_pct_var --which_prf_grid $which_prf_grid
-        
-    done
+    
+    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor
     
 done

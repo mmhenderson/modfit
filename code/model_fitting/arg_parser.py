@@ -175,6 +175,8 @@ def get_args():
         args.prf_fixed_sigma=None
     if args.pyr_pca_type=='None':
         args.pyr_pca_type = None
+    if args.image_set=='none':
+        args.image_set = None
         
     if args.shuffle_data:
         if args.shuff_rnd_seed==0:

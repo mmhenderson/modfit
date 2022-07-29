@@ -152,7 +152,7 @@ def predict(args):
         labels = pd.read_csv(labels_file)
         image_order = np.arange(labels.shape[0])
         image_inds_val = image_order
-        sem_labels = np.array([labels['domain']!=domain for domain in floc_utils.domains]).T.astype(int)
+        sem_labels = np.array([labels['domain']==domain for domain in floc_utils.domains]).T.astype(int)
         unique_labs_each = [np.unique(sem_labels[:,dd]) for dd in range(sem_labels.shape[1])]
         labels_all = np.tile(sem_labels[:,:,None], [1,1,n_prfs])
         discrim_type_list = ['%s > other domains'%domain for domain in floc_utils.domains]

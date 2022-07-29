@@ -285,7 +285,7 @@ def proc_other_image_set(image_set, args):
     
     # Now save the results, one file for each alexnet layer 
     for ii, ll in enumerate(layer_inds):
-        if padding_mode is not None:
+        if args.padding_mode is not None:
             filename_save = os.path.join(alexnet_feat_path, \
            '%s_%s_%s_features_each_prf_grid%d.h5py'%(image_set, \
                                alexnet_layer_names[ll], args.padding_mode, args.which_prf_grid))

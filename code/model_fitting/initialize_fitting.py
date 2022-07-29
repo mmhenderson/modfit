@@ -561,13 +561,18 @@ def save_model_residuals(voxel_data, voxel_data_pred, output_dir, model_name, \
     
 def make_feature_loaders(args, fitting_types, vi):
     
-    
+    if args.image_set is None:
+        sub = args.subject
+    else:
+        sub = None
+        
     fe = []
     fe_names = []
     for ft in fitting_types:   
 
         if 'gabor_solo' in ft:
-            feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid,\
                                                             feature_type='gabor_solo',\
                                                             n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
@@ -577,7 +582,8 @@ def make_feature_loaders(args, fitting_types, vi):
             fe.append(feat_loader)
             fe_names.append(ft)
         elif 'pyramid' in ft:
-            feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='pyramid_texture',\
                                                             n_ori=args.n_ori_pyr, n_sf=args.n_sf_pyr,\
@@ -589,7 +595,8 @@ def make_feature_loaders(args, fitting_types, vi):
             fe_names.append(ft)
             
         elif 'sketch_tokens' in ft:
-            feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='sketch_tokens',\
                                                             use_pca_feats = args.use_pca_st_feats, \
@@ -602,7 +609,8 @@ def make_feature_loaders(args, fitting_types, vi):
             if args.alexnet_layer_name=='all_conv':
                 names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
                 for ll in range(n_dnn_layers):
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=names[ll],\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
@@ -612,7 +620,8 @@ def make_feature_loaders(args, fitting_types, vi):
             elif args.alexnet_layer_name=='best_layer':
                 this_layer_name = 'Conv%d_ReLU'%(vi+1)
                 print(this_layer_name)
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=this_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
@@ -620,7 +629,8 @@ def make_feature_loaders(args, fitting_types, vi):
                 fe.append(feat_loader)   
                 fe_names.append(ft)
             else:
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=args.alexnet_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
@@ -633,7 +643,8 @@ def make_feature_loaders(args, fitting_types, vi):
             if args.clip_layer_name=='all_resblocks':
                 names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
                 for ll in range(n_dnn_layers):
-                    feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                    feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=names[ll],\
                                                             model_architecture=args.clip_model_architecture,\
@@ -643,7 +654,8 @@ def make_feature_loaders(args, fitting_types, vi):
             elif args.clip_layer_name=='best_layer':
                 this_layer_name = 'block%d'%(vi)
                 print(this_layer_name)
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=this_layer_name,\
                                                             model_architecture=args.clip_model_architecture,\
@@ -651,7 +663,8 @@ def make_feature_loaders(args, fitting_types, vi):
                 fe.append(feat_loader)
                 fe_names.append(ft) 
             else:
-                feat_loader = fwrf_features.fwrf_feature_loader(subject=args.subject,\
+                feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=args.clip_layer_name,\
                                                             model_architecture=args.clip_model_architecture,\
@@ -660,6 +673,7 @@ def make_feature_loaders(args, fitting_types, vi):
                 fe_names.append(ft)   
 
         elif 'semantic' in ft:
+            assert(sub is not None)
             this_feature_set = ft.split('semantic_')[1]
             if '_pca' in this_feature_set:
                 this_feature_set = this_feature_set.split('_pca')[0]
@@ -668,7 +682,7 @@ def make_feature_loaders(args, fitting_types, vi):
                 use_pca_feats=False
             print('semantic feature set: %s'%this_feature_set)
             print('use pca: %s'%use_pca_feats)
-            feat_loader = semantic_features.semantic_feature_loader(subject=args.subject,\
+            feat_loader = semantic_features.semantic_feature_loader(subject=sub,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_set=this_feature_set, \
                                                             use_pca_feats=use_pca_feats, \

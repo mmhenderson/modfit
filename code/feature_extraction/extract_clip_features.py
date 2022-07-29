@@ -244,7 +244,7 @@ def proc_one_subject(subject, args):
                                 for pb in range(n_prf_batches)]
         
         block_inds = [ll]
-        
+       
         extract_features(image_data,\
                           block_inds,\
                           prf_batch_inds,\

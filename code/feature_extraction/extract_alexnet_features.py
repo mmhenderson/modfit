@@ -10,7 +10,7 @@ import torchvision.models as models
 import torch.nn as nn
 
 #import custom modules
-from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, coco_utils
+from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, coco_utils, floc_utils
 from model_fitting import initialize_fitting
 
 dtype=np.float32

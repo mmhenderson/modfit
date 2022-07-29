@@ -4,7 +4,7 @@ import pandas as pd
 import time, h5py
 import PIL.Image
 
-from utils import default_paths
+from utils import default_paths, nsd_utils
 
 # code to work with stimuli from the fLoc category localizer (from Grill-Spector lab)
 # access raw stimuli here:
@@ -26,9 +26,10 @@ floc_image_root = default_paths.floc_image_root
 def prep_images(newsize=(240,240)):
     
     n_images = n_each_categ * len(categories)
-    ims_brick = np.zeros((n_images, newsize[0], newsize[1]))
+    ims_brick = np.zeros((n_images, 1, newsize[0], newsize[1]))
 
     categ_list = []
+    domain_list = []
     instance_list = []
     filename_list = []
 
@@ -36,23 +37,29 @@ def prep_images(newsize=(240,240)):
 
     for cc, categ in enumerate(categories):
 
+        print('processing %s'%categ)
+        dd = int(np.floor(cc/2))
+        
         for ii in np.arange(1,n_each_categ+1):
 
             count += 1
 
             filename = os.path.join(floc_image_root,'%s-%d.jpg'%(categories[cc], ii))
-            print('loading from %s'%filename)
+            if ii==1:       
+                print('loading from %s'%filename)
             im = PIL.Image.open(filename)
             im_resized = im.resize(newsize, resample=PIL.Image.ANTIALIAS)
 
-            ims_brick[count,:,:] = im_resized
+            ims_brick[count,0,:,:] = im_resized
 
             categ_list += [categ]
+            domain_list += [domains[dd]]
             instance_list += [ii]
             filename_list += [filename]
             
     
     floc_labels = pd.DataFrame({'category': categ_list, \
+                                'domain': domain_list, \
                                 'instance': instance_list, \
                                 'filename': filename_list})
 
@@ -62,17 +69,26 @@ def prep_images(newsize=(240,240)):
     floc_labels.to_csv(csv_filename, index=False)
         
     
-    fn2save = os.path.join(floc_image_root,'all_floc_images_%d.h5py'%newsize[0])
+    fn2save = os.path.join(floc_image_root,'floc_stimuli_%d.h5py'%newsize[0])
 
     print('Writing resized images to %s\n'%fn2save)
 
     t = time.time()
     with h5py.File(fn2save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(ims_brick), dtype=np.float32)
-        data_set['/features'][:,:,:] = ims_brick
+        dset = data_set.create_dataset("stimuli", np.shape(ims_brick), dtype=np.uint8)
+        data_set['/stimuli'][:,:,:] = ims_brick
         data_set.close()  
     elapsed = time.time() - t
 
     print('Took %.5f sec to write file'%elapsed)
 
     return
+
+def load_floc_images(npix=240):
+    
+    image_filename = os.path.join(floc_image_root, 'floc_stimuli_%d.h5py'%npix)
+    ims = nsd_utils.load_from_hdf5(image_filename)
+
+    ims = ims.astype(np.float32) / 255
+    
+    return ims

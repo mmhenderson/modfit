@@ -236,7 +236,7 @@ def proc_one_subject(subject, args):
     layers_to_return = ['Conv1_ReLU', 'Conv2_ReLU','Conv3_ReLU','Conv4_ReLU','Conv5_ReLU']
     layer_inds = [ll for ll in range(len(alexnet_layer_names)) \
                       if alexnet_layer_names[ll] in layers_to_return]
-    layer_inds = [0]
+  
     features_each_prf = extract_features(image_data, \
                                          layer_inds = layer_inds,
                                          padding_mode=args.padding_mode, \

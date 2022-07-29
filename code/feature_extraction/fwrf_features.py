@@ -14,9 +14,17 @@ Features have been computed at various spatial locations in a grid (pRF position
           
 class fwrf_feature_loader:
     
-    def __init__(self, subject, which_prf_grid, feature_type, **kwargs):
+    def __init__(self, subject=None, image_set=None, \
+                 which_prf_grid=5, feature_type='gabor_solo', \
+                 **kwargs):
         
-        self.subject = subject            
+        if subject is not None: 
+            self.image_set = 'S%d'%subject
+        else:
+            self.image_set = image_set
+          
+        assert(self.image_set is not None)
+        
         self.which_prf_grid = which_prf_grid
         self.__init_prf_batches__(kwargs)        
         self.feature_type = feature_type
@@ -50,15 +58,15 @@ class fwrf_feature_loader:
         if self.use_pca_feats:
             assert(self.nonlin_fn==True)
             self.features_file = os.path.join(gabor_texture_feat_path, 'PCA', \
-                                          'S%d_%dori_%dsf_nonlin_PCA_grid%d.h5py'\
-                                           %(self.subject, self.n_ori, self.n_sf, self.which_prf_grid))  
+                                          '%s_%dori_%dsf_nonlin_PCA_grid%d.h5py'\
+                                           %(self.image_set, self.n_ori, self.n_sf, self.which_prf_grid))  
             with h5py.File(self.features_file, 'r') as file:
                 feat_shape = np.shape(file['/features'])
                 file.close()
             self.max_features = feat_shape[1]
         else:
             self.features_file = os.path.join(gabor_texture_feat_path, \
-                      'S%d_features_each_prf_%dori_%dsf_gabor_solo'%(self.subject, self.n_ori, self.n_sf))
+                      '%s_features_each_prf_%dori_%dsf_gabor_solo'%(self.image_set, self.n_ori, self.n_sf))
             self.max_features = self.n_ori*self.n_sf             
             if self.nonlin_fn:
                 self.features_file += '_nonlin'
@@ -82,17 +90,17 @@ class fwrf_feature_loader:
             self.use_pca_feats=True
             # will use features where higher-level sub-sets have been reduced in dim with PCA.
             self.features_file = os.path.join(pyramid_texture_feat_path, 'PCA', \
-                                              'S%d_%dori_%dsf_%s_concat_grid%d.h5py'%\
-                                              (self.subject, self.n_ori, self.n_sf, \
+                                              '%s_%dori_%dsf_%s_concat_grid%d.h5py'%\
+                                              (self.image_set, self.n_ori, self.n_sf, \
                                                self.pca_type, self.which_prf_grid))
             self.feature_column_labels, self.feature_type_names = \
-                texture_feature_utils.get_feature_inds_pca(self.subject, self.pca_type, self.which_prf_grid)
+                texture_feature_utils.get_feature_inds_pca(self.image_set, self.pca_type, self.which_prf_grid)
         else:
             self.use_pca_feats=False
             # will load from raw array (641 features).
             self.features_file = os.path.join(pyramid_texture_feat_path, \
-                                              'S%d_features_each_prf_%dori_%dsf_grid%d.h5py'%\
-                                              (self.subject, self.n_ori, self.n_sf, self.which_prf_grid))
+                                              '%s_features_each_prf_%dori_%dsf_grid%d.h5py'%\
+                                              (self.image_set, self.n_ori, self.n_sf, self.which_prf_grid))
             self.feature_column_labels, self.feature_type_names = \
                 texture_feature_utils.get_feature_inds_simplegroups();
         
@@ -128,7 +136,7 @@ class fwrf_feature_loader:
            
         if self.use_pca_feats:
             self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
-                                          'S%d_PCA_grid%d.h5py'%(self.subject, self.which_prf_grid))  
+                                          '%s_PCA_grid%d.h5py'%(self.image_set, self.which_prf_grid))  
             with h5py.File(self.features_file, 'r') as file:
                 feat_shape = np.shape(file['/features'])
                 file.close()
@@ -136,12 +144,12 @@ class fwrf_feature_loader:
         elif self.use_residual_st_feats:
             self.max_features = 150;
             self.features_file = os.path.join(sketch_token_feat_path, \
-                          'S%d_gabor_residuals_grid%d.h5py'%(self.subject, self.which_prf_grid))
+                          '%s_gabor_residuals_grid%d.h5py'%(self.image_set, self.which_prf_grid))
              
         else:
             self.max_features = 150;
             self.features_file = os.path.join(sketch_token_feat_path, \
-                          'S%d_features_each_prf_grid%d.h5py'%(self.subject, self.which_prf_grid))
+                          '%s_features_each_prf_grid%d.h5py'%(self.image_set, self.which_prf_grid))
             
         self.do_varpart=False
         self.n_feature_types=1
@@ -161,7 +169,7 @@ class fwrf_feature_loader:
 
         if self.use_pca_feats:        
             self.features_file = os.path.join(alexnet_feat_path, 'PCA', \
-              'S%d_%s_reflect_PCA_grid%d.h5py'%(self.subject, self.layer_name, self.which_prf_grid))
+              '%s_%s_reflect_PCA_grid%d.h5py'%(self.image_set, self.layer_name, self.which_prf_grid))
         else:
             raise RuntimeError('have to use pca feats for alexnet') 
 
@@ -194,7 +202,7 @@ class fwrf_feature_loader:
 
         if self.use_pca_feats:
             self.features_file = os.path.join(clip_feat_path, 'PCA', \
-              'S%d_%s_%s_PCA_grid%d.h5py'%(self.subject, self.model_architecture, \
+              '%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
                                          self.layer_name, self.which_prf_grid))  
         else:
             raise RuntimeError('have to use pca feats for clip')

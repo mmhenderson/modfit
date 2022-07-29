@@ -563,8 +563,10 @@ def make_feature_loaders(args, fitting_types, vi):
     
     if args.image_set is None:
         sub = args.subject
+        pca_subject = None
     else:
         sub = None
+        pca_subject = args.subject
         
     fe = []
     fe_names = []
@@ -577,7 +579,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             feature_type='gabor_solo',\
                                                             n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
                                                             nonlin_fn=args.gabor_nonlin_fn, \
-                                                            use_pca_feats=args.use_pca_gabor_feats)
+                                                            use_pca_feats=args.use_pca_gabor_feats, \
+                                                            pca_subject = pca_subject)
 
             fe.append(feat_loader)
             fe_names.append(ft)
@@ -590,7 +593,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             pca_type=args.pyr_pca_type,\
                                                             do_varpart=args.do_pyr_varpart,\
                                                             group_all_hl_feats=args.group_all_hl_feats, \
-                                                            include_solo_models=False)       
+                                                            include_solo_models=False, \
+                                                            pca_subject = pca_subject)       
             fe.append(feat_loader)
             fe_names.append(ft)
             
@@ -600,7 +604,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='sketch_tokens',\
                                                             use_pca_feats = args.use_pca_st_feats, \
-                                                            use_residual_st_feats = args.use_residual_st_feats)
+                                                            use_residual_st_feats = args.use_residual_st_feats, \
+                                                            pca_subject = pca_subject)
             fe.append(feat_loader)
             fe_names.append(ft)
 
@@ -614,7 +619,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=names[ll],\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
-                                                            padding_mode = args.alexnet_padding_mode)
+                                                            padding_mode = args.alexnet_padding_mode, \
+                                                            pca_subject = pca_subject)
                     fe.append(feat_loader)   
                     fe_names.append('alexnet_%s'%names[ll])
             elif args.alexnet_layer_name=='best_layer':
@@ -625,7 +631,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=this_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
-                                                            padding_mode = args.alexnet_padding_mode)
+                                                            padding_mode = args.alexnet_padding_mode, \
+                                                            pca_subject = pca_subject)
                 fe.append(feat_loader)   
                 fe_names.append(ft)
             else:
@@ -634,7 +641,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='alexnet',layer_name=args.alexnet_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
-                                                            padding_mode = args.alexnet_padding_mode)
+                                                            padding_mode = args.alexnet_padding_mode, \
+                                                            pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft)
 
@@ -648,7 +656,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=names[ll],\
                                                             model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats)
+                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            pca_subject = pca_subject)
                     fe.append(feat_loader)   
                     fe_names.append('clip_%s'%names[ll])
             elif args.clip_layer_name=='best_layer':
@@ -659,7 +668,8 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=this_layer_name,\
                                                             model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats)
+                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft) 
             else:
@@ -668,24 +678,19 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='clip',layer_name=args.clip_layer_name,\
                                                             model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats)
+                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft)   
 
         elif 'semantic' in ft:
             assert(sub is not None)
             this_feature_set = ft.split('semantic_')[1]
-            if '_pca' in this_feature_set:
-                this_feature_set = this_feature_set.split('_pca')[0]
-                use_pca_feats=True
-            else:
-                use_pca_feats=False
+            
             print('semantic feature set: %s'%this_feature_set)
-            print('use pca: %s'%use_pca_feats)
             feat_loader = semantic_features.semantic_feature_loader(subject=sub,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_set=this_feature_set, \
-                                                            use_pca_feats=use_pca_feats, \
                                                             remove_missing=False)
             fe.append(feat_loader)
             fe_names.append(ft)

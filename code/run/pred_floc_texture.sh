@@ -29,18 +29,20 @@ debug=0
 
 which_prf_grid=5
 
-fitting_type=gabor_solo
-use_precomputed_prfs=1
+fitting_type=texture_pyramid
 
-n_ori_gabor=12
-n_sf_gabor=8
-use_pca_gabor_feats=1
+n_ori_pyr=4
+n_sf_pyr=4
+group_all_hl_feats=1
+
+pyr_pca_type=pcaHL
+
 
 image_set=floc
 
 for subject in ${subjects[@]}
 do
     
-    python3 predict_other_ims.py --subject $subject --image_set $image_set --use_precomputed_prfs $use_precomputed_prfs --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --use_pca_gabor_feats $use_pca_gabor_feats
+    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --n_ori_pyr $n_ori_pyr --n_sf_pyr $n_sf_pyr --group_all_hl_feats $group_all_hl_feats --pyr_pca_type $pyr_pca_type
     
 done

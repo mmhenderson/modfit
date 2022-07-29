@@ -29,18 +29,17 @@ debug=0
 
 which_prf_grid=5
 
-fitting_type=gabor_solo
-use_precomputed_prfs=1
+fitting_type=sketch_tokens
 
-n_ori_gabor=12
-n_sf_gabor=8
-use_pca_gabor_feats=1
+use_residual_st_feats=0
+use_pca_st_feats=0
+
 
 image_set=floc
 
 for subject in ${subjects[@]}
 do
     
-    python3 predict_other_ims.py --subject $subject --image_set $image_set --use_precomputed_prfs $use_precomputed_prfs --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --n_ori_gabor $n_ori_gabor --n_sf_gabor $n_sf_gabor --use_pca_gabor_feats $use_pca_gabor_feats
+    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --use_pca_st_feats $use_pca_st_feats --use_residual_st_feats $use_residual_st_feats
     
 done

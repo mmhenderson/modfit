@@ -23,9 +23,9 @@ def run_pca_each_prf(raw_filename, pca_filename, \
               save_dtype=np.float32, compress=True, \
               debug=False):
 
-    if isinstance(raw_filename, list):
+    if isinstance(raw_filename, list):  
         n_prf_batches = len(raw_filename) 
-        batches_in_separate_files=True
+        batches_in_separate_files=True        
     else:
         raw_filename = [raw_filename]
         
@@ -66,7 +66,7 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         
     scores_each_prf = np.zeros((n_trials, max_pc_to_retain, n_prfs), dtype=save_dtype)
     actual_max_ncomp=0
-   
+       
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:

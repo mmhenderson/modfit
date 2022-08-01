@@ -24,6 +24,7 @@ class fwrf_feature_loader:
             self.image_set = image_set
           
         assert(self.image_set is not None)
+        print('making feature loader with image set: %s'%self.image_set)
         
         self.which_prf_grid = which_prf_grid
         self.__init_prf_batches__(kwargs)        

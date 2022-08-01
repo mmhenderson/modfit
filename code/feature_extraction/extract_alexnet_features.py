@@ -38,6 +38,7 @@ device = initialize_fitting.init_cuda()
 def extract_features(image_data, layer_inds,\
                           padding_mode=None,\
                           which_prf_grid=5,\
+                          batch_size=50, \
                           debug=False):
 
     """
@@ -55,7 +56,6 @@ def extract_features(image_data, layer_inds,\
 
     # Fix these params
     n_prf_sd_out = 2
-    batch_size = 50
     mult_patch_by_prf = True
     do_avg_pool = True
     
@@ -236,11 +236,13 @@ def proc_one_subject(subject, args):
     layers_to_return = ['Conv1_ReLU', 'Conv2_ReLU','Conv3_ReLU','Conv4_ReLU','Conv5_ReLU']
     layer_inds = [ll for ll in range(len(alexnet_layer_names)) \
                       if alexnet_layer_names[ll] in layers_to_return]
-  
+    layer_inds = layer_inds[args.start_layer:]
+    
     features_each_prf = extract_features(image_data, \
                                          layer_inds = layer_inds,
                                          padding_mode=args.padding_mode, \
                                          which_prf_grid=args.which_prf_grid, \
+                                         batch_size=args.batch_size,
                                          debug=args.debug)
     
     # Now save the results, one file for each alexnet layer 
@@ -276,11 +278,13 @@ def proc_other_image_set(image_set, args):
     layers_to_return = ['Conv1_ReLU', 'Conv2_ReLU','Conv3_ReLU','Conv4_ReLU','Conv5_ReLU']
     layer_inds = [ll for ll in range(len(alexnet_layer_names)) \
                       if alexnet_layer_names[ll] in layers_to_return]
+    layer_inds = layer_inds[args.start_layer:]
     
     features_each_prf = extract_features(image_data, \
                                          layer_inds = layer_inds,
                                          padding_mode=args.padding_mode, \
                                          which_prf_grid=args.which_prf_grid, \
+                                         batch_size=args.batch_size,
                                          debug=args.debug)
     
     # Now save the results, one file for each alexnet layer 
@@ -320,6 +324,10 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--image_set", type=str,default='none',
                     help="name of the image set to use (if not an NSD subject)")
+    parser.add_argument("--start_layer", type=int,default=0,
+                    help="which network layer to start from?")
+    parser.add_argument("--batch_size", type=int,default=50,
+                    help="batch size")
     parser.add_argument("--use_node_storage", type=int,default=0,
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,

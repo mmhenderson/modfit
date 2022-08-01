@@ -81,10 +81,13 @@ def run_pca_texture_pyramid(subject=None,
         prf_batch_size=2
     else:
         prf_batch_size=100;
+        
     if image_set is not None:
         floader_sub=None
     else:
         floader_sub=subject
+    print('floader_sub: %s'%floader_sub)
+    print(image_set, subject)
     floader = fwrf_features.fwrf_feature_loader(subject=floader_sub, \
                                                image_set=image_set, \
                                                which_prf_grid=which_prf_grid, 

@@ -564,6 +564,8 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--image_set", type=str,default='none',
                     help="name of the image set to use (if not an NSD subject)")
+    parser.add_argument("--start_layer", type=int,default=0,
+                    help="which network layer to start from?")
     parser.add_argument("--type", type=str,default='sketch_tokens',
                     help="what kind of features are we using?")
     parser.add_argument("--debug", type=int,default=0,
@@ -592,6 +594,7 @@ if __name__ == '__main__':
     
     if args.type=='alexnet':
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
+        layers = layers[args.start_layer:]
         for layer in layers:
             run_pca(subject=args.subject, 
                     image_set = args.image_set,\

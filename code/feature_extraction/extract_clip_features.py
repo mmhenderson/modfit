@@ -223,7 +223,8 @@ def proc_one_subject(subject, args):
         image_data = nsd_utils.image_uncolorize_fn(image_data)
 
     n_blocks = len(resnet_block_names)
-    blocks_to_do = np.arange(n_blocks)
+    blocks_to_do = np.arange(args.start_layer, n_blocks)
+    # blocks_to_do = np.arange(n_blocks)
 
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
@@ -292,7 +293,9 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
         raise ValueError('image set %s not recognized'%image_set)
        
     n_blocks = len(resnet_block_names)
-    blocks_to_do = np.arange(n_blocks)
+    # blocks_to_do = [0]
+    blocks_to_do = np.arange(args.start_layer, n_blocks)
+    # blocks_to_do = np.arange(n_blocks)
 
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
@@ -304,7 +307,8 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
                       for pb in range(n_prf_batches)]
     
     if use_subj_pca:
-        subjects_pca = np.arange(1,9)
+        # subjects_pca = np.arange(1,9)
+        subjects_pca=[1]
     else:
         subjects_pca = [None]
         
@@ -374,6 +378,8 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--image_set", type=str,default='none',
                     help="name of the image set to use (if not an NSD subject)")
+    parser.add_argument("--start_layer", type=int,default=0,
+                    help="which network layer to start from?")
     parser.add_argument("--use_node_storage", type=int,default=0,
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,

@@ -21,8 +21,8 @@ PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 
 cd ${ROOT}code/model_fitting/
 
-# subjects=(1 2 3 4 5 6 7 8)
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1)
 
 debug=0
 # debug=1
@@ -34,12 +34,13 @@ fitting_type=sketch_tokens
 use_residual_st_feats=0
 use_pca_st_feats=0
 
+use_precomputed_prfs=1
 
 image_set=floc
 
 for subject in ${subjects[@]}
 do
     
-    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --use_pca_st_feats $use_pca_st_feats --use_residual_st_feats $use_residual_st_feats
+    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --use_pca_st_feats $use_pca_st_feats --use_residual_st_feats $use_residual_st_feats --use_precomputed_prfs $use_precomputed_prfs
     
 done

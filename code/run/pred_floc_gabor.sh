@@ -21,8 +21,8 @@ PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 
 cd ${ROOT}code/model_fitting/
 
-# subjects=(1 2 3 4 5 6 7 8)
-subjects=(1)
+subjects=(1 2 3 4 5 6 7 8)
+# subjects=(1)
 
 debug=0
 # debug=1
@@ -34,7 +34,7 @@ use_precomputed_prfs=1
 
 n_ori_gabor=12
 n_sf_gabor=8
-use_pca_gabor_feats=1
+use_pca_gabor_feats=0
 
 image_set=floc
 

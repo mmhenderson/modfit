@@ -21,8 +21,11 @@ import clip
 n_features_each_resnet_block = [256,256,256, 512,512,512,512, 1024,1024,1024,1024,1024,1024, 2048,2048,2048]
 resnet_block_names = ['block%d'%nn for nn in range(len(n_features_each_resnet_block))]
 
-device = initialize_fitting.init_cuda()
- 
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
+
 def extract_features(image_data, \
                           block_inds, \
                           prf_batch_inds, \
@@ -263,7 +266,8 @@ def proc_one_subject(subject, args):
                           which_prf_grid=args.which_prf_grid,\
                           min_pct_var=args.min_pct_var,\
                           max_pc_to_retain=args.max_pc_to_retain, \
-                          save_weights = args.save_pca_weights, \
+                          save_weights = args.save_pca_weights==1, \
+                          use_saved_ncomp = args.use_saved_ncomp==1, \
                           debug=args.debug)
         
         # now removing the large intermediate files, leaving only the pca versions
@@ -344,6 +348,7 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
                               min_pct_var=args.min_pct_var,\
                               max_pc_to_retain=args.max_pc_to_retain, \
                               save_weights = False,
+                              use_saved_ncomp = args.use_saved_ncomp==1, \
                               debug=args.debug)
 
         # now removing the large intermediate files, leaving only the pca versions
@@ -392,7 +397,9 @@ if __name__ == '__main__':
                     help="min pct var to explain? default 95")
     parser.add_argument("--save_pca_weights", type=int,default=0,
                     help="want to save the weights to reproduce the pca later? 1 for yes, 0 for no")
-    
+    parser.add_argument("--use_saved_ncomp", type=int,default=0,
+                    help="want to use a previously saved number of components? 1 for yes, 0 for no")
+
 
     args = parser.parse_args()
     

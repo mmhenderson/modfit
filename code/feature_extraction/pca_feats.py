@@ -21,6 +21,7 @@ def run_pca_each_prf(raw_filename, pca_filename, \
               zgroup_labels = None,\
               min_pct_var=95, max_pc_to_retain=100,\
               save_weights=False, save_weights_filename=None,\
+              use_saved_ncomp=False, ncomp_filename=None,\
               save_dtype=np.float32, compress=True, \
               debug=False):
 
@@ -79,7 +80,11 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         pca_premean = np.zeros((n_feat_orig, n_prfs), dtype=save_dtype)
         pca_ncomp = np.zeros((n_prfs,),dtype=save_dtype)
         assert(save_weights_filename is not None)
-       
+        
+    if use_saved_ncomp:
+        print('loading ncomp from %s'%ncomp_filename)
+        saved_pca_ncomp = np.load(ncomp_filename).astype(int)
+        
     for prf_model_index in range(n_prfs):
 
         if debug and prf_model_index>1:
@@ -151,11 +156,15 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         feat_submean = features_in_prf - np.tile(pre_mean[np.newaxis,:], [features_in_prf.shape[0],1])
         scores = feat_submean @ wts.T
         
-        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
-        if np.size(n_comp_needed)>0:
-            n_comp_needed = n_comp_needed[0][0]+1
+        if use_saved_ncomp:
+            n_comp_needed = saved_pca_ncomp[prf_model_index]
         else:
-            n_comp_needed = scores.shape[1]
+            n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+            if np.size(n_comp_needed)>0:
+                n_comp_needed = n_comp_needed[0][0]+1
+            else:
+                n_comp_needed = scores.shape[1]
+                
         print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
         actual_max_ncomp = np.max([n_comp_needed, actual_max_ncomp])
         
@@ -348,6 +357,7 @@ def run_pca(subject=None, \
             layer_name = None, \
             which_prf_grid=5, min_pct_var=95,\
             save_weights=False, \
+            use_saved_ncomp=False, \
             max_pc_to_retain=None, debug=False):
        
     if subject is not None:
@@ -411,6 +421,7 @@ def run_pca(subject=None, \
                       
         zscore_before_pca = False; zgroup_labels = None;
         prf_batch_size=1500
+        ncomp_filename = None
         
     elif feature_type=='sketch_tokens':
         
@@ -438,6 +449,7 @@ def run_pca(subject=None, \
         zscore_before_pca = True;
         zgroup_labels = np.concatenate([np.zeros(shape=(1,150)), np.ones(shape=(1,1))], axis=1)
         prf_batch_size=1500
+        ncomp_filename = None
         
     elif feature_type=='alexnet':
         
@@ -457,6 +469,12 @@ def run_pca(subject=None, \
                                     (image_set, layer_name, which_prf_grid))
         else:
             save_weights_filename = None
+            
+        if use_saved_ncomp:
+            ncomp_filename = os.path.join(path_to_save, '%s_%s_ReLU_reflect_PCA_grid%d_ncomp.npy'%\
+                                    (image_set, layer_name, which_prf_grid))
+        else:
+            ncomp_filename = None
             
         if use_precomputed_weights:
             pca_filename = os.path.join(path_to_save, '%s_%s_ReLU_reflect_PCA_wtsfrom%s_grid%d.h5py'%\
@@ -488,6 +506,12 @@ def run_pca(subject=None, \
                                     (image_set, model_architecture, layer_name, which_prf_grid))
         else:
             save_weights_filename = None
+            
+        if use_saved_ncomp:
+            ncomp_filename = os.path.join(path_to_save,'%s_%s_%s_PCA_grid%d_ncomp.npy'%\
+                                    (image_set, model_architecture, layer_name, which_prf_grid))
+        else:
+            ncomp_filename = None
             
         if use_precomputed_weights:
             pca_filename = os.path.join(path_to_save, '%s_%s_%s_PCA_wtsfrom%s_grid%d.h5py'%\
@@ -525,6 +549,8 @@ def run_pca(subject=None, \
                 save_weights = save_weights, \
                 save_weights_filename = save_weights_filename, \
                 save_dtype=np.float32, compress=True, \
+                use_saved_ncomp = use_saved_ncomp, \
+                ncomp_filename = ncomp_filename, \
                 debug=debug)
 
         
@@ -555,6 +581,30 @@ def compute_pca(values, max_pc_to_retain=None):
     return scores, wts, pre_mean, ev
 
 
+def get_ncomp(pca_features_file, save_ncomp_file):
+    """
+    A function to extract the number of components needed for each pRF, from a saved
+    PCA features file. This is for reproducibility - if we run the feature extraction procedure
+    multiple times, even though the results are close, there can sometimes be a different 
+    num components needed to explain 95% var. If this num changes and we 
+    try to reuse the old encoding model weights, the code will break, so this is a workaround
+    (enforce using the old num components when running PCA).
+    
+    """
+    with h5py.File(pca_features_file,'r') as file:  
+        dat = file['/features'][0,:,:]
+        
+    ncomp_max = dat.shape[0]
+    n_prfs = dat.shape[1]
+    
+    wherenan = [np.where(np.isnan(dat[:,mm])) for mm in range(n_prfs)]
+    ncomp = np.array([nn[0][0] if len(nn[0])>0 else ncomp_max for nn in wherenan] )
+
+    print('saving to %s'%save_ncomp_file)
+    np.save(save_ncomp_file, ncomp)
+    
+    return
+
 
 if __name__ == '__main__':
     
@@ -573,6 +623,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--save_weights", type=int,default=0,
                     help="want to save the weights to reproduce the pca later? 1 for yes, 0 for no")
+    parser.add_argument("--use_saved_ncomp", type=int,default=0,
+                    help="want to use a previously saved number of components? 1 for yes, 0 for no")
 
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
                     help="max pc to retain? enter 0 for None")
@@ -603,19 +655,8 @@ if __name__ == '__main__':
                             which_prf_grid=args.which_prf_grid,
                             min_pct_var=args.min_pct_var, 
                             max_pc_to_retain=args.max_pc_to_retain,
-                            save_weights = args.save_weights, 
-                            debug=args.debug==1)
-    elif args.type=='clip':
-        layers = ['block%d'%(ll) for ll in range(16)]
-        for layer in layers:
-            run_pca(subject=args.subject, 
-                    image_set = args.image_set,\
-                            feature_type=args.type, \
-                            layer_name = layer,
-                            which_prf_grid=args.which_prf_grid,
-                            min_pct_var=args.min_pct_var, 
-                            max_pc_to_retain=args.max_pc_to_retain, 
-                            save_weights = args.save_weights, 
+                            save_weights = args.save_weights==1, 
+                            use_saved_ncomp = args.use_saved_ncomp==1, 
                             debug=args.debug==1)
     else:
         run_pca(subject=args.subject, 
@@ -624,6 +665,7 @@ if __name__ == '__main__':
                             which_prf_grid=args.which_prf_grid,
                             min_pct_var=args.min_pct_var, 
                             max_pc_to_retain=args.max_pc_to_retain, 
-                            save_weights = args.save_weights, 
+                            save_weights = args.save_weights==1, 
+                            use_saved_ncomp = args.use_saved_ncomp==1, 
                             debug=args.debug==1)
     

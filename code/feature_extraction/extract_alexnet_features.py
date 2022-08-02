@@ -32,7 +32,10 @@ alexnet_layer_names.extend(alexnet_fc_layer_names)
 
 n_features_each_layer = [64,64,64, 192,192,192, 384,384, 256,256, 256,256]
 
-device = initialize_fitting.init_cuda()
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
 
 
 def extract_features(image_data, layer_inds,\

@@ -40,6 +40,8 @@ class fwrf_feature_loader:
             self.__init_sketch_tokens__(kwargs)
         elif self.feature_type=='pyramid_texture':
             self.__init_pyramid_texture__(kwargs)
+        elif self.feature_type=='color':
+            self.__init_color__(kwargs)
         elif self.feature_type=='alexnet':
             self.__init_alexnet__(kwargs)
         elif self.feature_type=='clip':
@@ -176,6 +178,17 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
     
+    def __init_color__(self, kwargs):
+        
+        color_feat_path = default_paths.color_feat_path
+        
+        self.features_file = os.path.join(color_feat_path, \
+                               '%s_cielab_plus_sat_grid%d.h5py'%(self.image_set, self.which_prf_grid))
+     
+        self.do_varpart = False
+        self.n_feature_types=1
+        
+        
     def __init_alexnet__(self,kwargs):
     
         from feature_extraction import extract_alexnet_features

@@ -104,6 +104,9 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens_residuals'
             else:        
                 model_name += 'sketch_tokens'
+        elif 'color' in ft:
+            fitting_types += [ft]
+            model_name += ['color_ceilab_plus_sat']
             
         elif 'alexnet' in ft:
             fitting_types += [ft]
@@ -606,6 +609,14 @@ def make_feature_loaders(args, fitting_types, vi):
                                                             use_pca_feats = args.use_pca_st_feats, \
                                                             use_residual_st_feats = args.use_residual_st_feats, \
                                                             pca_subject = pca_subject)
+            fe.append(feat_loader)
+            fe_names.append(ft)
+            
+        elif 'color' in ft:
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
+                                                            which_prf_grid=args.which_prf_grid, \
+                                                            feature_type='color')
             fe.append(feat_loader)
             fe_names.append(ft)
 

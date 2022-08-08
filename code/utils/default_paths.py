@@ -40,6 +40,9 @@ alexnet_feat_path_localnode = os.path.join(root_localnode, 'features','alexnet')
 clip_feat_path = os.path.join(root, 'features', 'CLIP')
 clip_feat_path_localnode = os.path.join(root_localnode, 'features', 'CLIP')
 
+# Path where gabor model features will be saved
+color_feat_path = os.path.join(root, 'features','color')
+
 # Where the raw NSD beta weights are located
 beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')
 

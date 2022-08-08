@@ -51,6 +51,15 @@ def image_preproc_fn(image):
     data = image.astype(np.float32) / 255
     return data
 
+
+def get_voxel_mask(subject):
+    
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                roi_utils.get_voxel_roi_info(subject, volume_space=True)
+    
+    return voxel_mask
+
+
 def ncsnr_to_nc(ncsnr, average_image_reps=False, subject=None):    
     """
     From Allen (2021) nature neuroscience.    
@@ -80,7 +89,19 @@ def ncsnr_to_nc(ncsnr, average_image_reps=False, subject=None):
             noise_ceiling = 100 * ncsnr**2 / (ncsnr**2 + (A/3 + B/2 + C/1) / (A+B+C) )
             
     return noise_ceiling
+  
+def get_nc(subject, average_image_reps=True):
     
+    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
+                roi_utils.get_voxel_roi_info(subject, volume_space=True)
+    
+    noise_ceiling = \
+        ncsnr_to_nc(voxel_ncsnr[voxel_mask], \
+                    average_image_reps=average_image_reps, \
+                    subject=subject)
+    
+    return noise_ceiling
+
 def get_image_data(subject, random_images=False, native=False):
 
     """
@@ -204,8 +225,8 @@ def load_betas(subject, sessions=[0], voxel_mask=None,  zscore_betas_within_sess
 def get_concat_betas(subject, debug=False):
     
     print('\nProcessing subject %d\n'%subject)
-    voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
-                roi_utils.get_voxel_roi_info(subject,volume_space=True)    
+    voxel_mask = get_voxel_mask(subject)
+        
     if debug:
         sessions = [0]
     else:
@@ -408,9 +429,7 @@ def load_prf_mapping_pars(subject, voxel_mask=None):
     """
     
     if voxel_mask is None:
-        voxel_mask, _, _, _, _ = \
-        roi_utils.get_voxel_roi_info(subject, volume_space=True, include_all=True, \
-                           include_body=True,verbose=False)
+        voxel_mask = get_voxel_mask(subject)
         
     prf_path = os.path.join(default_paths.nsd_root, 'nsddata','ppdata','subj%02d'%subject,'func1pt8mm')
 
@@ -432,9 +451,8 @@ def load_domain_tvals(subject, voxel_mask=None):
     """
     
     if voxel_mask is None:
-        voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
-                roi_utils.get_voxel_roi_info(subject, volume_space=True)
-    
+        voxel_mask = get_voxel_mask(subject)
+        
     n_voxels = np.sum(voxel_mask)
 
     niftis_path = os.path.join(default_paths.nsd_root, \
@@ -481,9 +499,8 @@ def get_image_ranks(subject, sessions=np.arange(0,40), debug=False):
     if debug:
         sessions = np.array([0])
         
-    voxel_mask, _, _, _, _ = roi_utils.get_voxel_roi_info(subject, \
-                                                volume_space=True, include_all=True, \
-                                                include_body=True, verbose=False)
+    voxel_mask = get_voxel_mask(subject)
+        
     voxel_data = load_betas(subject, sessions, voxel_mask=voxel_mask, \
                               zscore_betas_within_sess=True, \
                               volume_space=True)    

@@ -187,7 +187,8 @@ class fwrf_feature_loader:
      
         self.do_varpart = False
         self.n_feature_types=1
-        
+        self.max_features=4
+        self.use_pca_feats=False
         
     def __init_alexnet__(self,kwargs):
     

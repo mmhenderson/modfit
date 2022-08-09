@@ -3,16 +3,24 @@ import numpy as np
 import sys, os
 import time
 import h5py
+import torch
 
 #import custom modules
-from utils import color_utils, nsd_utils, prf_utils, default_paths, coco_utils, floc_utils
+from utils import color_utils, nsd_utils, prf_utils, default_paths, floc_utils, torch_utils
 from model_fitting import initialize_fitting
 
-def extract_color_features(image_data,
+try:
+    device = initialize_fitting.init_cuda()
+except:
+    device = 'cpu:0'
+
+def extract_color_features(image_data, batch_size=100, \
                              which_prf_grid=5, debug=False):
     
     n_pix = image_data.shape[2]
     n_images = image_data.shape[0]
+    
+    n_batches = int(np.ceil(n_images/batch_size))
     
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
@@ -24,38 +32,54 @@ def extract_color_features(image_data,
     
     features_each_prf = np.zeros((n_images, n_features, n_prfs), dtype=np.float32)
 
-    for ii in range(n_images):
+    for bb in range(n_batches):
         
-        if debug and ii>1:
+        if debug and bb>1:
             continue
-
-        if np.mod(ii, 500)==0:
-            print('proc image %d of %d'%(ii, n_images))
+            
+        print('proc batch %d of %d'%(bb, n_batches))
         sys.stdout.flush()
+       
+        batch_inds = np.arange(bb*batch_size, np.minimum((bb+1)*batch_size, n_images))
         
-        # color channels will be last dimension of this array
-        image = np.moveaxis(image_data[ii,:,:,:], [0],[2])
+        st = time.time()
+        fmaps_batch = np.zeros((len(batch_inds), n_pix, n_pix, n_features))
         
-        image_lab = color_utils.rgb_to_CIELAB(image)
-        image_sat = color_utils.get_saturation(image)
-    
-        # 4 color feature channels concatenated here
-        fmaps_concat = np.dstack([image_lab, image_sat])
+        for ii, image_ind in enumerate(batch_inds):
+ 
+            # color channels will be last dimension of this array
+            image = np.moveaxis(image_data[image_ind,:,:,:], [0],[2])
+
+            image_lab = color_utils.rgb_to_CIELAB(image)
+            image_sat = color_utils.get_saturation(image)
+
+            # 4 color feature channels concatenated here
+            fmaps_batch[ii,:,:,:] = np.dstack([image_lab, image_sat])
+
+        elapsed = time.time() - st
+        print('took %.5f s to gather color feature maps'%elapsed)
+        
+        st = time.time()
+        
+        fmaps_batch = torch_utils._to_torch(fmaps_batch, device=device)
         
         for mm in range(n_prfs):
 
             x,y,sigma = models[mm,:]
             
-            prf = prf_utils.gauss_2d(center=[x,y], sd=sigma, \
-                                   patch_size=n_pix, aperture=1.0, dtype=np.float32)
+            prf = torch_utils._to_torch(prf_utils.gauss_2d(center=[x,y], sd=sigma, \
+                                   patch_size=n_pix, aperture=1.0, dtype=np.float32), device=device)
             
             # weighted sum of color feature values in the pRF
-            features_image = np.tensordot(fmaps_concat, prf, axes=[[0,1],[0,1]])
+            features_batch = torch.tensordot(fmaps_batch, prf, dims=[[1,2],[0,1]])
             
-            features_each_prf[ii,0:,mm] = features_image
+            features_each_prf[batch_inds,:,mm] = torch_utils.get_value(features_batch)
 
-            sys.stdout.flush()
-                
+            
+        elapsed = time.time() - st
+        print('took %.5f s to multiply maps by pRFs'%elapsed)
+        sys.stdout.flush()
+            
     return features_each_prf
       
     
@@ -73,6 +97,7 @@ def proc_one_subject(subject, args):
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
+        from utils import coco_utils
         image_data = coco_utils.load_indep_coco_images(n_pix=240)
     else: 
         # load all images for the current subject, 10,000 ims
@@ -81,7 +106,7 @@ def proc_one_subject(subject, args):
     filename_save = os.path.join(color_feat_path, \
                                'S%d_cielab_plus_sat_grid%d.h5py'%(subject, args.which_prf_grid))
      
-    features_each_prf = extract_color_features(image_data, 
+    features_each_prf = extract_color_features(image_data, batch_size=args.batch_size, \
                                          which_prf_grid=args.which_prf_grid, debug=args.debug)
     
     save_features(features_each_prf, filename_save)
@@ -108,7 +133,7 @@ def proc_other_image_set(image_set, args):
     filename_save = os.path.join(color_feat_path, \
                                '%s_cielab_plus_sat_grid%d.h5py'%(image_set, args.which_prf_grid))
         
-    features_each_prf = extract_color_features(image_data, 
+    features_each_prf = extract_color_features(image_data, batch_size=args.batch_size, \
                                          which_prf_grid=args.which_prf_grid, debug=args.debug)
     
     save_features(features_each_prf, filename_save)
@@ -137,6 +162,8 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--image_set", type=str,default='none',
                     help="name of the image set to use (if not an NSD subject)")
+    parser.add_argument("--batch_size", type=int,default=100,
+                    help="batch size")
     
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")

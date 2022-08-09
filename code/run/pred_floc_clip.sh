@@ -22,18 +22,18 @@ PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 cd ${ROOT}code/model_fitting/
 
 # subjects=(2 3 4 5 6 7 8)
-subjects=(1 3 4 5 6 7 8)
+subjects=(1 2)
 
 debug=0
 # debug=1
 
 which_prf_grid=5
 
-fitting_type=alexnet
+fitting_type=clip
 
-alexnet_layer_name=best_layer
-alexnet_padding_mode=reflect
-use_pca_alexnet_feats=1
+clip_layer_name=best_layer
+clip_model_architecture=RN50
+use_pca_clip_feats=1
 
 use_precomputed_prfs=1
 
@@ -42,6 +42,6 @@ image_set=floc
 for subject in ${subjects[@]}
 do
     
-    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --alexnet_layer_name $alexnet_layer_name  --alexnet_padding_mode $alexnet_padding_mode  --use_pca_alexnet_feats $use_pca_alexnet_feats --use_precomputed_prfs $use_precomputed_prfs
+    python3 predict_other_ims.py --subject $subject --image_set $image_set --debug $debug --which_prf_grid $which_prf_grid --fitting_type $fitting_type --clip_layer_name $clip_layer_name --clip_model_architecture $clip_model_architecture --use_pca_clip_feats $use_pca_clip_feats --use_precomputed_prfs $use_precomputed_prfs
     
 done

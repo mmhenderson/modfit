@@ -106,7 +106,7 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens'
         elif 'color' in ft:
             fitting_types += [ft]
-            model_name += ['color_ceilab_plus_sat']
+            model_name += 'color_ceilab_sat'
             
         elif 'alexnet' in ft:
             fitting_types += [ft]

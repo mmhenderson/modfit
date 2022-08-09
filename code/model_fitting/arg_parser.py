@@ -164,7 +164,9 @@ def get_args():
                        help="What model architecture used for this version of clip?")
     parser.add_argument("--use_pca_clip_feats", type=nice_str2bool, default=True, 
                        help="use reduced-dim version of clip features?")
-
+    parser.add_argument("--n_resnet_blocks_include", type=int,default=16,
+                    help="when choosing best clip layer, how many blocks to choose from? fewer will run faster")
+    
     # Specific to semantic models
     parser.add_argument("--semantic_feature_set", type=str,default='',
                     help="if semantic model, what dimension?")

@@ -120,7 +120,11 @@ def get_full_save_name(args):
                 
         elif 'clip' in ft:
             fitting_types += [ft]
-            model_name += 'clip_%s_%s'%(args.clip_model_architecture, args.clip_layer_name)
+            if args.clip_layer_name=='best_layer' and args.n_resnet_blocks_include<16:
+                layer_name = 'best_layer_of%d'%args.n_resnet_blocks_include
+            else:
+                layer_name = args.layer_name
+            model_name += 'clip_%s_%s'%(args.clip_model_architecture, layer_name)
             if args.use_pca_clip_feats:
                 model_name += '_pca'
                 
@@ -327,7 +331,7 @@ def load_precomputed_prfs(subject, args):
     
     return best_model_each_voxel, saved_prfs_fn
 
-def load_best_model_layers(subject, model):
+def load_best_model_layers(subject, model, dnn_layers_use):
     
     if model=='clip':
         saved_best_layer_fn = saved_fit_paths.clip_fit_paths[subject-1]
@@ -341,12 +345,17 @@ def load_best_model_layers(subject, model):
     out = np.load(saved_best_layer_fn, allow_pickle=True).item()
     assert(out['average_image_reps']==True)
     if model=='alexnet':
-        layer_inds = [1,3,5,7,9]       
+        layer_inds = np.array([1,3,5,7,9])       
     elif model=='clip':
         layer_inds = np.arange(1,32,2)
-      
-    assert(np.all(['just_' in name for name in np.array(out['partial_version_names'])[layer_inds]]))
-    best_layer_each_voxel = np.argmax(out['val_r2'][:,layer_inds], axis=1)
+    
+    layer_inds_use = layer_inds[dnn_layers_use]
+    assert(np.all(['just_' in name for name in np.array(out['partial_version_names'])[layer_inds]]))   
+    names = [name.split('just_')[1] for name in np.array(out['partial_version_names'])[layer_inds_use]]
+    print('using %s layers:'%model)
+    print(names)
+    
+    best_layer_each_voxel = np.argmax(out['val_r2'][:,layer_inds_use], axis=1)
     unique, counts = np.unique(best_layer_each_voxel, return_counts=True)
     print('layer indices:')
     print(unique)

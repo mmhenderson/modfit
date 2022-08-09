@@ -149,7 +149,8 @@ def fit_fwrf(args):
             dict2save.update({
             'clip_layer_name': args.clip_layer_name,
             'clip_model_architecture': args.clip_model_architecture,
-            'use_pca_clip_feats': args.use_pca_clip_feats,   
+            'use_pca_clip_feats': args.use_pca_clip_feats,  
+            'n_resnet_blocks_include': args.n_resnet_blocks_include, 
             })
 
         print('\nSaving to %s\n'%fn2save)
@@ -194,10 +195,21 @@ def fit_fwrf(args):
     if np.any(['alexnet' in ft for ft in fitting_types]):
         dnn_model='alexnet'
         n_dnn_layers = 5;
+        dnn_layers_use = np.arange(5)
         assert(not np.any(['clip' in ft for ft in fitting_types]))
     elif np.any(['clip' in ft for ft in fitting_types]):
-        dnn_model='clip'
-        n_dnn_layers = 16;
+        if args.n_resnet_blocks_include==4:
+            n_dnn_layers = 4;
+            dnn_layers_use = np.arange(0,16,4)+3
+        elif args.n_resnet_blocks_include==8:
+            n_dnn_layers = 8;
+            dnn_layers_use=np.arange(0,16,2)+1
+        elif args.n_resnet_blocks_include==16:
+            n_dnn_layers = 16;
+            dnn_layers_use = np.arange(0,16,1)
+        else:
+            raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
+        dnn_model='clip'     
         assert(not np.any(['alexnet' in ft for ft in fitting_types]))
     else:
         dnn_model = None
@@ -303,7 +315,8 @@ def fit_fwrf(args):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
         best_layer_each_voxel, saved_best_layer_fn = \
-                  initialize_fitting.load_best_model_layers(args.subject, dnn_model)
+                  initialize_fitting.load_best_model_layers(args.subject, dnn_model, dnn_layers_use)
+        assert(np.all(np.unique(best_layer_each_voxel)==np.arange(n_dnn_layers)))
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
         assert(len(best_layer_each_voxel)==n_voxels)
         assert(not args.save_model_residuals)
@@ -311,7 +324,9 @@ def fit_fwrf(args):
         
         # Create feature loaders here
         feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=ll) \
-                            for ll in range(n_dnn_layers)]
+                            for ll in dnn_layers_use]
+        assert(len(feat_loader_full_list)==n_dnn_layers)
+        
     elif args.shuffle_data or args.bootstrap_data:
         best_layer_each_voxel = None;
         saved_best_layer_fn = None;

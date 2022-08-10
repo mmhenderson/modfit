@@ -144,13 +144,22 @@ def fit_fwrf(args):
             'alexnet_layer_name': args.alexnet_layer_name,
             'alexnet_padding_mode': args.alexnet_padding_mode,
             'use_pca_alexnet_feats': args.use_pca_alexnet_feats, 
+            'alexnet_blurface': args.alexnet_blurface,
             })
         if np.any(['clip' in ft for ft in fitting_types]):
             dict2save.update({
-            'clip_layer_name': args.clip_layer_name,
-            'clip_model_architecture': args.clip_model_architecture,
-            'use_pca_clip_feats': args.use_pca_clip_feats,  
+            'clip_layer_name': args.resnet_layer_name,
+            'clip_model_architecture': args.resnet_model_architecture,
+            'use_pca_clip_feats': args.use_pca_resnet_feats,  
             'n_resnet_blocks_include': args.n_resnet_blocks_include, 
+            })
+        if np.any(['resnet' in ft for ft in fitting_types]):
+            dict2save.update({
+            'resnet_layer_name': args.resnet_layer_name,
+            'resnet_model_architecture': args.resnet_model_architecture,
+            'use_pca_resnet_feats': args.use_pca_resnet_feats,  
+            'n_resnet_blocks_include': args.n_resnet_blocks_include, 
+            'resnet_blurface': args.resnet_blurface, 
             })
 
         print('\nSaving to %s\n'%fn2save)
@@ -193,11 +202,14 @@ def fit_fwrf(args):
     mean_each_sem_level_balanced = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
-        dnn_model='alexnet'
+        if np.any(['blurface' in ft for ft in fitting_types]):      
+            dnn_model='alexnet_blurface'
+        else:
+            dnn_model='alexnet'
         n_dnn_layers = 5;
         dnn_layers_use = np.arange(5)
         assert(not np.any(['clip' in ft for ft in fitting_types]))
-    elif np.any(['clip' in ft for ft in fitting_types]):
+    elif np.any(['clip' in ft for ft in fitting_types]) or np.any(['resnet' in ft for ft in fitting_types]):
         if args.n_resnet_blocks_include==4:
             n_dnn_layers = 4;
             dnn_layers_use = np.arange(0,16,4)+3
@@ -209,7 +221,12 @@ def fit_fwrf(args):
             dnn_layers_use = np.arange(0,16,1)
         else:
             raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
-        dnn_model='clip'     
+        if np.any(['clip' in ft for ft in fitting_types]):
+            dnn_model='clip'
+        elif np.any(['blurface' in ft for ft in fitting_types]):
+            dnn_model='resnet_blurface'
+        else:
+            dnn_model='resnet'
         assert(not np.any(['alexnet' in ft for ft in fitting_types]))
     else:
         dnn_model = None
@@ -311,7 +328,7 @@ def fit_fwrf(args):
     # only used for clip/alexnet when layer_name is "best_layer", since diff voxels get fit w different features
     # otherwise this loop only goes once and voxel_subset_mask is all ones.
     
-    if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.clip_layer_name=='best_layer'):
+    if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.resnet_layer_name=='best_layer'):
         # special case, going to fit groups of voxels separately according to which dnn layer was best
         # creating a list of voxel masks here that will define the subsets to loop over.
         best_layer_each_voxel, saved_best_layer_fn = \

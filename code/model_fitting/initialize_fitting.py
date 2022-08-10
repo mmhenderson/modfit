@@ -114,19 +114,35 @@ def get_full_save_name(args):
                 name = args.alexnet_layer_name.split('_')[0]
             else:
                 name = args.alexnet_layer_name
-            model_name += 'alexnet_%s'%name
+            if args.alexnet_blurface:
+                model_name += 'alexnet_blurface_%s'%name               
+            else:
+                model_name += 'alexnet_%s'%name
             if args.use_pca_alexnet_feats:
                 model_name += '_pca'
                 
         elif 'clip' in ft:
             fitting_types += [ft]
-            if args.clip_layer_name=='best_layer' and args.n_resnet_blocks_include<16:
+            if args.resnet_layer_name=='best_layer' and args.n_resnet_blocks_include<16:
                 layer_name = 'best_layer_of%d'%args.n_resnet_blocks_include
             else:
-                layer_name = args.layer_name
-            model_name += 'clip_%s_%s'%(args.clip_model_architecture, layer_name)
-            if args.use_pca_clip_feats:
+                layer_name = args.resnet_layer_name
+            model_name += 'clip_%s_%s'%(args.resnet_model_architecture, layer_name)
+            if args.use_pca_resnet_feats:
                 model_name += '_pca'
+                
+        elif 'resnet' in ft:
+            fitting_types += [ft]
+            if args.resnet_layer_name=='best_layer' and args.n_resnet_blocks_include<16:
+                layer_name = 'best_layer_of%d'%args.n_resnet_blocks_include
+            else:
+                layer_name = args.resnet_layer_name
+            if args.resnet_blurface:
+                model_name += 'resnet_blurface_%s_%s'%(args.resnet_model_architecture, layer_name)
+            else:
+                model_name += 'resnet_%s_%s'%(args.resnet_model_architecture, layer_name)
+            if args.use_pca_resnet_feats:
+                model_name
                 
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
@@ -233,7 +249,9 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
             # will vary depending on actual feature value ranges, be sure to check the results carefully
             lambdas = np.logspace(np.log(0.01),np.log(10**1+0.01),10, dtype=np.float32, base=np.e) - 0.01
 
-        if np.any(['clip' in ft for ft in fitting_types]) or np.any(['alexnet' in ft for ft in fitting_types]):
+        if np.any(['clip' in ft for ft in fitting_types]) or \
+            np.any(['alexnet' in ft for ft in fitting_types]) or \
+            np.any(['resnet' in ft for ft in fitting_types]):
             
             lambdas = np.logspace(np.log(0.01),np.log(10**10+0.01),20, dtype=np.float32, base=np.e) - 0.01
             
@@ -335,8 +353,14 @@ def load_best_model_layers(subject, model, dnn_layers_use):
     
     if model=='clip':
         saved_best_layer_fn = saved_fit_paths.clip_fit_paths[subject-1]
+    elif model=='resnet':
+        raise ValueError('best %s layers not computed yet'%model)
+    elif model=='resnet_blurface':
+        raise ValueError('best %s layers not computed yet'%model)
     elif model=='alexnet':
         saved_best_layer_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
+    elif model=='alexnet_blurface':
+        raise ValueError('best %s layers not computed yet'%model)
     else:
         raise ValueError('for %s, best model layer not computed yet'%(model))
     
@@ -344,9 +368,9 @@ def load_best_model_layers(subject, model, dnn_layers_use):
     
     out = np.load(saved_best_layer_fn, allow_pickle=True).item()
     assert(out['average_image_reps']==True)
-    if model=='alexnet':
+    if 'alexnet' in model:
         layer_inds = np.array([1,3,5,7,9])       
-    elif model=='clip':
+    elif ('clip' in model) or ('resnet' in model):
         layer_inds = np.arange(1,32,2)
     
     layer_inds_use = layer_inds[dnn_layers_use]
@@ -637,9 +661,11 @@ def make_feature_loaders(args, fitting_types, vi):
                     feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='alexnet',layer_name=names[ll],\
+                                                            feature_type='alexnet',\
+                                                            layer_name=names[ll],\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
+                                                            blurface = args.alexnet_blurface, \
                                                             pca_subject = pca_subject)
                     fe.append(feat_loader)   
                     fe_names.append('alexnet_%s'%names[ll])
@@ -649,9 +675,11 @@ def make_feature_loaders(args, fitting_types, vi):
                 feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='alexnet',layer_name=this_layer_name,\
+                                                            feature_type='alexnet',\
+                                                            layer_name=this_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
+                                                            blurface = args.alexnet_blurface, \
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)   
                 fe_names.append(ft)
@@ -659,36 +687,47 @@ def make_feature_loaders(args, fitting_types, vi):
                 feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='alexnet',layer_name=args.alexnet_layer_name,\
+                                                            feature_type='alexnet',\
+                                                            layer_name=args.alexnet_layer_name,\
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
+                                                            blurface = args.alexnet_blurface, \
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft)
 
-        elif 'clip' in ft:
+        elif 'clip' in ft or 'resnet' in ft:
+            if 'clip' in ft:
+                training_type='clip'
+            elif args.resnet_blurface:
+                training_type='blurface'
+            else:
+                training_type='imgnet'
+                
             n_dnn_layers = 16;
-            if args.clip_layer_name=='all_resblocks':
+            if args.resnet_layer_name=='all_resblocks':
                 names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
                 for ll in range(n_dnn_layers):
                     feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='clip',layer_name=names[ll],\
-                                                            model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            feature_type='resnet',layer_name=names[ll],\
+                                                            model_architecture=args.resnet_model_architecture,\
+                                                            use_pca_feats=args.use_pca_resnet_feats, \
+                                                            training_type=training_type,
                                                             pca_subject = pca_subject)
                     fe.append(feat_loader)   
-                    fe_names.append('clip_%s'%names[ll])
-            elif args.clip_layer_name=='best_layer':
+                    fe_names.append('resnet_%s'%names[ll])
+            elif args.resnet_layer_name=='best_layer':
                 this_layer_name = 'block%d'%(vi)
                 print(this_layer_name)
                 feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='clip',layer_name=this_layer_name,\
-                                                            model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            feature_type='resnet',layer_name=this_layer_name,\
+                                                            model_architecture=args.resnet_model_architecture,\
+                                                            use_pca_feats=args.use_pca_resnet_feats, \
+                                                            training_type=training_type,
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft) 
@@ -696,9 +735,11 @@ def make_feature_loaders(args, fitting_types, vi):
                 feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='clip',layer_name=args.clip_layer_name,\
-                                                            model_architecture=args.clip_model_architecture,\
-                                                            use_pca_feats=args.use_pca_clip_feats, \
+                                                            feature_type='resnet',\
+                                                            layer_name=args.resnet_layer_name,\
+                                                            model_architecture=args.resnet_model_architecture,\
+                                                            use_pca_feats=args.use_pca_resnet_feats, \
+                                                            training_type=training_type,
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft)   

@@ -156,17 +156,22 @@ def get_args():
                        help="What padding mode for alexnet conv layers? default zeros.")
     parser.add_argument("--use_pca_alexnet_feats", type=nice_str2bool,default=True, 
                        help="use reduced-dim version of alexnet features?")
+    parser.add_argument("--alexnet_blurface", type=nice_str2bool,default=False, 
+                       help="use version of alexnet features trained with blurry faces?")
 
-    # specific to CLIP
-    parser.add_argument("--clip_layer_name", type=str, default='', 
-                       help="What layer of clip to use?")
-    parser.add_argument("--clip_model_architecture", type=str, default='RN50', 
-                       help="What model architecture used for this version of clip?")
-    parser.add_argument("--use_pca_clip_feats", type=nice_str2bool, default=True, 
-                       help="use reduced-dim version of clip features?")
-    parser.add_argument("--n_resnet_blocks_include", type=int,default=16,
-                    help="when choosing best clip layer, how many blocks to choose from? fewer will run faster")
+    # specific to CLIP/Resnet
+    parser.add_argument("--resnet_layer_name", type=str, default='', 
+                       help="What layer of resnet to use?")
+    parser.add_argument("--resnet_model_architecture", type=str, default='RN50', 
+                       help="What model architecture used for this version of resnet?")
+    parser.add_argument("--use_pca_resnet_feats", type=nice_str2bool, default=True, 
+                       help="use reduced-dim version of resnet features?")
     
+    parser.add_argument("--n_resnet_blocks_include", type=int,default=16,
+                    help="when choosing best resnet layer, how many blocks to choose from? fewer will run faster")
+    parser.add_argument("--resnet_blurface", type=nice_str2bool,default=False, 
+                       help="use version of alexnet features trained with blurry faces?")
+
     # Specific to semantic models
     parser.add_argument("--semantic_feature_set", type=str,default='',
                     help="if semantic model, what dimension?")

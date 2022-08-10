@@ -6,11 +6,12 @@ import torch
 import time
 import h5py
 import copy
+from collections import OrderedDict
 import torchvision.models as models
 import torch.nn as nn
 
 #import custom modules
-from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, coco_utils, floc_utils
+from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, floc_utils
 from model_fitting import initialize_fitting
 
 dtype=np.float32
@@ -42,6 +43,7 @@ def extract_features(image_data, layer_inds,\
                           padding_mode=None,\
                           which_prf_grid=5,\
                           batch_size=50, \
+                          blurface=False, \
                           debug=False):
 
     """
@@ -87,7 +89,9 @@ def extract_features(image_data, layer_inds,\
             torch.cuda.empty_cache()
             
             activ_batch = get_alexnet_activations_batch(image_batch, layer_inds, \
-                                                        device=device, padding_mode=padding_mode)
+                                                        device=device, \
+                                                        padding_mode=padding_mode, \
+                                                        blurface=blurface)
 
             for ll in range(n_layers):
 
@@ -144,7 +148,7 @@ def extract_features(image_data, layer_inds,\
     return features_each_prf
     
 
-def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_mode=None):
+def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_mode=None, blurface=False):
 
     """
     Get activations for images in NSD, passed through pretrained AlexNet.
@@ -154,8 +158,31 @@ def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_
     if device is None:
         device = torch.device('cpu:0')
        
-    # first loading pre-trained model from torch model zoo
-    model = models.alexnet(pretrained=True).float().to(device)
+    if blurface:
+        # use model trained on face-blurred imagenet ims
+        model_filename = os.path.join(default_paths.alexnet_blurface_feat_path, 'alexnet_blurred_ILSVRC.pth')
+        print('Loading saved model from %s'%model_filename)
+        saved = torch.load(model_filename, map_location=device)     
+        sd = saved['state_dict']
+        
+        # need to fix keys in the statedict to have expected names
+        new_sd = OrderedDict([])
+        keynames = list(sd.keys())
+        for kn in keynames:
+            if 'features' in kn:
+                new_kn = 'features.' + kn.split('features.module.')[1]
+            else:
+                new_kn = kn
+            new_sd[new_kn] = sd[kn]
+            
+        model = models.alexnet().float().to(device)
+        model.load_state_dict(new_sd)
+
+    else:       
+        # normal pre-trained model from torch model zoo
+        model = models.alexnet(pretrained=True).float().to(device)
+        
+        
     if padding_mode is not None:
         # change padding type for all convolutional layers, "reflect" is a
         # good way to minimize edge artifacts.
@@ -167,8 +194,7 @@ def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_
                 
                 
     model.eval()
-    model_name='AlexNet'
-
+    
     is_fc = [('FC' in alexnet_layer_names[ll] or 'fc' in alexnet_layer_names[ll]) for ll in layer_inds]
     
     if len(layer_inds)==0:
@@ -216,19 +242,21 @@ def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_
 
 def proc_one_subject(subject, args):
 
-    if args.use_node_storage:
-        alexnet_feat_path = default_paths.alexnet_feat_path_localnode
+    if args.blurface==1:
+        feat_path = default_paths.alexnet_blurface_feat_path
     else:
-        alexnet_feat_path = default_paths.alexnet_feat_path
+        feat_path = default_paths.alexnet_feat_path
+        
     if args.debug: 
-        alexnet_feat_path = os.path.join(alexnet_feat_path, 'DEBUG') 
-    if not os.path.exists(alexnet_feat_path):
-        os.makedirs(alexnet_feat_path)
+        feat_path = os.path.join(feat_path, 'DEBUG') 
+    if not os.path.exists(feat_path):
+        os.makedirs(feat_path)
 
     # Load and prepare the image set to work with 
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
+        from utils import coco_utils
         image_data = coco_utils.load_indep_coco_images(n_pix=240)
         image_data = nsd_utils.image_uncolorize_fn(image_data)
     else: 
@@ -246,16 +274,17 @@ def proc_one_subject(subject, args):
                                          padding_mode=args.padding_mode, \
                                          which_prf_grid=args.which_prf_grid, \
                                          batch_size=args.batch_size,
+                                         blurface=args.blurface==1, 
                                          debug=args.debug)
     
     # Now save the results, one file for each alexnet layer 
     for ii, ll in enumerate(layer_inds):
         if args.padding_mode is not None:
-            filename_save = os.path.join(alexnet_feat_path, \
+            filename_save = os.path.join(feat_path, \
            'S%d_%s_%s_features_each_prf_grid%d.h5py'%(subject, \
                                alexnet_layer_names[ll], args.padding_mode, args.which_prf_grid))
         else:    
-            filename_save = os.path.join(alexnet_feat_path, \
+            filename_save = os.path.join(feat_path, \
                'S%d_%s_features_each_prf_grid%d.h5py'%(subject, \
                                        alexnet_layer_names[ll], args.which_prf_grid))
             
@@ -264,14 +293,15 @@ def proc_one_subject(subject, args):
     
 def proc_other_image_set(image_set, args):
        
-    if args.use_node_storage:
-        alexnet_feat_path = default_paths.alexnet_feat_path_localnode
+    if args.blurface==1:
+        feat_path = default_paths.alexnet_blurface_feat_path
     else:
-        alexnet_feat_path = default_paths.alexnet_feat_path
+        feat_path = default_paths.alexnet_feat_path
+      
     if args.debug: 
-        alexnet_feat_path = os.path.join(alexnet_feat_path, 'DEBUG') 
-    if not os.path.exists(alexnet_feat_path):
-        os.makedirs(alexnet_feat_path)
+        feat_path = os.path.join(feat_path, 'DEBUG') 
+    if not os.path.exists(feat_path):
+        os.makedirs(feat_path)
       
     if image_set=='floc':
         image_data = floc_utils.load_floc_images(npix=240)
@@ -288,16 +318,17 @@ def proc_other_image_set(image_set, args):
                                          padding_mode=args.padding_mode, \
                                          which_prf_grid=args.which_prf_grid, \
                                          batch_size=args.batch_size,
+                                         blurface=args.blurface==1, 
                                          debug=args.debug)
     
     # Now save the results, one file for each alexnet layer 
     for ii, ll in enumerate(layer_inds):
         if args.padding_mode is not None:
-            filename_save = os.path.join(alexnet_feat_path, \
+            filename_save = os.path.join(feat_path, \
            '%s_%s_%s_features_each_prf_grid%d.h5py'%(image_set, \
                                alexnet_layer_names[ll], args.padding_mode, args.which_prf_grid))
         else:    
-            filename_save = os.path.join(alexnet_feat_path, \
+            filename_save = os.path.join(feat_path, \
                '%s_%s_features_each_prf_grid%d.h5py'%(image_set, \
                                        alexnet_layer_names[ll], args.which_prf_grid))
             
@@ -331,14 +362,14 @@ if __name__ == '__main__':
                     help="which network layer to start from?")
     parser.add_argument("--batch_size", type=int,default=50,
                     help="batch size")
-    parser.add_argument("--use_node_storage", type=int,default=0,
-                    help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which version of prf grid to use")
     parser.add_argument("--padding_mode", type=str,default='',
                     help="padding mode for alexnet convolutional layers")
+    parser.add_argument("--blurface", type=int, default=0, 
+                    help="use model trained with faces blurred? 1 for yes, 0 for no")
     
     args = parser.parse_args()
     

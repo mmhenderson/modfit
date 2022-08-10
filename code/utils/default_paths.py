@@ -22,11 +22,9 @@ fig_path = os.path.join(root, project_name, 'figures')
 
 # Path where gabor model features will be saved
 gabor_texture_feat_path = os.path.join(root, 'features','gabor_texture')
-gabor_texture_feat_path_localnode = os.path.join(root_localnode, 'features','gabor_texture')
 
 # Path where texture model features will be saved
 pyramid_texture_feat_path = os.path.join(root, 'features', 'pyramid_texture')
-pyramid_texture_feat_path_localnode = os.path.join(root_localnode, 'features', 'pyramid_texture')
 
 # Path where sketch token features will be saved
 sketch_token_feat_path = os.path.join(root, 'features', 'sketch_tokens')
@@ -34,11 +32,14 @@ sketch_token_feat_path_localnode = os.path.join(root_localnode, 'features', 'ske
 
 # Path where AlexNet features will be saved
 alexnet_feat_path = os.path.join(root, 'features','alexnet')
-alexnet_feat_path_localnode = os.path.join(root_localnode, 'features','alexnet')
+alexnet_blurface_feat_path = os.path.join(root, 'features','alexnet_blurface')
 
 # Path where CLIP features will be saved
 clip_feat_path = os.path.join(root, 'features', 'CLIP')
-clip_feat_path_localnode = os.path.join(root_localnode, 'features', 'CLIP')
+
+# Path where ResNet50 features will be saved
+resnet50_feat_path = os.path.join(root, 'features', 'resnet50')
+resnet50_blurface_feat_path = os.path.join(root, 'features', 'resnet50_blurface')
 
 # Path where gabor model features will be saved
 color_feat_path = os.path.join(root, 'features','color')

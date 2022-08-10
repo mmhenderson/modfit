@@ -39,13 +39,11 @@ do_tuning=0
 do_sem_disc=1
 
 fitting_type=clip
-
 resnet_layer_name=best_layer
 resnet_model_architecture=RN50
 use_pca_resnet_feats=1
-n_resnet_blocks_include=8
-
-# n_resnet_blocks_include=4
+# n_resnet_blocks_include=8
+n_resnet_blocks_include=4
 
 for subject in ${subjects[@]}
 do

@@ -25,14 +25,17 @@ debug=0
 which_prf_grid=5
 
 subjects=(999)
+# subjects=(1)
 
 # feature_types=(gabor_solo)
 # feature_types=(pyramid_texture)
 # feature_types=(sketch_tokens) 
 # feature_types=(alexnet)
-feature_types=(clip)
+# feature_types=(clip)
+feature_types=(color)
 
 balance_downsample=1
+# balance_downsample=0
 
 for subj in ${subjects[@]}
 do

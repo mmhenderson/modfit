@@ -22,7 +22,7 @@ PYTHONPATH=:${ROOT}code/${PYTHONPATH}
 cd ${ROOT}code/model_fitting/
 
 # subjects=(1 2 3 4 5 6 7 8)
-subjects=(2 3)
+subjects=(5 6 7 8)
 # subjects=(1)
 
 debug=0
@@ -37,8 +37,8 @@ from_scratch=1
 date_str=0
 overwrite_sem_disc=0
 do_val=1
-do_tuning=0
-do_sem_disc=0
+do_tuning=1
+do_sem_disc=1
 
 fitting_type=color
 

@@ -358,6 +358,7 @@ def run_pca(subject=None, \
             which_prf_grid=5, min_pct_var=95,\
             save_weights=False, \
             use_saved_ncomp=False, \
+            rm_raw = False, \
             max_pc_to_retain=None, debug=False):
        
     if subject is not None:
@@ -451,13 +452,17 @@ def run_pca(subject=None, \
         prf_batch_size=1500
         ncomp_filename = None
         
-    elif feature_type=='alexnet':
+    elif 'alexnet' in feature_type:
         
-        path_to_load = default_paths.alexnet_feat_path
-        if debug:
-            path_to_save = os.path.join(default_paths.alexnet_feat_path, 'DEBUG','PCA')
+        if 'blurface' in feature_type:
+            path_to_load = default_paths.alexnet_blurface_feat_path
         else:
-            path_to_save = os.path.join(default_paths.alexnet_feat_path, 'PCA')
+            path_to_load = default_paths.alexnet_feat_path
+            
+        if debug:           
+            path_to_save = os.path.join(path_to_load, 'DEBUG','PCA')
+        else:
+            path_to_save = os.path.join(path_to_load, 'PCA')
         
                    
         raw_filename = os.path.join(path_to_load, '%s_%s_ReLU_reflect_features_each_prf_grid%d.h5py'%\
@@ -486,13 +491,20 @@ def run_pca(subject=None, \
         zgroup_labels = None
         prf_batch_size=100
         
-    elif feature_type=='clip':
+    elif 'resnet' in feature_type:
+        
+        if feature_type.split('resnet_')[1]=='clip':
+            path_to_load = default_paths.clip_feat_path
+        elif feature_type.split('resnet_')[1]=='blurface':
+            path_to_load = default_paths.resnet50_blurface_feat_path
+        elif feature_type.split('resnet_')[1]=='imgnet':
+            path_to_load = default_paths.resnet50_feat_path
 
-        path_to_load = default_paths.clip_feat_path
         if debug:
-            path_to_save = os.path.join(default_paths.clip_feat_path, 'DEBUG','PCA')
+            path_to_save = os.path.join(path_to_load, 'DEBUG','PCA')
+            path_to_load = os.path.join(path_to_load, 'DEBUG')
         else:
-            path_to_save = os.path.join(default_paths.clip_feat_path, 'PCA')
+            path_to_save = os.path.join(path_to_load, 'PCA')
         
         model_architecture = 'RN50'
         n_prf_batches = 15
@@ -553,6 +565,11 @@ def run_pca(subject=None, \
                 ncomp_filename = ncomp_filename, \
                 debug=debug)
 
+    if rm_raw:
+        
+        print('removing raw file from %s'%raw_filename)
+        os.remove(raw_filename)
+        print('done removing')
         
 def compute_pca(values, max_pc_to_retain=None):
     """
@@ -620,6 +637,8 @@ if __name__ == '__main__':
                     help="what kind of features are we using?")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
+    parser.add_argument("--rm_raw", type=int,default=0,
+                    help="want to remove raw files after PCA? 1 for yes, 0 for no")
 
     parser.add_argument("--save_weights", type=int,default=0,
                     help="want to save the weights to reproduce the pca later? 1 for yes, 0 for no")
@@ -644,7 +663,7 @@ if __name__ == '__main__':
     if args.max_pc_to_retain==0:
         args.max_pc_to_retain = None
     
-    if args.type=='alexnet':
+    if 'alexnet' in args.type:
         layers = ['Conv%d'%(ll+1) for ll in range(5)]
         layers = layers[args.start_layer:]
         for layer in layers:
@@ -657,6 +676,7 @@ if __name__ == '__main__':
                             max_pc_to_retain=args.max_pc_to_retain,
                             save_weights = args.save_weights==1, 
                             use_saved_ncomp = args.use_saved_ncomp==1, 
+                            rm_raw = args.rm_raw==1, 
                             debug=args.debug==1)
     else:
         run_pca(subject=args.subject, 

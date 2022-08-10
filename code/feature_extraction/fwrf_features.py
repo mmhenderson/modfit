@@ -44,8 +44,8 @@ class fwrf_feature_loader:
             self.__init_color__(kwargs)
         elif self.feature_type=='alexnet':
             self.__init_alexnet__(kwargs)
-        elif self.feature_type=='clip':
-            self.__init_clip__(kwargs)
+        elif self.feature_type=='resnet':
+            self.__init_resnet__(kwargs)
         else:
             raise ValueError('feature type %s not recognized')
 
@@ -198,8 +198,13 @@ class fwrf_feature_loader:
             raise ValueError('for alexnet, need to specify a layer name')
         self.layer_name = kwargs['layer_name']
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else True 
+        self.blurface = kwargs['blurface'] if 'blurface' in kwargs.keys() else False
         
-        alexnet_feat_path = default_paths.alexnet_feat_path
+        if self.blurface:
+            alexnet_feat_path = default_paths.alexnet_blurface_feat_path
+        else:
+            alexnet_feat_path = default_paths.alexnet_feat_path
+            
         alexnet_layer_names  = extract_alexnet_features.alexnet_layer_names
         n_features_each_layer = extract_alexnet_features.n_features_each_layer
 
@@ -228,33 +233,40 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
         
-    def __init_clip__(self, kwargs):
+    def __init_resnet__(self, kwargs):
         
-        from feature_extraction import extract_clip_features
+        from feature_extraction import extract_resnet_features
         self.model_architecture = kwargs['model_architecture'] if 'model_architecture' in kwargs.keys() else 'RN50'
+        self.training_type = kwargs['training_type'] if 'training_type' in kwargs.keys() else 'clip'
         if 'layer_name' not in kwargs.keys():
-            raise ValueError('for clip, need to specify a layer name')
+            raise ValueError('need to specify a layer name')
         self.layer_name = kwargs['layer_name']
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else True 
         
-        clip_feat_path = default_paths.clip_feat_path
-        clip_layer_names  = extract_clip_features.resnet_block_names
-        n_features_each_layer = extract_clip_features.n_features_each_resnet_block
+        if self.training_type=='clip':
+            feat_path = default_paths.clip_feat_path
+        elif self.training_type=='blurface':
+            feat_path = default_paths.resnet50_blurface_feat_path
+        elif self.training_type=='imgnet':
+            feat_path = default_paths.resnet50_feat_path
+            
+        layer_names  = extract_resnet_features.resnet_block_names
+        n_features_each_layer = extract_resnet_features.n_features_each_resnet_block
 
         if self.use_pca_feats:
             if self.pca_subject is not None:
-                self.features_file = os.path.join(clip_feat_path, 'PCA', \
+                self.features_file = os.path.join(feat_path, 'PCA', \
                   '%s_%s_%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
                                          self.layer_name, self.pca_subject, self.which_prf_grid))  
             else:
-                self.features_file = os.path.join(clip_feat_path, 'PCA', \
+                self.features_file = os.path.join(feat_path, 'PCA', \
                   '%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
                                              self.layer_name, self.which_prf_grid))  
         else:
-            raise RuntimeError('have to use pca feats for clip')
+            raise RuntimeError('have to use pca feats for resnet')
             
-        layer_ind = [ll for ll in range(len(clip_layer_names)) \
-                         if clip_layer_names[ll]==self.layer_name]
+        layer_ind = [ll for ll in range(len(layer_names)) \
+                         if layer_names[ll]==self.layer_name]
         assert(len(layer_ind)==1)
         layer_ind = layer_ind[0]        
         n_feat_expected = n_features_each_layer[layer_ind]

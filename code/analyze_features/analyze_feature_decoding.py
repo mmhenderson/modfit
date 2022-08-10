@@ -15,6 +15,8 @@ def get_path(feature_type):
     
     if 'gabor' in feature_type:
         path_to_load = default_paths.gabor_texture_feat_path
+    elif 'color' in feature_type:
+        path_to_load = default_paths.color_feat_path
     elif 'texture' in feature_type:
         path_to_load = default_paths.pyramid_texture_feat_path
     elif 'sketch_tokens' in feature_type:

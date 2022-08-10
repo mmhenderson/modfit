@@ -6,10 +6,13 @@ import torch
 import time
 import h5py
 import copy
+from collections import OrderedDict
 import torch.nn as nn
+import torchvision.models as models
+
 
 #import custom modules
-from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, coco_utils, floc_utils
+from utils import prf_utils, torch_utils, texture_utils, default_paths, nsd_utils, floc_utils
 from model_fitting import initialize_fitting
 from feature_extraction import pca_feats
 
@@ -27,11 +30,13 @@ except:
     device = 'cpu:0'
 
 def extract_features(image_data, \
-                          block_inds, \
-                          prf_batch_inds, \
-                          save_batch_filenames, \
-                          which_prf_grid=5, save_dtype=np.float32,\
-                          debug=False):
+                    block_inds, \
+                    prf_batch_inds, \
+                    save_batch_filenames, \
+                    which_prf_grid=5, \
+                    save_dtype=np.float32,\
+                    training_type='clip', \
+                    debug=False):
     """ 
     Extract the portion of CNN feature maps corresponding to each pRF in the grid.
     Save values of the features in each pRF, for each layer of interest.
@@ -81,8 +86,8 @@ def extract_features(image_data, \
                 gc.collect()
                 torch.cuda.empty_cache()
 
-                activ_batch = get_clip_activations_batch(image_batch, block_inds, \
-                                                     model_architecture, device=device)
+                activ_batch = get_resnet_activations_batch(image_batch, block_inds, \
+                                                     model_architecture, training_type, device=device)
 
 
                 print('Getting prf-specific activations for %s'%resnet_block_names[ll])
@@ -137,21 +142,56 @@ def extract_features(image_data, \
             save_features(features_each_prf, save_batch_filenames[pb], save_dtype)
           
         
-def get_clip_activations_batch(image_batch, block_inds, model_architecture, device=None):
+def get_resnet_activations_batch(image_batch, \
+                               block_inds, \
+                               model_architecture, \
+                               training_type, \
+                               device=None):
 
     """
-    Get activations for images in NSD, passed through pretrained CLIP model.
+    Get activations for images in NSD, passed through pretrained resnet model.
     Specify which NSD images to look at, and which layers to return.
     """
 
     if device is None:
         device = torch.device('cpu:0')
        
-    model, preprocess = clip.load(model_architecture, device=device)
+    if training_type=='clip':        
+        
+        print('Using CLIP model')
+        model, preprocess = clip.load(model_architecture, device=device)
+        model = model.visual
+        
+    elif training_type=='blurface':
+        
+        model = models.resnet50().float().to(device)
+        
+        # use model trained on face-blurred imagenet ims
+        model_filename = os.path.join(default_paths.resnet50_blurface_feat_path, 'resnet50_blurred_ILSVRC.pth')
+        print('Loading saved model from %s'%model_filename)
+        saved = torch.load(model_filename, map_location=device)     
+        sd = saved['state_dict']
+        # need to fix keys in the statedict to have expected names
+        new_sd = OrderedDict([])
+        keynames = list(sd.keys())
+        for kn in keynames:
+            new_kn = kn.split('module.')[1]
+            new_sd[new_kn] = sd[kn]
+        model.load_state_dict(new_sd)
+        
+    elif training_type=='imgnet':
+        
+        # normal pre-trained model from pytorch
+        print('Using pretrained Resnet50 model')
+        model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2).float().to(device)
+        
+    else:
+        raise ValueError('training type %s not recognized'%training_type)
+        
     model.eval()
     
     # The 16 residual blocks are segmented into 4 groups here, which have different numbers of features.
-    blocks_each= [len(model.visual.layer1), len(model.visual.layer2), len(model.visual.layer3),len(model.visual.layer4)]
+    blocks_each= [len(model.layer1), len(model.layer2), len(model.layer3),len(model.layer4)]
     which_group = np.repeat(np.arange(4), blocks_each)
 
     activ = [[] for ll in block_inds]
@@ -175,19 +215,19 @@ def get_clip_activations_batch(image_batch, block_inds, model_architecture, devi
         # For resnet, going to save output of each residual block following last relu operation.
         for ii, ll in enumerate(block_inds):
             if which_group[ll]==0:            
-                h = model.visual.layer1[ll].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
+                h = model.layer1[ll].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
             elif which_group[ll]==1:            
-                h = model.visual.layer2[ll-blocks_each[0]].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
+                h = model.layer2[ll-blocks_each[0]].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
             elif which_group[ll]==2:            
-                h = model.visual.layer3[ll-sum(blocks_each[0:2])].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
+                h = model.layer3[ll-sum(blocks_each[0:2])].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
             elif which_group[ll]==3:            
-                h = model.visual.layer4[ll-sum(blocks_each[0:3])].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
+                h = model.layer4[ll-sum(blocks_each[0:3])].relu.register_forward_hook(get_activ_fwd_hook(ii,ll))
             else:
                 h=None
             hooks[ii] = h
 
         # Pass images though the model (hooks get run now)
-        image_features = model.encode_image(image_tensors)
+        image_features = model(image_tensors)
 
         # Now remove all the hooks
         for ii, ll in enumerate(block_inds):
@@ -205,19 +245,23 @@ def get_clip_activations_batch(image_batch, block_inds, model_architecture, devi
 
 def proc_one_subject(subject, args):
     
-    if args.use_node_storage:
-        clip_feat_path = default_paths.clip_feat_path_localnode
-    else: 
-        clip_feat_path = default_paths.clip_feat_path
+    if args.training_type=='clip':
+        feat_path = default_paths.clip_feat_path
+    elif args.training_type=='blurface':
+        feat_path = default_paths.resnet50_blurface_feat_path
+    elif args.training_type=='imgnet':
+        feat_path = default_paths.resnet50_feat_path
+        
     if args.debug: 
-        clip_feat_path = os.path.join(clip_feat_path, 'DEBUG') 
-    if not os.path.exists(clip_feat_path):
-        os.makedirs(clip_feat_path)
+        feat_path = os.path.join(feat_path, 'DEBUG') 
+    if not os.path.exists(feat_path):
+        os.makedirs(feat_path)
         
     # Load and prepare the image set to work with 
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
+        from utils import coco_utils
         image_data = coco_utils.load_indep_coco_images(n_pix=240)
         image_data = nsd_utils.image_uncolorize_fn(image_data)
     else: 
@@ -225,10 +269,17 @@ def proc_one_subject(subject, args):
         image_data = nsd_utils.get_image_data(subject)  
         image_data = nsd_utils.image_uncolorize_fn(image_data)
 
-    n_blocks = len(resnet_block_names)
-    blocks_to_do = np.arange(args.start_layer, n_blocks)
-    # blocks_to_do = np.arange(n_blocks)
-
+   
+    if args.n_layers_save==16:
+        blocks_to_do = np.arange(16)
+    elif args.n_layers_save==8:
+        blocks_to_do = np.arange(0,16,2)+1
+    elif args.n_layers_save==4:
+        blocks_to_do = np.arange(0,16,4)+3
+        
+    if args.start_layer>0:
+        blocks_to_do = blocks_to_do[args.start_layer:]
+    
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
     
@@ -242,7 +293,7 @@ def proc_one_subject(subject, args):
 
         # each batch will be in a separate file, since they're big features
         model_architecture='RN50'
-        save_batch_filenames = [os.path.join(clip_feat_path, \
+        save_batch_filenames = [os.path.join(feat_path, \
                'S%d_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%\
                 (subject, model_architecture, resnet_block_names[ll], args.which_prf_grid, pb)) \
                                 for pb in range(n_prf_batches)]
@@ -255,13 +306,14 @@ def proc_one_subject(subject, args):
                           save_batch_filenames,\
                           which_prf_grid=args.which_prf_grid, \
                           save_dtype=np.float32,\
+                          training_type=args.training_type, \
                           debug=args.debug)
 
         sys.stdout.flush()
             
         layer = 'block%d'%(ll)
         pca_feats.run_pca(subject=subject, \
-                          feature_type='clip', \
+                          feature_type='resnet_%s'%args.training_type, \
                           layer_name = layer, \
                           which_prf_grid=args.which_prf_grid,\
                           min_pct_var=args.min_pct_var,\
@@ -282,25 +334,34 @@ def proc_one_subject(subject, args):
             
 def proc_other_image_set(image_set, args, use_subj_pca=True):
     
-    if args.use_node_storage:
-        clip_feat_path = default_paths.clip_feat_path_localnode
-    else: 
-        clip_feat_path = default_paths.clip_feat_path
+    if args.training_type=='clip':
+        feat_path = default_paths.clip_feat_path
+    elif args.training_type=='blurface':
+        feat_path = default_paths.resnet50_blurface_feat_path
+    elif args.training_type=='imgnet':
+        feat_path = default_paths.resnet50_feat_path
+       
+    
     if args.debug: 
-        clip_feat_path = os.path.join(clip_feat_path, 'DEBUG') 
-    if not os.path.exists(clip_feat_path):
-        os.makedirs(clip_feat_path)
+        feat_path = os.path.join(feat_path, 'DEBUG') 
+    if not os.path.exists(feat_path):
+        os.makedirs(feat_path)
          
     if image_set=='floc':
         image_data = floc_utils.load_floc_images(npix=240)
     else:
         raise ValueError('image set %s not recognized'%image_set)
        
-    n_blocks = len(resnet_block_names)
-    # blocks_to_do = [0]
-    blocks_to_do = np.arange(args.start_layer, n_blocks)
-    # blocks_to_do = np.arange(n_blocks)
-
+    if args.n_layers_save==16:
+        blocks_to_do = np.arange(16)
+    elif args.n_layers_save==8:
+        blocks_to_do = np.arange(0,16,2)+1
+    elif args.n_layers_save==4:
+        blocks_to_do = np.arange(0,16,4)+3
+        
+    if args.start_layer>0:
+        blocks_to_do = blocks_to_do[args.start_layer:]
+    
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
     
@@ -311,8 +372,8 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
                       for pb in range(n_prf_batches)]
     
     if use_subj_pca:
-        # subjects_pca = np.arange(1,9)
-        subjects_pca=[1]
+        subjects_pca = np.arange(1,9)
+        # subjects_pca=[1,2]
     else:
         subjects_pca = [None]
         
@@ -320,7 +381,7 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
 
         # each batch will be in a separate file, since they're big features
         model_architecture='RN50'
-        save_batch_filenames = [os.path.join(clip_feat_path, \
+        save_batch_filenames = [os.path.join(feat_path, \
                '%s_%s_%s_features_each_prf_grid%d_prfbatch%d.h5py'%\
                 (image_set, model_architecture, resnet_block_names[ll], args.which_prf_grid, pb)) \
                                 for pb in range(n_prf_batches)]
@@ -333,6 +394,7 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
                           save_batch_filenames,\
                           which_prf_grid=args.which_prf_grid,\
                           save_dtype=np.float32,\
+                          training_type=args.training_type, \
                           debug=args.debug)
 
         sys.stdout.flush()
@@ -342,7 +404,7 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
             
             pca_feats.run_pca(subject=ss, \
                               image_set=image_set, \
-                              feature_type='clip', \
+                              feature_type='resnet_%s'%args.training_type, \
                               layer_name = layer, \
                               which_prf_grid=args.which_prf_grid,\
                               min_pct_var=args.min_pct_var,\
@@ -383,10 +445,14 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8")
     parser.add_argument("--image_set", type=str,default='none',
                     help="name of the image set to use (if not an NSD subject)")
+    parser.add_argument("--training_type", type=str,default='clip',
+                    help="what kind of model training was used?")
+    
     parser.add_argument("--start_layer", type=int,default=0,
                     help="which network layer to start from?")
-    parser.add_argument("--use_node_storage", type=int,default=0,
-                    help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
+    parser.add_argument("--n_layers_save", type=int,default=16,
+                    help="how many layers to save?")
+    
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,

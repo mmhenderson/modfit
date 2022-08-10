@@ -151,7 +151,8 @@ def fit_fwrf(args):
             'clip_layer_name': args.resnet_layer_name,
             'clip_model_architecture': args.resnet_model_architecture,
             'use_pca_clip_feats': args.use_pca_resnet_feats,  
-            'n_resnet_blocks_include': args.n_resnet_blocks_include, 
+            'n_resnet_blocks_include': args.n_resnet_blocks_include,
+            'clip_layers_use': dnn_layers_use,
             })
         if np.any(['resnet' in ft for ft in fitting_types]):
             dict2save.update({
@@ -160,6 +161,7 @@ def fit_fwrf(args):
             'use_pca_resnet_feats': args.use_pca_resnet_feats,  
             'n_resnet_blocks_include': args.n_resnet_blocks_include, 
             'resnet_blurface': args.resnet_blurface, 
+            'resnet_layers_use': dnn_layers_use,
             })
 
         print('\nSaving to %s\n'%fn2save)
@@ -212,7 +214,7 @@ def fit_fwrf(args):
     elif np.any(['clip' in ft for ft in fitting_types]) or np.any(['resnet' in ft for ft in fitting_types]):
         if args.n_resnet_blocks_include==4:
             n_dnn_layers = 4;
-            dnn_layers_use = np.arange(0,16,4)+3
+            dnn_layers_use = [2,6,12,15]
         elif args.n_resnet_blocks_include==8:
             n_dnn_layers = 8;
             dnn_layers_use=np.arange(0,16,2)+1

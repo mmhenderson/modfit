@@ -275,7 +275,7 @@ def proc_one_subject(subject, args):
     elif args.n_layers_save==8:
         blocks_to_do = np.arange(0,16,2)+1
     elif args.n_layers_save==4:
-        blocks_to_do = np.arange(0,16,4)+3
+        blocks_to_do = [2,6,12,15]
         
     if args.start_layer>0:
         blocks_to_do = blocks_to_do[args.start_layer:]

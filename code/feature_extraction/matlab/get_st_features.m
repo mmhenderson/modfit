@@ -11,8 +11,11 @@ function get_st_features(image_set, args);
     if isfield(args, 'batch_size'); batch_size=args.batch_size; else; batch_size=100; end
     if isfield(args, 'overwrite'); overwrite = args.overwrite; else; overwrite = 0; end
     overwrite = boolean(overwrite);
-    if isfield(args, 'debug'); debug = args.debug; else; debug = 0; end   
+    if isfield(args, 'debug'); debug = args.debug; else; debug = 0; end 
+    if isfield(args, 'grayscale'); grayscale = args.grayscale; else; grayscale = 0; end 
+    
     debug = boolean(debug);
+    grayscale = boolean(grayscale);
     
     addpath(genpath(fullfile(args.sketchtokens_dir)));  
     addpath(genpath(fullfile(args.toolbox_dir)));
@@ -27,6 +30,16 @@ function get_st_features(image_set, args);
    
     fprintf('Reading image brick from %s...\n', args.image_filename)
     I = h5read(args.image_filename, '/stimuli');
+    fprintf('examples of raw image values:\n')
+    disp(I(1,1,:,1:3))
+    
+    if args.grayscale
+        % convert this image into grayscale
+        fprintf('converting the image to grayscale before processing\n')
+        I = I(:,:,1,:)*0.2126729 + I(:,:,2,:)*0.7151522 + I(:,:,3,:)*0.0721750;
+        disp(size(I))
+    end
+    
     
     [h, w, c, n_total_ims] = size(I);
     if downsample_factor>1
@@ -38,12 +51,19 @@ function get_st_features(image_set, args);
         I = repmat(I,[1,1,3,1]);
     end
 
+    fprintf('examples of preprocessed image values:\n')
+    disp(I(1,1,:,1:3))
     
     n_features = 151;
     
-    save_fn = fullfile(args.save_dir, sprintf('%s_features_%d.h5py', image_set, h)); 
-    save_fn_edges = fullfile(args.save_dir, sprintf('%s_edges_%d.h5py', image_set, h)); 
-   
+    if args.grayscale
+        save_fn = fullfile(args.save_dir, sprintf('%s_features_grayscale_%d.h5py', image_set, h)); 
+        save_fn_edges = fullfile(args.save_dir, sprintf('%s_edges_grayscale_%d.h5py', image_set, h));  
+    else
+        save_fn = fullfile(args.save_dir, sprintf('%s_features_%d.h5py', image_set, h)); 
+        save_fn_edges = fullfile(args.save_dir, sprintf('%s_edges_%d.h5py', image_set, h)); 
+    end
+    
     fprintf('Will write features to %s...\n',save_fn);    
     if exist(save_fn,'file')
         if overwrite

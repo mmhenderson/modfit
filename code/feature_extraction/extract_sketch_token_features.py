@@ -110,9 +110,9 @@ def proc_one_subject(subject, args):
         sketch_token_feat_path = default_paths.sketch_token_feat_path_localnode
     else:
         sketch_token_feat_path = default_paths.sketch_token_feat_path
-    if args.debug:
-        sketch_token_feat_path = os.path.join(sketch_token_feat_path,'DEBUG')
+    if args.debug:      
         save_path = os.path.join(sketch_token_feat_path,'DEBUG')
+        sketch_token_feat_path = os.path.join(sketch_token_feat_path,'DEBUG')
     else:
         save_path = sketch_token_feat_path
         
@@ -128,7 +128,18 @@ def proc_one_subject(subject, args):
     mult_patch_by_prf = True
     do_avg_pool = True
  
-    features_file = os.path.join(sketch_token_feat_path, 'S%d_features_%d.h5py'%(subject, map_resolution))
+    if args.grayscale:
+        features_file = os.path.join(sketch_token_feat_path, \
+                            'S%d_features_grayscale_%d.h5py'%(subject, map_resolution))
+        filename_save = os.path.join(save_path, \
+                           'S%d_features_grayscale_each_prf_grid%d.h5py'%(subject, args.which_prf_grid))
+
+    else:
+        features_file = os.path.join(sketch_token_feat_path, \
+                            'S%d_features_%d.h5py'%(subject, map_resolution))
+        filename_save = os.path.join(save_path, \
+                            'S%d_features_each_prf_grid%d.h5py'%(subject, args.which_prf_grid))
+
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
@@ -137,11 +148,19 @@ def proc_one_subject(subject, args):
                             do_avg_pool=do_avg_pool, batch_size=args.batch_size, aperture=1.0, \
                             debug=args.debug, device=device)
 
-    filename_save = os.path.join(save_path, \
-                           'S%d_features_each_prf_grid%d.h5py'%(subject, args.which_prf_grid))
-
+    
     save_features(features_each_prf, filename_save)
 
+    if args.rm_big==1:
+        
+        edges_file = features_file.split('_features_')[0] + '_edges_' + features_file.split('_features_')[1]
+        print('removing raw file from %s'%features_file)
+        os.remove(features_file)
+        print('removing raw file from %s'%edges_file)
+        os.remove(edges_file)
+        
+        print('done removing')
+        
     
 def proc_other_image_set(image_set, args):
     
@@ -167,7 +186,17 @@ def proc_other_image_set(image_set, args):
     mult_patch_by_prf = True
     do_avg_pool = True
   
-    features_file = os.path.join(sketch_token_feat_path, '%s_features_%d.h5py'%(image_set, map_resolution))
+    if args.grayscale:
+        features_file = os.path.join(sketch_token_feat_path, \
+                           '%s_features_grayscale_%d.h5py'%(image_set, map_resolution))
+        filename_save = os.path.join(save_path, \
+                           '%s_features_grayscale_each_prf_grid%d.h5py'%(image_set, args.which_prf_grid))
+    else:
+        features_file = os.path.join(sketch_token_feat_path, \
+                           '%s_features_%d.h5py'%(image_set, map_resolution))
+        filename_save = os.path.join(save_path, \
+                           '%s_features_each_prf_grid%d.h5py'%(image_set, args.which_prf_grid))
+
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
@@ -176,11 +205,19 @@ def proc_other_image_set(image_set, args):
                             do_avg_pool=do_avg_pool, batch_size=args.batch_size, aperture=1.0, \
                             debug=args.debug, device=device)
 
-    filename_save = os.path.join(save_path, \
-                           '%s_features_each_prf_grid%d.h5py'%(image_set, args.which_prf_grid))
-
+    
+    
     save_features(features_each_prf, filename_save)
     
+    if args.rm_big==1:
+        
+        edges_file = features_file.split('_features_')[0] + '_edges_' + features_file.split('_features_')[1]
+        print('removing raw file from %s'%features_file)
+        os.remove(features_file)
+        print('removing raw file from %s'%edges_file)
+        os.remove(edges_file)
+        
+        print('done removing')
     
 def save_features(features_each_prf, filename_save):
     
@@ -213,7 +250,11 @@ if __name__ == '__main__':
                     help="which version of prf grid to use")
     parser.add_argument("--batch_size", type=int,default=100,
                     help="batch size to use for feature extraction")
-    
+    parser.add_argument("--grayscale", type=int,default=0,
+                    help="use features computed from grayscale images only? 1 for yes, 0 for no")
+    parser.add_argument("--rm_big", type=int,default=0,
+                    help="want to remove big feature maps files when done? 1 for yes, 0 for no")
+
     args = parser.parse_args()
     
     if args.subject==0:
@@ -222,6 +263,7 @@ if __name__ == '__main__':
         args.image_set=None
                          
     args.debug = (args.debug==1)     
+    args.grayscale = (args.grayscale==1)     
     
     print(args.subject)
     print(args.image_set)

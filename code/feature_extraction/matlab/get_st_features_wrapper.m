@@ -1,4 +1,4 @@
-function get_st_features_wrapper(image_set, image_filename, save_dir, sketchtokens_dir, toolbox_dir, batch_size, debug)
+function get_st_features_wrapper(image_set, image_filename, save_dir, sketchtokens_dir, toolbox_dir, batch_size, grayscale, debug)
 
     args = struct;
     args.debug = debug;
@@ -10,6 +10,7 @@ function get_st_features_wrapper(image_set, image_filename, save_dir, sketchtoke
     args.sketchtokens_dir=sketchtokens_dir;
     args.toolbox_dir=toolbox_dir;
     args.image_filename=image_filename;
+    args.grayscale=grayscale;
    
     fprintf('Inputs are:')
     disp(image_set)

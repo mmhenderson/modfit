@@ -24,8 +24,8 @@ cd ${ROOT}code/model_fitting/
 subjects=(1 2 3 4 5 6 7 8)
 # subjects=(1)
 
-debug=0
 # debug=1
+debug=0
 # up_to_sess=1
 up_to_sess=40
 
@@ -37,17 +37,19 @@ date_str=0
 overwrite_sem_disc=0
 do_val=1
 do_tuning=0
-do_sem_disc=0
+do_sem_disc=1
 
 fitting_type=alexnet
-alexnet_layer_name='all_conv'
-# alexnet_layer_name=best_layer
+# alexnet_layer_name='all_conv'
+alexnet_layer_name=best_layer
 alexnet_padding_mode=reflect
 use_pca_alexnet_feats=1
 alexnet_blurface=1
 
-do_varpart=1
-include_solo_models=1
+do_varpart=0
+include_solo_models=0
+
+
 
 for subject in ${subjects[@]}
 do

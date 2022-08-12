@@ -204,7 +204,7 @@ def fit_fwrf(args):
     mean_each_sem_level_balanced = None
         
     if np.any(['alexnet' in ft for ft in fitting_types]):
-        if np.any(['blurface' in ft for ft in fitting_types]):      
+        if args.alexnet_blurface: 
             dnn_model='alexnet_blurface'
         else:
             dnn_model='alexnet'

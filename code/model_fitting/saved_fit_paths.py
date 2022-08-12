@@ -13,6 +13,17 @@ alexnet_fit_paths = ['S01/alexnet_all_conv_pca/Apr-01-2022_1317_39/all_fit_param
                      'S08/alexnet_all_conv_pca/Apr-13-2022_0045_36/all_fit_params.npy']
 alexnet_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in alexnet_fit_paths]
 
+alexnet_blurface_fit_paths = ['S01/alexnet_blurface_all_conv_pca/Aug-10-2022_1434_03/all_fit_params.npy', \
+                     'S02/alexnet_blurface_all_conv_pca/Aug-10-2022_1843_31/all_fit_params.npy', \
+                     'S03/alexnet_blurface_all_conv_pca/Aug-10-2022_2243_10/all_fit_params.npy',  \
+                     'S04/alexnet_blurface_all_conv_pca/Aug-11-2022_0239_15/all_fit_params.npy', \
+                     'S05/alexnet_blurface_all_conv_pca/Aug-11-2022_0601_57/all_fit_params.npy', \
+                     'S06/alexnet_blurface_all_conv_pca/Aug-11-2022_1000_46/all_fit_params.npy', \
+                     'S07/alexnet_blurface_all_conv_pca/Aug-11-2022_1401_17/all_fit_params.npy', \
+                     'S08/alexnet_blurface_all_conv_pca/Aug-11-2022_1743_09/all_fit_params.npy']
+alexnet_blurface_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in alexnet_blurface_fit_paths]
+
+
 clip_fit_paths = ['S01/clip_RN50_all_resblocks_pca/Apr-13-2022_1933_25/all_fit_params.npy', \
                  'S02/clip_RN50_all_resblocks_pca/Apr-19-2022_0911_52/all_fit_params.npy', \
                  'S03/clip_RN50_all_resblocks_pca/Apr-21-2022_0247_51/all_fit_params.npy', \

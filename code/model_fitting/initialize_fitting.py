@@ -360,7 +360,7 @@ def load_best_model_layers(subject, model, dnn_layers_use):
     elif model=='alexnet':
         saved_best_layer_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
     elif model=='alexnet_blurface':
-        raise ValueError('best %s layers not computed yet'%model)
+        saved_best_layer_fn = saved_fit_paths.alexnet_blurface_fit_paths[subject-1]
     else:
         raise ValueError('for %s, best model layer not computed yet'%(model))
     

@@ -180,6 +180,7 @@ def get_alexnet_activations_batch(image_batch, layer_inds, device=None, padding_
 
     else:       
         # normal pre-trained model from torch model zoo
+        print('Loading alexnet pre-trained on imagenet')
         model = models.alexnet(pretrained=True).float().to(device)
         
         

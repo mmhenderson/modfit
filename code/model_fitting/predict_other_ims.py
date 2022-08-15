@@ -173,6 +173,9 @@ def predict(args):
     best_prf_model_pars, best_weights, best_biases, \
                        features_mean, features_std, best_prf_models = best_params
 
+    print('shape of saved weights:')
+    print(best_weights.shape)
+    
     best_model_each_voxel = best_prf_models[:,0]
     best_layer_each_voxel = last_saved['best_layer_each_voxel']
     
@@ -266,6 +269,8 @@ def predict(args):
             best_prf_models_tmp, \
             features_mean_tmp, features_std_tmp  
             
+        print('shape of model.best_weights')
+        print(model.best_weights.shape)
         ############### VALIDATE MODEL ##################################################################
     
         print('Starting validation (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))

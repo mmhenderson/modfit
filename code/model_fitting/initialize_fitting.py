@@ -371,7 +371,13 @@ def load_best_model_layers(subject, model, dnn_layers_use):
     if 'alexnet' in model:
         layer_inds = np.array([1,3,5,7,9])       
     elif ('clip' in model) or ('resnet' in model):
-        layer_inds = np.arange(1,32,2)
+        if 'n_resnet_blocks_include' in out.keys() and out['n_resnet_blocks_include']==4:
+            layer_inds = np.arange(1,8,2)
+            dnn_layers_use = np.arange(4)
+        elif 'n_resnet_blocks_include' not in out.keys() or out['n_resnet_blocks_include']==16:
+            layer_inds = np.arange(1,32,2)
+        else:
+            raise RuntimeError('need to check inputs for resnet layers to include')
     
     layer_inds_use = layer_inds[dnn_layers_use]
     assert(np.all(['just_' in name for name in np.array(out['partial_version_names'])[layer_inds]]))   
@@ -595,7 +601,7 @@ def save_model_residuals(voxel_data, voxel_data_pred, output_dir, model_name, \
                     'average_image_reps': args.average_image_reps})
     
     
-def make_feature_loaders(args, fitting_types, vi):
+def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
     
     if args.image_set is None:
         sub = args.subject
@@ -654,10 +660,10 @@ def make_feature_loaders(args, fitting_types, vi):
             fe_names.append(ft)
 
         elif 'alexnet' in ft:
-            n_dnn_layers = 5;
+          
             if args.alexnet_layer_name=='all_conv':
-                names = ['Conv%d_ReLU'%(ll+1) for ll in range(n_dnn_layers)]
-                for ll in range(n_dnn_layers):
+                names = ['Conv%d_ReLU'%(ll+1) for ll in dnn_layers_use]
+                for ll in range(len(names)):
                     feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
@@ -704,10 +710,9 @@ def make_feature_loaders(args, fitting_types, vi):
             else:
                 training_type='imgnet'
                 
-            n_dnn_layers = 16;
             if args.resnet_layer_name=='all_resblocks':
-                names = ['block%d'%(ll) for ll in range(n_dnn_layers)]
-                for ll in range(n_dnn_layers):
+                names = ['block%d'%(ll) for ll in dnn_layers_use]
+                for ll in range(len(names)):
                     feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \

@@ -230,9 +230,13 @@ def fit_fwrf(args):
         else:
             dnn_model='resnet'
         assert(not np.any(['alexnet' in ft for ft in fitting_types]))
+        print('\nusing dnn layers:')
+        print(dnn_layers_use)       
+        print('args.n_resnet_blocks_include=%d'%args.n_resnet_blocks_include)
+        print('\n')
     else:
         dnn_model = None
-          
+        dnn_layers_use=None
     
     ########## LOADING THE DATA #############################################################################
     # decide what voxels to use  
@@ -355,7 +359,7 @@ def fit_fwrf(args):
         n_batches = int(np.ceil(n_voxels/bs))
         voxel_subset_masks = [(np.arange(n_voxels)>=(nn*bs)) & (np.arange(n_voxels)<((nn+1)*bs)) \
                         for nn in range(n_batches)]
-        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0) \
+        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0, dnn_layers_use=dnn_layers_use) \
                         for nn in range(n_batches)]
         
     else:
@@ -365,7 +369,7 @@ def fit_fwrf(args):
         saved_best_layer_fn = None;
         
         # Create feature loaders here
-        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0)]
+        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0, dnn_layers_use=dnn_layers_use)]
         
     max_features_overall = np.max([fl.max_features for fl in feat_loader_full_list])      
     

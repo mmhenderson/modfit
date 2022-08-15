@@ -926,8 +926,8 @@ class encoding_model():
                                          trials_use, \
                                          voxel_data_use, 
                                          voxel_batch_inds, pp):
-
-        _weights = torch_utils._to_torch(self.best_weights[voxel_batch_inds,:,pp], device=self.device)   
+         
+        _weights = torch_utils._to_torch(self.best_weights[voxel_batch_inds,:,pp], device=self.device)         
         _weights = _weights[:, features_to_use]
         _bias = torch_utils._to_torch(self.best_biases[voxel_batch_inds,pp], device=self.device)
 
@@ -946,6 +946,7 @@ class encoding_model():
             _features = torch.transpose(torch.transpose(_features, 0, 2), 1, 2)
             # weights is [voxels x features]
             # _r will be [voxels x trials x 1] - then [trials x voxels]
+            
             _r = torch.squeeze(torch.bmm(_features, torch.unsqueeze(_weights, 2)), dim=2).t() 
 
             if _bias is not None:

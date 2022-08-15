@@ -332,7 +332,7 @@ def proc_one_subject(subject, args):
             print('big file removed.')
 
             
-def proc_other_image_set(image_set, args, use_subj_pca=True):
+def proc_other_image_set(image_set, args):
     
     if args.training_type=='clip':
         feat_path = default_paths.clip_feat_path
@@ -357,7 +357,7 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
     elif args.n_layers_save==8:
         blocks_to_do = np.arange(0,16,2)+1
     elif args.n_layers_save==4:
-        blocks_to_do = np.arange(0,16,4)+3
+        blocks_to_do = [2,6,12,15]
         
     if args.start_layer>0:
         blocks_to_do = blocks_to_do[args.start_layer:]
@@ -371,12 +371,8 @@ def proc_other_image_set(image_set, args, use_subj_pca=True):
     prf_batch_inds = [np.arange(pb*prf_batch_size, np.min([(pb+1)*prf_batch_size, n_prfs])) \
                       for pb in range(n_prf_batches)]
     
-    if use_subj_pca:
-        subjects_pca = np.arange(1,9)
-        # subjects_pca=[1,2]
-    else:
-        subjects_pca = [None]
-        
+    subjects_pca = np.arange(1,9)
+       
     for ll in blocks_to_do:
 
         # each batch will be in a separate file, since they're big features

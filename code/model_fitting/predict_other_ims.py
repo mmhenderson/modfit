@@ -39,7 +39,10 @@ def predict(args):
     date_str = initialize_fitting.most_recent_save(subject=args.subject, \
                                                    fitting_type=model_name)
     fn2load = os.path.join(subject_dir, model_name, date_str, 'all_fit_params.npy')
-    fn2save = os.path.join(subject_dir, model_name, date_str, 'eval_on_%s.npy'%args.image_set)
+    if args.debug:
+        fn2save = os.path.join(subject_dir, model_name, date_str, 'eval_on_%s_DEBUG.npy'%args.image_set)
+    else:
+        fn2save = os.path.join(subject_dir, model_name, date_str, 'eval_on_%s.npy'%args.image_set)
     
     print('loading saved model fit from %s'%fn2load)
     print('will save eval on %s image set to %s'%(args.image_set, fn2save))
@@ -94,12 +97,24 @@ def predict(args):
             'alexnet_layer_name': args.alexnet_layer_name,
             'alexnet_padding_mode': args.alexnet_padding_mode,
             'use_pca_alexnet_feats': args.use_pca_alexnet_feats, 
+            'alexnet_blurface': args.alexnet_blurface,
             })
         if np.any(['clip' in ft for ft in fitting_types]):
             dict2save.update({
-            'clip_layer_name': args.clip_layer_name,
-            'clip_model_architecture': args.clip_model_architecture,
-            'use_pca_clip_feats': args.use_pca_clip_feats,   
+            'clip_layer_name': args.resnet_layer_name,
+            'clip_model_architecture': args.resnet_model_architecture,
+            'use_pca_clip_feats': args.use_pca_resnet_feats,  
+            'n_resnet_blocks_include': args.n_resnet_blocks_include,
+            'clip_layers_use': dnn_layers_use,
+            })
+        if np.any(['resnet' in ft for ft in fitting_types]):
+            dict2save.update({
+            'resnet_layer_name': args.resnet_layer_name,
+            'resnet_model_architecture': args.resnet_model_architecture,
+            'use_pca_resnet_feats': args.use_pca_resnet_feats,  
+            'n_resnet_blocks_include': args.n_resnet_blocks_include, 
+            'resnet_blurface': args.resnet_blurface, 
+            'resnet_layers_use': dnn_layers_use,
             })
 
         print('\nSaving to %s\n'%fn2save)
@@ -114,15 +129,35 @@ def predict(args):
     mean_each_sem_level = None
    
     if np.any(['alexnet' in ft for ft in fitting_types]):
-        dnn_model='alexnet'
+        if args.alexnet_blurface: 
+            dnn_model='alexnet_blurface'
+        else:
+            dnn_model='alexnet'
         n_dnn_layers = 5;
+        dnn_layers_use = np.arange(5)
         assert(not np.any(['clip' in ft for ft in fitting_types]))
-    elif np.any(['clip' in ft for ft in fitting_types]):
-        dnn_model='clip'
-        n_dnn_layers = 16;
+    elif np.any(['clip' in ft for ft in fitting_types]) or np.any(['resnet' in ft for ft in fitting_types]):
+        if args.n_resnet_blocks_include==4:
+            n_dnn_layers = 4;
+            dnn_layers_use = [2,6,12,15]
+        elif args.n_resnet_blocks_include==8:
+            n_dnn_layers = 8;
+            dnn_layers_use=np.arange(0,16,2)+1
+        elif args.n_resnet_blocks_include==16:
+            n_dnn_layers = 16;
+            dnn_layers_use = np.arange(0,16,1)
+        else:
+            raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
+        if np.any(['clip' in ft for ft in fitting_types]):
+            dnn_model='clip'
+        elif np.any(['blurface' in ft for ft in fitting_types]):
+            dnn_model='resnet_blurface'
+        else:
+            dnn_model='resnet'
         assert(not np.any(['alexnet' in ft for ft in fitting_types]))
     else:
         dnn_model = None
+        dnn_layers_use=None
           
     ###### LOAD THE SAVED ENCODING MODEL ############################################################################
     
@@ -143,7 +178,6 @@ def predict(args):
     
     n_voxels = best_weights.shape[0]
     n_prfs = last_saved['models'].shape[0]
-     
         
     ########## INFO ABOUT THE EVALUATION IMAGES #################################################################
     if args.image_set=='floc':
@@ -163,20 +197,23 @@ def predict(args):
     ####### DEFINE VOXEL SUBSETS TO LOOP OVER ###############################################################
     # also making feature loaders here
     
-    if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.clip_layer_name=='best_layer'):
+    if dnn_model is not None and (args.alexnet_layer_name=='best_layer' or args.resnet_layer_name=='best_layer'):
 
+        assert(np.all(np.unique(best_layer_each_voxel)==np.arange(n_dnn_layers)))
         voxel_subset_masks = [best_layer_each_voxel==ll for ll in range(n_dnn_layers)]
        
         # Create feature loaders here
         feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=ll) \
-                            for ll in range(n_dnn_layers)]
-       
+                            for ll in dnn_layers_use]
+        assert(len(feat_loader_full_list)==n_dnn_layers)
+        
     else:
         # going to fit all voxels w same model
         voxel_subset_masks = [np.ones((n_voxels,), dtype=bool)]
         
         # Create feature loaders here
-        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, vi=0)]
+        feat_loader_full_list = [initialize_fitting.make_feature_loaders(args, fitting_types, \
+                                                                         vi=0, dnn_layers_use=dnn_layers_use)]
         
     max_features_overall = np.max([fl.max_features for fl in feat_loader_full_list])      
    

@@ -141,8 +141,7 @@ def get_full_save_name(args):
                 model_name += 'resnet_blurface_%s_%s'%(args.resnet_model_architecture, layer_name)
             else:
                 model_name += 'resnet_%s_%s'%(args.resnet_model_architecture, layer_name)
-            if args.use_pca_resnet_feats:
-                model_name
+            assert (args.use_pca_resnet_feats==True)
                 
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
@@ -354,9 +353,9 @@ def load_best_model_layers(subject, model, dnn_layers_use):
     if model=='clip':
         saved_best_layer_fn = saved_fit_paths.clip_fit_paths[subject-1]
     elif model=='resnet':
-        raise ValueError('best %s layers not computed yet'%model)
+        saved_best_layer_fn = saved_fit_paths.resnet50_fit_paths[subject-1]
     elif model=='resnet_blurface':
-        raise ValueError('best %s layers not computed yet'%model)
+        saved_best_layer_fn = saved_fit_paths.resnet50_blurface_fit_paths[subject-1]
     elif model=='alexnet':
         saved_best_layer_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
     elif model=='alexnet_blurface':
@@ -379,6 +378,7 @@ def load_best_model_layers(subject, model, dnn_layers_use):
         else:
             raise RuntimeError('need to check inputs for resnet layers to include')
     
+    print(layer_inds, dnn_layers_use)
     layer_inds_use = layer_inds[dnn_layers_use]
     assert(np.all(['just_' in name for name in np.array(out['partial_version_names'])[layer_inds]]))   
     names = [name.split('just_')[1] for name in np.array(out['partial_version_names'])[layer_inds_use]]

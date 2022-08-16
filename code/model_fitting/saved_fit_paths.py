@@ -34,6 +34,26 @@ clip_fit_paths = ['S01/clip_RN50_all_resblocks_pca/Apr-13-2022_1933_25/all_fit_p
                  'S08/clip_RN50_all_resblocks_pca/May-25-2022_1022_18/all_fit_params.npy']
 clip_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in clip_fit_paths]
 
+resnet50_fit_paths = ['S01/resnet_RN50_all_resblocks/Aug-15-2022_1148_32/all_fit_params.npy', \
+                 'S02/resnet_RN50_all_resblocks/Aug-15-2022_1433_30/all_fit_params.npy', \
+                 'S03/resnet_RN50_all_resblocks/Aug-15-2022_1722_30/all_fit_params.npy', \
+                 'S04/resnet_RN50_all_resblocks/Aug-15-2022_2007_11/all_fit_params.npy', \
+                 'S05/resnet_RN50_all_resblocks/Aug-15-2022_2232_57/all_fit_params.npy', \
+                 'S06/resnet_RN50_all_resblocks/Aug-16-2022_0115_28/all_fit_params.npy', \
+                 'S07/resnet_RN50_all_resblocks/Aug-16-2022_0407_23/all_fit_params.npy', \
+                 'S08/resnet_RN50_all_resblocks/Aug-16-2022_0641_08/all_fit_params.npy']
+resnet50_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in resnet50_fit_paths]
+
+resnet50_blurface_fit_paths = ['S01/resnet_blurface_RN50_all_resblocks/Aug-15-2022_1153_49/all_fit_params.npy', \
+                 'S02/resnet_blurface_RN50_all_resblocks/Aug-15-2022_1427_42/all_fit_params.npy', \
+                 'S03/resnet_blurface_RN50_all_resblocks/Aug-15-2022_1704_27/all_fit_params.npy', \
+                 'S04/resnet_blurface_RN50_all_resblocks/Aug-15-2022_1940_23/all_fit_params.npy', \
+                 'S05/resnet_blurface_RN50_all_resblocks/Aug-15-2022_2155_40/all_fit_params.npy', \
+                 'S06/resnet_blurface_RN50_all_resblocks/Aug-16-2022_0027_21/all_fit_params.npy', \
+                 'S07/resnet_blurface_RN50_all_resblocks/Aug-16-2022_0307_05/all_fit_params.npy', \
+                 'S08/resnet_blurface_RN50_all_resblocks/Aug-16-2022_0530_03/all_fit_params.npy']
+resnet50_blurface_fit_paths = [os.path.join(default_paths.save_fits_path, aa) for aa in resnet50_blurface_fit_paths]
+
 gabor_fit_paths = ['S01/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-04-2022_1525_10/all_fit_params.npy', \
                  'S02/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-04-2022_1759_56/all_fit_params.npy', \
                  'S03/gabor_solo_ridge_12ori_8sf_fit_pRFs/Apr-04-2022_2035_29/all_fit_params.npy', \

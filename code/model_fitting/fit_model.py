@@ -225,10 +225,11 @@ def fit_fwrf(args):
             raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
         if np.any(['clip' in ft for ft in fitting_types]):
             dnn_model='clip'
-        elif np.any(['blurface' in ft for ft in fitting_types]):
-            dnn_model='resnet_blurface'
-        else:
-            dnn_model='resnet'
+        elif np.any(['resnet' in ft for ft in fitting_types]):
+            if args.resnet_blurface:
+                dnn_model='resnet_blurface'
+            else:
+                dnn_model='resnet'
         assert(not np.any(['alexnet' in ft for ft in fitting_types]))
         print('\nusing dnn layers:')
         print(dnn_layers_use)       

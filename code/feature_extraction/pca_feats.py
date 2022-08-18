@@ -35,6 +35,7 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         
     
     n_prfs=0;
+    n_feat_orig = 0;
     for fi, fn in enumerate(raw_filename):
         if not os.path.exists(fn):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%fn)   
@@ -42,10 +43,21 @@ def run_pca_each_prf(raw_filename, pca_filename, \
             dsize = data_set['/features'].shape
             data_set.close() 
 
-        n_trials, n_feat_orig, n_prfs_tmp = dsize
+        n_trials, nf, n_prfs_tmp = dsize
+        print('nf=%d'%nf)
+        
+        n_feat_orig = np.maximum(n_feat_orig, nf)
+        
         if fi==0 and batches_in_separate_files:
             assert(n_prfs_tmp==prf_batch_size)
+            nf_1 = nf
+        elif fi>0:
+            # did the features from different prfs have diff sizes, before pca?
+            prfs_diff_orig_sizes = (nf_1!=nf)
+            
         n_prfs += n_prfs_tmp
+    
+    print('prfs_diff_orig_sizes=%s'%prfs_diff_orig_sizes)
     
     if not batches_in_separate_files:
         n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))  
@@ -76,8 +88,13 @@ def run_pca_each_prf(raw_filename, pca_filename, \
     actual_max_ncomp=0
     
     if save_weights:
-        pca_wts = np.zeros((n_feat_orig, max_pc_to_retain, n_prfs), dtype=save_dtype)
-        pca_premean = np.zeros((n_feat_orig, n_prfs), dtype=save_dtype)
+        
+        if prfs_diff_orig_sizes:
+            pca_wts = [[] for mm in range(n_prfs)]
+            pca_premean = [[] for mm in range(n_prfs)]
+        else:
+            pca_wts = np.zeros((n_feat_orig, max_pc_to_retain, n_prfs), dtype=save_dtype)
+            pca_premean = np.zeros((n_feat_orig, n_prfs), dtype=save_dtype)
         pca_ncomp = np.zeros((n_prfs,),dtype=save_dtype)
         assert(save_weights_filename is not None)
         
@@ -126,18 +143,19 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
         print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
         features_in_prf = features_each_prf_batch[:,:,index_into_batch]
-
+        n_feat_orig_actual = features_in_prf.shape[1]
+        
         elapsed = time.time() - t
         print('Took %.5f seconds to load file'%elapsed)
         
         if zscore_before_pca:
             features_in_prf_z = np.zeros_like(features_in_prf)
             features_in_prf_z[fit_inds,:] = numpy_utils.zscore_in_groups(features_in_prf[fit_inds,:], \
-                                                                         zgroup_labels)
+                                                                         zgroup_labels[0:n_feat_orig_actual])
             zero_var = np.var(features_in_prf[fit_inds,:], axis=0)==0
             if np.sum(~fit_inds)>0:
                 features_in_prf_z[~fit_inds,:] = numpy_utils.zscore_in_groups(features_in_prf[~fit_inds,:], \
-                                                                              zgroup_labels)
+                                                                              zgroup_labels[0:n_feat_orig_actual])
                 # if any feature channels had no variance, fix them now
                 zero_var = zero_var | (np.var(features_in_prf[~fit_inds,:], axis=0)==0)
             print('there are %d columns with zero variance'%np.sum(zero_var))
@@ -172,8 +190,12 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         scores_each_prf[:,n_comp_needed:,prf_model_index] = np.nan
 
         if save_weights:
-            pca_wts[:,:,prf_model_index] = wts.T
-            pca_premean[:,prf_model_index] = pre_mean
+            if prfs_diff_orig_sizes:
+                pca_wts[prf_model_index] = wts.T
+                pca_premean[prf_model_index] = pre_mean
+            else:
+                pca_wts[:,:,prf_model_index] = wts.T
+                pca_premean[:,prf_model_index] = pre_mean
             pca_ncomp[prf_model_index] = n_comp_needed
             
     # To save space, get rid of portion of array that ended up all nans
@@ -227,8 +249,9 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
     pca_wts = w['pca_wts']
     pca_premean = w['pca_premean']
     pca_ncomp = w['pca_ncomp']
-    
+
     n_prfs=0;
+    n_feat_orig = 0;
     for fi, fn in enumerate(raw_filename):
         if not os.path.exists(fn):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%fn)   
@@ -236,11 +259,26 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
             dsize = data_set['/features'].shape
             data_set.close() 
 
-        n_trials, n_feat_orig, n_prfs_tmp = dsize
+        n_trials, nf, n_prfs_tmp = dsize
+        print('nf=%d'%nf)
+        
+        n_feat_orig = np.maximum(n_feat_orig, nf)
+        
         if fi==0 and batches_in_separate_files:
             assert(n_prfs_tmp==prf_batch_size)
+            nf_1 = nf
+        elif fi>0:
+            # did the features from different prfs have diff sizes, before pca?
+            prfs_diff_orig_sizes = (nf_1!=nf)
+            
         n_prfs += n_prfs_tmp
     
+    print('prfs_diff_orig_sizes=%s'%prfs_diff_orig_sizes)
+    if prfs_diff_orig_sizes:
+        assert(not hasattr(pca_wts, 'shape') or len(pca_wts.shape)==1)
+    else:
+        assert(len(pca_wts.shape)==3)
+        
     if not batches_in_separate_files:
         n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))  
     
@@ -297,12 +335,13 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
         index_into_batch = np.where(prf_model_index==prf_inds_loaded)[0][0]
         print('Index into batch for prf %d: %d'%(prf_model_index, index_into_batch))
         features_in_prf = features_each_prf_batch[:,:,index_into_batch]
-
+        n_feat_orig_actual = features_in_prf.shape[1]
+        
         elapsed = time.time() - t
         print('Took %.5f seconds to load file'%elapsed)
         
         if zscore_before_pca:
-            features_in_prf_z = numpy_utils.zscore_in_groups(features_in_prf, zgroup_labels)
+            features_in_prf_z = numpy_utils.zscore_in_groups(features_in_prf, zgroup_labels[0:n_feat_orig_actual])
             zero_var = np.var(features_in_prf, axis=0)==0
             features_in_prf_z[:,zero_var] = features_in_prf_z[0,zero_var]
        
@@ -312,8 +351,12 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
         print(features_in_prf.shape)
         print('any nans in array: %s'%np.any(np.isnan(features_in_prf)))
        
-        wts = pca_wts[:,:,prf_model_index]
-        pre_mean = pca_premean[:,prf_model_index]
+        if prfs_diff_orig_sizes:
+            wts = pca_wts[prf_model_index]
+            pre_mean = pca_pre_mean[prf_model_index]
+        else:
+            wts = pca_wts[:,:,prf_model_index]
+            pre_mean = pca_premean[:,prf_model_index]
         n_comp_needed = int(pca_ncomp[prf_model_index])
         
         # project into pca subspace using saved wts
@@ -488,6 +531,46 @@ def run_pca(subject=None, \
                                     (weights_image_set, layer_name, which_prf_grid))
             
         zscore_before_pca = True;
+        zgroup_labels = None
+        prf_batch_size=100
+        
+    elif 'spatcolor' in feature_type:
+        
+        path_to_load = default_paths.spatcolor_feat_path
+        
+        if debug:
+            path_to_save = os.path.join(path_to_load, 'DEBUG','PCA')
+            path_to_load = os.path.join(path_to_load, 'DEBUG')
+        else:
+            path_to_save = os.path.join(path_to_load, 'PCA')
+        
+        n_prf_batches = 15
+        raw_filename = [os.path.join(path_to_load, \
+                               '%s_spatcolor_res%dpix_grid%d_prfbatch%d.h5py'%(image_set, \
+                                                                               map_res_pix, which_prf_grid, pb)) \
+                     for pb in range(n_prf_batches)]
+    
+        pca_filename = os.path.join(path_to_save, '%s_spatcolor_res%dpix_PCA_grid%d.h5py'%\
+                                    (image_set, map_res_pix,which_prf_grid))
+        if save_weights:
+            save_weights_filename = os.path.join(path_to_save, '%s_spatcolor_res%dpix_PCA_weights_grid%d.npy'%\
+                                    (image_set, map_res_pix,which_prf_grid))
+        else:
+            save_weights_filename = None
+            
+        if use_saved_ncomp:
+            ncomp_filename = os.path.join(path_to_save,'%s_spatcolor_res%dpix_grid%d_ncomp.npy'%\
+                                    (image_set, map_res_pix,which_prf_grid))
+        else:
+            ncomp_filename = None
+            
+        if use_precomputed_weights:
+            pca_filename = os.path.join(path_to_save, '%s_spatcolor_res%dpix_PCA_wtsfrom%s_grid%d.h5py'%\
+                                    (image_set, map_res_pix, weights_image_set, which_prf_grid))
+            load_weights_filename = os.path.join(path_to_save, '%s_spatcolor_res%dpix_PCA_weights_grid%d.npy'%\
+                                    (weights_image_set, map_res_pix, which_prf_grid))
+            
+        zscore_before_pca = False;
         zgroup_labels = None
         prf_batch_size=100
         

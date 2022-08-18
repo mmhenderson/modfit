@@ -159,7 +159,7 @@ def get_full_save_name(args):
     if args.use_model_residuals:
         model_name += '_from_residuals'
     if not args.use_precomputed_prfs:
-        if 'alexnet' not in model_name:
+        if 'alexnet' not in model_name and args.which_prf_grid!=0:
             model_name += '_fit_pRFs'
     elif len(args.prfs_model_name)>0:
         model_name += '_use_%s_pRFs'%args.prfs_model_name
@@ -272,7 +272,10 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
 def get_prf_models(which_grid=5, verbose=False):
 
     # models is three columns, x, y, sigma
-    if which_grid==1:
+    if which_grid==0:
+        # this is a placeholder for the models that have no pRFs (full-field features)
+        models = np.array([[None, None, None]])
+    elif which_grid==1:
         smin, smax = np.float32(0.04), np.float32(0.4)
         n_sizes = 8
         aperture_rf_range=1.1
@@ -660,7 +663,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='color')
+                                                            feature_type='color', 
+                                                            map_res_pix = 100)
             fe.append(feat_loader)
             fe_names.append(ft)
             

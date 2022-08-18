@@ -324,11 +324,14 @@ def fit_fwrf(args):
         val_trials_use = None
    
         
-    if args.use_precomputed_prfs:
+    if args.use_precomputed_prfs and args.which_prf_grid!=0:
         # If we already computed pRFs for this subject on some model, can load those now and use them during 
         # fitting. Faster than fitting pRFs each time.
         best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
         assert(len(best_model_each_voxel)==n_voxels)
+    elif args.which_prf_grid==0:
+        best_model_each_voxel = np.zeros((n_voxels,),dtype=int)
+        saved_prfs_fn = None
     else:
         # otherwise fitting all params from scratch.
         best_model_each_voxel = None

@@ -41,8 +41,11 @@ clip_feat_path = os.path.join(root, 'features', 'CLIP')
 resnet50_feat_path = os.path.join(root, 'features', 'resnet50')
 resnet50_blurface_feat_path = os.path.join(root, 'features', 'resnet50_blurface')
 
-# Path where gabor model features will be saved
+# Path where color model features will be saved
 color_feat_path = os.path.join(root, 'features','color')
+
+# Path where spatial-color model features will be saved
+spatcolor_feat_path = os.path.join(root, 'features','spatcolor')
 
 # Where the raw NSD beta weights are located
 beta_root = os.path.join(nsd_root,'nsddata_betas','ppdata')

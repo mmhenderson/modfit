@@ -42,6 +42,8 @@ class fwrf_feature_loader:
             self.__init_pyramid_texture__(kwargs)
         elif self.feature_type=='color':
             self.__init_color__(kwargs)
+        elif self.feature_type=='spatcolor':
+            self.__init_spatcolor__(kwargs)
         elif self.feature_type=='alexnet':
             self.__init_alexnet__(kwargs)
         elif self.feature_type=='resnet':
@@ -189,6 +191,31 @@ class fwrf_feature_loader:
         self.n_feature_types=1
         self.max_features=4
         self.use_pca_feats=False
+        
+    def __init_spatcolor__(self, kwargs):
+
+        spatcolor_feat_path = default_paths.spatcolor_feat_path
+
+        self.map_res_pix = kwargs['map_res_pix'] if 'map_res_pix' in kwargs.keys() else 100
+        
+        self.use_pca_feats = True
+         
+        if self.pca_subject is not None:
+            self.features_file = os.path.join(spatcolor_feat_path, 'PCA', \
+                                          '%s_spatcolor_res%dpix_PCA_wtsfromS%d_grid%d.h5py'%\
+                                              (self.image_set, self.map_res_pix, self.pca_subject, self.which_prf_grid))
+        else:
+            self.features_file = os.path.join(spatcolor_feat_path, 'PCA', \
+                                          '%s_spatcolor_res%dpix_PCA_grid%d.h5py'%\
+                                              (self.image_set, self.map_res_pix, self.which_prf_grid))  
+        
+        with h5py.File(self.features_file, 'r') as file:
+            feat_shape = np.shape(file['/features'])
+            file.close()
+        self.max_features = feat_shape[1]
+        
+        self.do_varpart=False
+        self.n_feature_types=1
         
     def __init_alexnet__(self,kwargs):
     

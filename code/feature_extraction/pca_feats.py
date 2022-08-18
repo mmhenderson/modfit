@@ -37,6 +37,7 @@ def run_pca_each_prf(raw_filename, pca_filename, \
     n_prfs=0;
     n_feat_orig = 0;
     for fi, fn in enumerate(raw_filename):
+        print(fn)
         if not os.path.exists(fn):
             raise RuntimeError('Looking at %s for precomputed features, not found.'%fn)   
         with h5py.File(fn, 'r') as data_set:
@@ -394,6 +395,120 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
     print('Took %.5f sec to write file'%elapsed)
 
     
+def run_pca_fullfield(features_raw, filename_save_pca, 
+            fit_inds=None, 
+            min_pct_var=95, max_pc_to_retain=100, 
+            save_weights=False, save_weights_filename=None, 
+            use_saved_ncomp=False, ncomp_filename=None,\
+            save_dtype=np.float32, compress=True, \
+            debug=False):
+
+    n_trials, n_feat_orig = features_raw.shape
+    
+    print('max_pc_to_retain:')
+    print(max_pc_to_retain, n_feat_orig)   
+    if max_pc_to_retain is None:
+        max_pc_to_retain = n_feat_orig
+    else:
+        max_pc_to_retain = np.minimum(max_pc_to_retain, n_feat_orig)
+    print(max_pc_to_retain)
+    
+    if fit_inds is not None:
+        assert(len(fit_inds)==n_trials)
+    else:
+        fit_inds = np.ones((n_trials,),dtype=bool)
+      
+    # finding pca solution for just training data (specified in fit_inds)
+    _, wts, pre_mean, ev = compute_pca(features_raw[fit_inds,:], max_pc_to_retain=max_pc_to_retain)
+
+    # now projecting all the data incl. val into same subspace
+    feat_submean = features_raw - np.tile(pre_mean[np.newaxis,:], [features_raw.shape[0],1])
+    scores = feat_submean @ wts.T
+
+    if use_saved_ncomp:
+        print('loading ncomp from %s'%ncomp_filename)
+        saved_pca_ncomp = np.load(ncomp_filename).astype(int)
+        n_comp_needed = saved_pca_ncomp[0]
+    else:
+        n_comp_needed = np.where(np.cumsum(ev)>min_pct_var)
+        if np.size(n_comp_needed)>0:
+            n_comp_needed = n_comp_needed[0][0]+1
+        else:
+            n_comp_needed = scores.shape[1]
+
+    print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
+    
+    scores = scores[:,0:n_comp_needed]
+    
+    if save_weights:
+        w = {'pca_wts': wts, 'pca_premean': pre_mean, 'pca_ncomp': np.array([n_comp_needed])}
+        print('saving the weights for this pca to %s'%save_weights_filename)
+        np.save(save_weights_filename, w, allow_pickle=True)
+
+   
+    # give this a singleton dim for last dim, so it will work w my other code
+    scores = scores[:,:,None]
+    
+    print('final size of array to save:')
+    print(scores.shape)    
+    print('saving to %s'%filename_save_pca)
+    
+    t = time.time()
+    
+    with h5py.File(filename_save_pca, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
+    
+    
+def apply_pca_fullfield(features_raw, 
+                        filename_save_pca, 
+                        load_weights_filename, 
+                        save_dtype=np.float32, compress=True, \
+                        debug=False):
+
+    print('loading pre-computed pca weights from %s'%(load_weights_filename))
+    w = np.load(load_weights_filename, allow_pickle=True).item()
+    pca_wts = w['pca_wts']
+    pca_premean = w['pca_premean']
+    pca_ncomp = w['pca_ncomp']
+    
+    # project into pca subspace using saved wts
+    feat_submean = features_raw - np.tile(pca_premean[np.newaxis,:], [features_raw.shape[0],1])
+    scores = feat_submean @ pca_wts.T
+
+    n_comp_needed = int(pca_ncomp[0])
+
+    scores = scores[:,0:n_comp_needed]
+    
+    # give this a singleton dim for last dim, so it will work w my other code
+    scores = scores[:,:,None]
+    
+    print('final size of array to save:')
+    print(scores.shape)    
+    print('saving to %s'%filename_save_pca)
+    
+    t = time.time()
+    
+    with h5py.File(filename_save_pca, 'w') as data_set:
+        if compress==True:
+            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype, compression='gzip')
+        else:
+            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype)
+        data_set['/features'][:,:,:] = scores
+        data_set.close() 
+    elapsed = time.time() - t
+
+    print('Took %.5f sec to write file'%elapsed)
+    
+    
+    
 def run_pca(subject=None, \
             image_set=None, \
             feature_type=None, \
@@ -402,6 +517,7 @@ def run_pca(subject=None, \
             save_weights=False, \
             use_saved_ncomp=False, \
             rm_raw = False, \
+            map_res_pix=None, \
             max_pc_to_retain=None, debug=False):
        
     if subject is not None:
@@ -654,7 +770,7 @@ def run_pca(subject=None, \
         os.remove(raw_filename)
         print('done removing')
         
-def compute_pca(values, max_pc_to_retain=None):
+def compute_pca(values, max_pc_to_retain=None, copy_data=False):
     """
     Apply PCA to the data, return reduced dim data as well as weights, var explained.
     """
@@ -668,7 +784,7 @@ def compute_pca(values, max_pc_to_retain=None):
          
     print('Running PCA: original size of array is [%d x %d]'%(n_trials, n_features_actual))
     t = time.time()
-    pca = decomposition.PCA(n_components = n_comp, copy=False)
+    pca = decomposition.PCA(n_components = n_comp, copy=copy_data)
     scores = pca.fit_transform(values)           
     elapsed = time.time() - t
     print('Time elapsed: %.5f'%elapsed)
@@ -693,6 +809,7 @@ def get_ncomp(pca_features_file, save_ncomp_file):
     """
     with h5py.File(pca_features_file,'r') as file:  
         dat = file['/features'][0,:,:]
+        file.close()
         
     ncomp_max = dat.shape[0]
     n_prfs = dat.shape[1]

@@ -8,6 +8,7 @@ import torch
 #import custom modules
 from utils import color_utils, nsd_utils, prf_utils, default_paths, floc_utils, torch_utils
 from model_fitting import initialize_fitting
+from feature_extraction import pca_feats
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -154,8 +155,7 @@ def proc_one_subject(subject, args):
                                                                                 pb)) \
                      for pb in range(n_prf_batches)]
     
-        
-    extract_color_features(image_data, 
+    extract_color_features(image_data,
                            prf_batch_inds=prf_batch_inds,\
                            save_batch_filenames=save_batch_filenames,\
                            batch_size=args.batch_size, \
@@ -170,6 +170,7 @@ def proc_one_subject(subject, args):
                           max_pc_to_retain=args.max_pc_to_retain, \
                           save_weights = args.save_pca_weights==1, \
                           use_saved_ncomp = args.use_saved_ncomp==1, \
+                          map_res_pix=args.map_res_pix, \
                           debug=args.debug)
         
     # now removing the large intermediate files, leaving only the pca versions
@@ -235,6 +236,7 @@ def proc_other_image_set(image_set, args):
                           max_pc_to_retain=args.max_pc_to_retain, \
                           save_weights = args.save_pca_weights==1, \
                           use_saved_ncomp = args.use_saved_ncomp==1, \
+                          map_res_pix=args.map_res_pix, \
                           debug=args.debug)
 
     # now removing the large intermediate files, leaving only the pca versions

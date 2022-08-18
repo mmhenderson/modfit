@@ -121,6 +121,10 @@ def fit_fwrf(args):
             dict2save.update({
             'semantic_feature_set': args.semantic_feature_set,
             })
+        if np.any(['spatcolor' in ft for ft in fitting_types]):
+            dict2save.update({
+            'spatcolor_map_res_pix': args.spatcolor_map_res_pix,
+            })
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({         
             'use_pca_st_feats': args.use_pca_st_feats,

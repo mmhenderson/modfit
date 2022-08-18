@@ -104,9 +104,14 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens_residuals'
             else:        
                 model_name += 'sketch_tokens'
+                
         elif 'color' in ft:
             fitting_types += [ft]
             model_name += 'color_ceilab_sat'
+            
+        elif 'spatcolor' in ft:
+            fitting_types += [ft]
+            model_name += 'spatcolor'
             
         elif 'alexnet' in ft:
             fitting_types += [ft]
@@ -656,6 +661,16 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \
                                                             feature_type='color')
+            fe.append(feat_loader)
+            fe_names.append(ft)
+            
+        elif 'spatcolor' in ft:
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
+                                                            which_prf_grid=args.which_prf_grid, \
+                                                            feature_type='spatcolor', \
+                                                            pca_subject = pca_subject, \
+                                                            map_res_pix = args.spatcolor_map_res_pix)
             fe.append(feat_loader)
             fe_names.append(ft)
 

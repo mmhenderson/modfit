@@ -130,6 +130,10 @@ def get_args():
     parser.add_argument("--use_pca_gabor_feats", type=nice_str2bool,default=False,
                     help="Want to use reduced dim (PCA) version of gabor features?")
      
+    # Specific to color models
+    parser.add_argument("--spatcolor_map_res_pix", type=int,default=100,
+                    help="resolution of color feature maps")
+    
     
     # Stuff that is specific to pyramid model
     parser.add_argument("--n_ori_pyr", type=int,default=4,

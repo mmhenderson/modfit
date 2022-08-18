@@ -102,7 +102,7 @@ def get_nc(subject, average_image_reps=True):
     
     return noise_ceiling
 
-def get_image_data(subject, random_images=False, native=False):
+def get_image_data(subject, random_images=False, native=False, npix=240):
 
     """
     Load the set of NSD images that were shown to a given subject.
@@ -115,11 +115,11 @@ def get_image_data(subject, random_images=False, native=False):
         if native:
             image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_native.h5py'%subject))     
         else:
-            image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_240.h5py'%subject))        
+            image_data = load_from_hdf5(os.path.join(stim_root, 'S%d_stimuli_%d.h5py'%(subject,npix)))        
     else:        
         print('\nGenerating random gaussian noise images...\n')
         n_images = 10000
-        image_data = (np.random.normal(0,1,[n_images, 3, 240,240])*30+255/2).astype(np.uint8)
+        image_data = (np.random.normal(0,1,[n_images, 3, npix,npix])*30+255/2).astype(np.uint8)
         image_data = np.maximum(np.minimum(image_data, 255),0)
 
     print ('image data size:', image_data.shape, ', dtype:', image_data.dtype, ', value range:',\

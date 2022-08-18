@@ -182,15 +182,32 @@ class fwrf_feature_loader:
     
     def __init_color__(self, kwargs):
         
+        self.map_res_pix = kwargs['map_res_pix'] if 'map_res_pix' in kwargs.keys() else 100
+        
         color_feat_path = default_paths.color_feat_path
         
-        self.features_file = os.path.join(color_feat_path, \
+        if self.which_prf_grid==0:
+            self.use_pca_feats = True
+            if self.pca_subject is None:
+                self.features_file = os.path.join(color_feat_path, 'PCA', \
+                                              '%s_cielab_plus_sat_res%dpix_PCA_grid0.h5py'%\
+                                                  (self.image_set, self.map_res_pix))
+            else:
+                self.features_file = os.path.join(color_feat_path, 'PCA', \
+                               '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid0.h5py'%\
+                                (self.image_set, self.map_res_pix, self.pca_subject))
+            with h5py.File(self.features_file, 'r') as file:
+                feat_shape = np.shape(file['/features'])
+                file.close()
+            self.max_features = feat_shape[1]
+        else:
+            self.use_pca_feats = False
+            self.features_file = os.path.join(color_feat_path, \
                                '%s_cielab_plus_sat_grid%d.h5py'%(self.image_set, self.which_prf_grid))
-     
+            self.max_features=4
+        
         self.do_varpart = False
         self.n_feature_types=1
-        self.max_features=4
-        self.use_pca_feats=False
         
     def __init_spatcolor__(self, kwargs):
 

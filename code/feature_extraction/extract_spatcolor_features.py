@@ -142,7 +142,8 @@ def proc_one_subject(subject, args):
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
     
-    prf_batch_size = 100; # just keeping this par fixed, seems to work ok
+    prf_batch_size=50;
+    # prf_batch_size = 100; # just keeping this par fixed, seems to work ok
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))
     
     prf_batch_inds = [np.arange(pb*prf_batch_size, np.min([(pb+1)*prf_batch_size, n_prfs])) \
@@ -204,7 +205,8 @@ def proc_other_image_set(image_set, args):
     prf_models = initialize_fitting.get_prf_models(which_grid=args.which_prf_grid)    
     n_prfs = len(prf_models)
     
-    prf_batch_size = 100; # just keeping this par fixed, seems to work ok
+    prf_batch_size=50;
+    # prf_batch_size = 100; # just keeping this par fixed, seems to work ok
     n_prf_batches = int(np.ceil(n_prfs/prf_batch_size))
     
     prf_batch_inds = [np.arange(pb*prf_batch_size, np.min([(pb+1)*prf_batch_size, n_prfs])) \

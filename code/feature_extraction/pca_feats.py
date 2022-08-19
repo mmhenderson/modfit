@@ -660,7 +660,8 @@ def run_pca(subject=None, \
         else:
             path_to_save = os.path.join(path_to_load, 'PCA')
         
-        n_prf_batches = 15
+        prf_batch_size = 50;
+        n_prf_batches = 30;
         raw_filename = [os.path.join(path_to_load, \
                                '%s_spatcolor_res%dpix_grid%d_prfbatch%d.h5py'%(image_set, \
                                                                                map_res_pix, which_prf_grid, pb)) \
@@ -688,7 +689,8 @@ def run_pca(subject=None, \
             
         zscore_before_pca = False;
         zgroup_labels = None
-        prf_batch_size=100
+        # prf_batch_size=100
+        
         
     elif 'resnet' in feature_type:
         

@@ -53,6 +53,7 @@ if __name__ == '__main__':
 
         label_utils.concat_labels_each_prf(subject=subject, \
                                       which_prf_grid=which_prf_grid, verbose=True, debug=debug)
+        label_utils.concat_labels_fullimage(subject=subject, verbose=True)
         
     label_utils.count_highlevel_labels(which_prf_grid=which_prf_grid, axes_to_do=[0,2,3], \
                            debug=debug)

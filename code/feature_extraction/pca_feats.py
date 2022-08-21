@@ -463,7 +463,13 @@ def run_pca_oneprf(features_raw, filename_save_pca,
 
     t = time.time()
     
-    with h5py.File(filename_save_pca, 'w') as data_set:
+    if prf_save_ind==0:
+        mode='w'
+    else:
+        mode='r+'
+        
+    with h5py.File(filename_save_pca, mode) as data_set:
+        
         if prf_save_ind==0:
             if compress==True:
                 dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype, compression='gzip')
@@ -504,7 +510,7 @@ def apply_pca_oneprf(features_raw,
         nf = n_comp_needed
     else:
         scores[:, n_comp_needed:] = np.nan
-        nf = max_pc_to_retain
+        nf = scores.shape[1]
     
     dset_shape = (scores.shape[0], nf, n_prfs_total)
     
@@ -517,7 +523,12 @@ def apply_pca_oneprf(features_raw,
     
     t = time.time()
     
-    with h5py.File(filename_save_pca, 'w') as data_set:
+    if prf_save_ind==0:
+        mode='w'
+    else:
+        mode='r+'
+    
+    with h5py.File(filename_save_pca, mode) as data_set:
         if prf_save_ind==0:
             if compress==True:
                 dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype, compression='gzip')

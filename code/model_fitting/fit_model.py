@@ -129,6 +129,7 @@ def fit_fwrf(args):
             dict2save.update({         
             'use_pca_st_feats': args.use_pca_st_feats,
             'use_residual_st_feats': args.use_residual_st_feats,
+            'use_grayscale_st_feats': args.use_grayscale_st_feats,
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({

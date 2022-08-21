@@ -154,8 +154,11 @@ class fwrf_feature_loader:
         self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else False
         self.use_residual_st_feats = kwargs['use_residual_st_feats'] \
                                         if 'use_residual_st_feats' in kwargs.keys() else False
+        self.use_grayscale_st_feats = kwargs['use_grayscale_st_feats'] \
+                                        if 'use_grayscale_st_feats' in kwargs.keys() else False
            
         if self.use_pca_feats:
+            assert not self.use_grayscale_st_feats
             if self.pca_subject is not None:
                 self.features_file = os.path.join(sketch_token_feat_path, 'PCA', \
                                               '%s_PCA_wtsfromS%d_grid%d.h5py'%\
@@ -168,10 +171,14 @@ class fwrf_feature_loader:
                 file.close()
             self.max_features = feat_shape[1]
         elif self.use_residual_st_feats:
+            assert not self.use_grayscale_st_feats
             self.max_features = 150;
             self.features_file = os.path.join(sketch_token_feat_path, \
                           '%s_gabor_residuals_grid%d.h5py'%(self.image_set, self.which_prf_grid))
-             
+        elif self.use_grayscale_st_feats:
+            self.max_features = 150;
+            self.features_file = os.path.join(sketch_token_feat_path, \
+                          '%s_features_grayscale_each_prf_grid%d.h5py'%(self.image_set, self.which_prf_grid))    
         else:
             self.max_features = 150;
             self.features_file = os.path.join(sketch_token_feat_path, \

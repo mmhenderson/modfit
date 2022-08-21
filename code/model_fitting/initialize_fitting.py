@@ -104,6 +104,8 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens_residuals'
             else:        
                 model_name += 'sketch_tokens'
+            if args.use_grayscale_st_feats:
+                model_name += '_gray'
                 
         elif 'color' in ft:
             fitting_types += [ft]
@@ -410,8 +412,12 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
     Makes an array [n_trials x n_discrim_types x n_prfs]
     """
 
-    labels_folder = os.path.join(default_paths.stim_labels_root, \
+    if which_prf_grid==0:
+        labels_folder = default_paths.stim_labels_root
+    else:
+        labels_folder = os.path.join(default_paths.stim_labels_root, \
                                      'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+        
     groups = np.load(os.path.join(default_paths.stim_labels_root,\
                                   'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
     col_names = groups['col_names_all']
@@ -427,8 +433,12 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
         if debug and prf_model_index>1:
             continue
             
-        fn2load = os.path.join(labels_folder, \
+        if which_prf_grid==0:
+            fn2load = os.path.join(labels_folder,'S%d_concat.csv'%subject)
+        else:
+            fn2load = os.path.join(labels_folder, \
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
+            
         concat_df = pd.read_csv(fn2load, index_col=0)
         labels = np.array(concat_df)
         labels = labels[image_inds,:]
@@ -655,6 +665,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             feature_type='sketch_tokens',\
                                                             use_pca_feats = args.use_pca_st_feats, \
                                                             use_residual_st_feats = args.use_residual_st_feats, \
+                                                            use_grayscale_st_feats = args.use_grayscale_st_feats, \
                                                             pca_subject = pca_subject)
             fe.append(feat_loader)
             fe_names.append(ft)

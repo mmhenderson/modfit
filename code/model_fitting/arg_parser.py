@@ -152,6 +152,8 @@ def get_args():
                     help="Want to use reduced dim (PCA) version of sketch tokens features?")
     parser.add_argument("--use_residual_st_feats", type=nice_str2bool,default=False,
                     help="Want to use sketch tokens features with gabor features regressed out?")
+    parser.add_argument("--use_grayscale_st_feats", type=nice_str2bool,default=False,
+                    help="Want to use sketch tokens features from grayscale images?")
                      
     # specific to alexnet
     parser.add_argument("--alexnet_layer_name", type=str, default='', 

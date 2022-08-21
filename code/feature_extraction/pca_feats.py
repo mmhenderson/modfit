@@ -395,13 +395,14 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
     print('Took %.5f sec to write file'%elapsed)
 
     
-def run_pca_fullfield(features_raw, filename_save_pca, 
-            fit_inds=None, 
-            min_pct_var=95, max_pc_to_retain=100, 
-            save_weights=False, save_weights_filename=None, 
-            use_saved_ncomp=False, ncomp_filename=None,\
-            save_dtype=np.float32, compress=True, \
-            debug=False):
+def run_pca_oneprf(features_raw, filename_save_pca, 
+                    prf_save_ind=0, n_prfs_total=1, \
+                    fit_inds=None, 
+                    min_pct_var=95, max_pc_to_retain=100, 
+                    save_weights=False, save_weights_filename=None, 
+                    use_saved_ncomp=False, ncomp_filename=None,\
+                    save_dtype=np.float32, compress=True, \
+                    debug=False):
 
     n_trials, n_feat_orig = features_raw.shape
     
@@ -438,40 +439,53 @@ def run_pca_fullfield(features_raw, filename_save_pca,
 
     print('Retaining %d components to explain %d pct var'%(n_comp_needed, min_pct_var))
     
-    scores = scores[:,0:n_comp_needed]
-    
+    if n_prfs_total==1:
+        scores = scores[:,0:n_comp_needed]
+        nf = n_comp_needed
+    else:
+        scores[:, n_comp_needed:] = np.nan
+        nf = max_pc_to_retain
+        
     if save_weights:
         w = {'pca_wts': wts, 'pca_premean': pre_mean, 'pca_ncomp': np.array([n_comp_needed])}
         print('saving the weights for this pca to %s'%save_weights_filename)
         np.save(save_weights_filename, w, allow_pickle=True)
 
-   
-    # give this a singleton dim for last dim, so it will work w my other code
-    scores = scores[:,:,None]
+
+    dset_shape = (scores.shape[0], nf, n_prfs_total)
     
-    print('final size of array to save:')
-    print(scores.shape)    
+    print('final size of features for this prf:')
+    print(scores.shape) 
+    print('final size of whole dataset to save:')
+    print(dset_shape)    
+    
     print('saving to %s'%filename_save_pca)
-    
+
     t = time.time()
     
     with h5py.File(filename_save_pca, 'w') as data_set:
-        if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype, compression='gzip')
+        if prf_save_ind==0:
+            if compress==True:
+                dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype, compression='gzip')
+            else:
+                dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype)
         else:
-            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores
+            assert(np.all(data_set['/features'].shape==dset_shape))
+            
+        data_set['/features'][:,:,prf_save_ind] = scores
         data_set.close() 
     elapsed = time.time() - t
 
     print('Took %.5f sec to write file'%elapsed)
     
     
-def apply_pca_fullfield(features_raw, 
-                        filename_save_pca, 
-                        load_weights_filename, 
-                        save_dtype=np.float32, compress=True, \
-                        debug=False):
+def apply_pca_oneprf(features_raw, 
+                     filename_save_pca,
+                     load_weights_filename,
+                     prf_save_ind=0,
+                     n_prfs_total=1,
+                     save_dtype=np.float32, compress=True, \
+                     debug=False):
 
     print('loading pre-computed pca weights from %s'%(load_weights_filename))
     w = np.load(load_weights_filename, allow_pickle=True).item()
@@ -485,23 +499,34 @@ def apply_pca_fullfield(features_raw,
 
     n_comp_needed = int(pca_ncomp[0])
 
-    scores = scores[:,0:n_comp_needed]
+    if n_prfs_total==1:
+        scores = scores[:,0:n_comp_needed]
+        nf = n_comp_needed
+    else:
+        scores[:, n_comp_needed:] = np.nan
+        nf = max_pc_to_retain
     
-    # give this a singleton dim for last dim, so it will work w my other code
-    scores = scores[:,:,None]
+    dset_shape = (scores.shape[0], nf, n_prfs_total)
     
-    print('final size of array to save:')
-    print(scores.shape)    
+    print('final size of features for this prf:')
+    print(scores.shape) 
+    print('final size of whole dataset to save:')
+    print(dset_shape)
+    
     print('saving to %s'%filename_save_pca)
     
     t = time.time()
     
     with h5py.File(filename_save_pca, 'w') as data_set:
-        if compress==True:
-            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype, compression='gzip')
+        if prf_save_ind==0:
+            if compress==True:
+                dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype, compression='gzip')
+            else:
+                dset = data_set.create_dataset("features", dset_shape, dtype=save_dtype)
         else:
-            dset = data_set.create_dataset("features", np.shape(scores), dtype=save_dtype)
-        data_set['/features'][:,:,:] = scores
+            assert(np.all(data_set['/features'].shape==dset_shape))
+            
+        data_set['/features'][:,:,prf_save_ind] = scores
         data_set.close() 
     elapsed = time.time() - t
 
@@ -660,8 +685,9 @@ def run_pca(subject=None, \
         else:
             path_to_save = os.path.join(path_to_load, 'PCA')
         
-        prf_batch_size = 50;
-        n_prf_batches = 30;
+        prf_batch_size=15
+        n_prf_batches = int(np.ceil(1456/prf_batch_size))
+        
         raw_filename = [os.path.join(path_to_load, \
                                '%s_spatcolor_res%dpix_grid%d_prfbatch%d.h5py'%(image_set, \
                                                                                map_res_pix, which_prf_grid, pb)) \

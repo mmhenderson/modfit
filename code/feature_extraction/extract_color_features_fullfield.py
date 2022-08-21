@@ -107,7 +107,7 @@ def proc_one_subject(subject, args):
         ncomp_filename = None
      
     
-    pca_feats.run_pca_fullfield(features_raw, 
+    pca_feats.run_pca_oneprf(features_raw, 
                                 filename_save_pca, 
                                 fit_inds=fit_inds, 
                                 min_pct_var=args.min_pct_var, 
@@ -157,7 +157,7 @@ def proc_other_image_set(image_set, args):
                                '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid0.h5py'%\
                                 (image_set, args.map_res_pix, ss))
     
-        pca_feats.apply_pca_fullfield(features_raw, 
+        pca_feats.apply_pca_oneprf(features_raw, 
                                     filename_save_pca, 
                                     load_weights_filename=load_weights_filename, 
                                     save_dtype=np.float32, compress=True, \

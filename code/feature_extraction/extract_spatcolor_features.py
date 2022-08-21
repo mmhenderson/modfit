@@ -51,16 +51,17 @@ def extract_color_features(image_data,
         # 4 color feature channels concatenated here
         fmaps = np.dstack([image_lab, image_sat])
 
-        print('size of prf mask is:')
-        print(prf_mask.shape)
-        print('sum of prf mask is:')
-        print(np.sum(prf_mask))
-        
         # apply the prf mask      
         fmaps_masked = fmaps[prf_mask]
         
-        print('size of fmaps_masked is:')
-        print(fmaps_masked.shape)
+        if ii==0:
+            
+            print('size of prf mask is:')
+            print(prf_mask.shape)
+            print('sum of prf mask is:')
+            print(np.sum(prf_mask))   
+            print('size of fmaps_masked is:')
+            print(fmaps_masked.shape)
         
         # all the color and spatial channels going into one big dimension.
         features[ii,:] = fmaps_masked.ravel()
@@ -126,6 +127,8 @@ def proc_one_subject(subject, args):
         if mm>1 and args.debug:
             continue
             
+        print('proc pRF %d of %d'%(mm, n_prfs))
+        
         # first extract features for all pixels/feature channels 
         features_raw = extract_color_features(image_data, \
                                               prf_mask = prf_masks[mm,:,:],
@@ -216,6 +219,8 @@ def proc_other_image_set(image_set, args):
         if mm>1 and args.debug:
             continue
 
+        print('proc pRF %d of %d'%(mm, n_prfs))
+        
         features_raw = extract_color_features(image_data, \
                                               prf_mask = prf_masks[mm,:,:],
                                               debug=args.debug)

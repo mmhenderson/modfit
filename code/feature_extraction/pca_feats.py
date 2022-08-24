@@ -407,12 +407,9 @@ def run_pca_oneprf(features_raw, filename_save_pca,
     n_trials, n_feat_orig = features_raw.shape
     
     print('max_pc_to_retain:')
-    print(max_pc_to_retain, n_feat_orig)   
-    if max_pc_to_retain is None:
-        max_pc_to_retain = n_feat_orig
-    else:
-        max_pc_to_retain = np.minimum(max_pc_to_retain, n_feat_orig)
     print(max_pc_to_retain)
+    print('n_feat_orig:')
+    print(n_feat_orig)
     
     if fit_inds is not None:
         assert(len(fit_inds)==n_trials)
@@ -444,6 +441,11 @@ def run_pca_oneprf(features_raw, filename_save_pca,
         nf = n_comp_needed
     else:
         scores[:, n_comp_needed:] = np.nan
+        if scores.shape[1]<max_pc_to_retain:
+            n_pad = max_pc_to_retain - scores.shape[1]
+            print('padding array with nans for %d columns'%(n_pad))
+            scores = np.concatenate([scores, np.full(shape=(n_trials, n_pad), \
+                                                     fill_value=np.nan, dtype=scores.dtype)], axis=1)
         nf = max_pc_to_retain
         
     if save_weights:
@@ -490,14 +492,22 @@ def apply_pca_oneprf(features_raw,
                      load_weights_filename,
                      prf_save_ind=0,
                      n_prfs_total=1,
+                     max_pc_to_retain=100, 
                      save_dtype=np.float32, compress=True, \
                      debug=False):
-
+    
     print('loading pre-computed pca weights from %s'%(load_weights_filename))
     w = np.load(load_weights_filename, allow_pickle=True).item()
     pca_wts = w['pca_wts']
     pca_premean = w['pca_premean']
     pca_ncomp = w['pca_ncomp']
+    
+    n_trials, n_feat_orig = features_raw.shape
+    
+    print('max_pc_to_retain:')
+    print(max_pc_to_retain)
+    print('n_feat_orig:')
+    print(n_feat_orig)
     
     # project into pca subspace using saved wts
     feat_submean = features_raw - np.tile(pca_premean[np.newaxis,:], [features_raw.shape[0],1])
@@ -510,8 +520,13 @@ def apply_pca_oneprf(features_raw,
         nf = n_comp_needed
     else:
         scores[:, n_comp_needed:] = np.nan
-        nf = scores.shape[1]
-    
+        if scores.shape[1]<max_pc_to_retain:
+            n_pad = max_pc_to_retain - scores.shape[1]
+            print('padding array with nans for %d columns'%(n_pad))
+            scores = np.concatenate([scores, np.full(shape=(n_trials, n_pad), \
+                                                     fill_value=np.nan, dtype=scores.dtype)], axis=1)
+        nf = max_pc_to_retain
+       
     dset_shape = (scores.shape[0], nf, n_prfs_total)
     
     print('final size of features for this prf:')

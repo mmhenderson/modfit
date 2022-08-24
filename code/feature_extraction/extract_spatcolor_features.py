@@ -77,7 +77,7 @@ def extract_color_features(image_data,
         fmaps_masked_reshaped = np.moveaxis(fmaps_masked, [2],[0])
         
         # all the color and spatial channels going into one big dimension.
-        features[batch_inds,:] = np.reshape(fmaps_masked, [len(batch_inds),-1])
+        features[batch_inds,:] = np.reshape(fmaps_masked_reshaped, [len(batch_inds),-1])
 
     elapsed = time.time() - st
     print('took %.5f s to gather color feature maps'%elapsed)

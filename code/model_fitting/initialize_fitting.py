@@ -107,13 +107,13 @@ def get_full_save_name(args):
             if args.use_grayscale_st_feats:
                 model_name += '_gray'
                 
-        elif 'color' in ft:
+        elif ft=='color':
             fitting_types += [ft]
-            model_name += 'color_ceilab_sat'
+            model_name += 'color_cielab_sat'
             
         elif 'spatcolor' in ft:
             fitting_types += [ft]
-            model_name += 'spatcolor'
+            model_name += 'spatcolor_cielab_sat'
             
         elif 'alexnet' in ft:
             fitting_types += [ft]
@@ -670,7 +670,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             fe.append(feat_loader)
             fe_names.append(ft)
             
-        elif 'color' in ft:
+        elif ft=='color':
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid, \

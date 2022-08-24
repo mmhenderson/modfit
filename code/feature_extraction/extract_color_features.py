@@ -37,29 +37,33 @@ def extract_color_features(image_data, batch_size=100, \
         if debug and bb>1:
             continue
             
-        print('proc batch %d of %d'%(bb, n_batches))
+        print('processing batch %d of %d'%(bb, n_batches))
+        
         sys.stdout.flush()
        
         batch_inds = np.arange(bb*batch_size, np.minimum((bb+1)*batch_size, n_images))
-        
+    
         st = time.time()
-        fmaps_batch = np.zeros((len(batch_inds), n_pix, n_pix, n_features))
+        # color channels will be last dimension of this array
+        image_batch = np.moveaxis(image_data[batch_inds,:,:,:], [0,1],[3,2])
+
+        st_cielab = time.time()
         
-        for ii, image_ind in enumerate(batch_inds):
- 
-            # color channels will be last dimension of this array
-            image = np.moveaxis(image_data[image_ind,:,:,:], [0],[2])
+        image_lab = color_utils.rgb_to_CIELAB(image_batch, device=device)
+        
+        elapsed_cielab = time.time() - st_cielab
+        print('took %.5f sec to get cielab features'%elapsed_cielab)
+        
+        image_sat = color_utils.get_saturation(image_batch)[:,:,None,:]
+              
+        # 4 color feature channels concatenated here
+        fmaps_batch = np.moveaxis(np.concatenate([image_lab, image_sat], axis=2), [3], [0])
 
-            image_lab = color_utils.rgb_to_CIELAB(image)
-            image_sat = color_utils.get_saturation(image)
-
-            # 4 color feature channels concatenated here
-            fmaps_batch[ii,:,:,:] = np.dstack([image_lab, image_sat])
-
+        print('size of fmaps_batch')
+        print(fmaps_batch.shape)
+        
         elapsed = time.time() - st
         print('took %.5f s to gather color feature maps'%elapsed)
-        
-        st = time.time()
         
         fmaps_batch = torch_utils._to_torch(fmaps_batch, device=device)
         

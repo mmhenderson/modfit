@@ -17,10 +17,14 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 def extract_color_features(image_data,
                            prf_mask, 
+                           batch_size=100, 
+                           device=None,
                            debug=False):
     
     n_pix = image_data.shape[2]
     n_images = image_data.shape[0]
+    
+    n_batches = int(np.ceil(n_images/batch_size))
     
     n_features_color = 4 # [L*, a*, b*, saturation]   
     n_features_spat = np.sum(prf_mask)
@@ -32,29 +36,36 @@ def extract_color_features(image_data,
 
     st = time.time()
     
-    for ii in range(n_images):
-        
-        if debug and ii>1:
+    for bb in range(n_batches):
+       
+        if debug and bb>1:
             continue
         
-        if np.mod(ii,500)==0:
-            print('processing image %d of %d'%(ii, n_images))
-            
-        sys.stdout.flush()
+        batch_inds = np.arange(bb*batch_size, np.minimum((bb+1)*batch_size, n_images))
         
-        # color channels will be last dimension of this array
-        image = np.moveaxis(image_data[ii,:,:,:], [0],[2])
+        print('processing batch %d of %d'%(bb, n_batches))
+        
+        sys.stdout.flush()
 
-        image_lab = color_utils.rgb_to_CIELAB(image)
-        image_sat = color_utils.get_saturation(image)
+        # color channels will be last dimension of this array
+        image_batch = np.moveaxis(image_data[batch_inds,:,:,:], [0,1],[3,2])
+
+        st_cielab = time.time()
+        
+        image_lab = color_utils.rgb_to_CIELAB(image_batch, device=device)
+        
+        elapsed_cielab = time.time() - st_cielab
+        print('took %.5f sec to get cielab features'%elapsed_cielab)
+        
+        image_sat = color_utils.get_saturation(image_batch)[:,:,None,:]
               
         # 4 color feature channels concatenated here
-        fmaps = np.dstack([image_lab, image_sat])
+        fmaps = np.concatenate([image_lab, image_sat], axis=2)
 
         # apply the prf mask      
         fmaps_masked = fmaps[prf_mask]
         
-        if ii==0:
+        if bb==0:
             
             print('size of prf mask is:')
             print(prf_mask.shape)
@@ -63,8 +74,10 @@ def extract_color_features(image_data,
             print('size of fmaps_masked is:')
             print(fmaps_masked.shape)
         
+        fmaps_masked_reshaped = np.moveaxis(fmaps_masked, [2],[0])
+        
         # all the color and spatial channels going into one big dimension.
-        features[ii,:] = fmaps_masked.ravel()
+        features[batch_inds,:] = np.reshape(fmaps_masked, [len(batch_inds),-1])
 
     elapsed = time.time() - st
     print('took %.5f s to gather color feature maps'%elapsed)
@@ -124,15 +137,17 @@ def proc_one_subject(subject, args):
     
     for mm in range(n_prfs):
 
-        if mm>1 and args.debug:
-            continue
+        # if mm>1 and args.debug:
+        #     continue
             
         print('proc pRF %d of %d'%(mm, n_prfs))
         
         # first extract features for all pixels/feature channels 
         features_raw = extract_color_features(image_data, \
                                               prf_mask = prf_masks[mm,:,:],
-                                              debug=args.debug)
+                                              batch_size=args.batch_size,
+                                              debug=args.debug, 
+                                              device=device)
 
         # then do pca to make these less huge
         filename_save_pca = os.path.join(path_to_save, \
@@ -223,7 +238,9 @@ def proc_other_image_set(image_set, args):
         
         features_raw = extract_color_features(image_data, \
                                               prf_mask = prf_masks[mm,:,:],
-                                              debug=args.debug)
+                                              batch_size=args.batch_size,
+                                              debug=args.debug, 
+                                              device=device)
 
         subjects_pca=np.arange(1,9)
 
@@ -241,6 +258,7 @@ def proc_other_image_set(image_set, args):
                                         load_weights_filename=load_weights_filename, 
                                         prf_save_ind=mm, \
                                         n_prfs_total=n_prfs, 
+                                        max_pc_to_retain = args.max_pc_to_retain, 
                                         save_dtype=np.float32, compress=True, \
                                         debug=args.debug)
 
@@ -261,6 +279,8 @@ if __name__ == '__main__':
     
     parser.add_argument("--map_res_pix", type=int,default=100,
                     help="resolution of feature maps before pca")
+    parser.add_argument("--batch_size", type=int,default=100,
+                    help="batch size for color feature extraction")
     
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
                     help="max pc to retain? enter 0 for None")

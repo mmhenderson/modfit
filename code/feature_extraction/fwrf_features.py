@@ -226,11 +226,11 @@ class fwrf_feature_loader:
          
         if self.pca_subject is not None:
             self.features_file = os.path.join(spatcolor_feat_path, 'PCA', \
-                                          '%s_spatcolor_res%dpix_PCA_wtsfromS%d_grid%d.h5py'%\
+                                          '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid%d.h5py'%\
                                               (self.image_set, self.map_res_pix, self.pca_subject, self.which_prf_grid))
         else:
             self.features_file = os.path.join(spatcolor_feat_path, 'PCA', \
-                                          '%s_spatcolor_res%dpix_PCA_grid%d.h5py'%\
+                                          '%s_cielab_plus_sat_res%dpix_PCA_grid%d.h5py'%\
                                               (self.image_set, self.map_res_pix, self.which_prf_grid))  
         
         with h5py.File(self.features_file, 'r') as file:

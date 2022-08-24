@@ -43,7 +43,7 @@ def extract_color_features(image_data,
         # color channels will be last dimension of this array
         image = np.moveaxis(image_data[ii,:,:,:], [0],[2])
 
-        image_lab = color_utils.rgb_to_CIELAB(image)
+        image_lab = color_utils.rgb_to_CIELAB(image, device=device)
         image_sat = color_utils.get_saturation(image)
 
         # 4 color feature channels concatenated here

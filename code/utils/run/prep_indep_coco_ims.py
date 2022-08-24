@@ -9,5 +9,7 @@ if __name__ == '__main__':
    
     args = parser.parse_args()
     
-    coco_utils.prep_indep_coco_images(n_pix=240, debug=args.debug==1)
+    # coco_utils.prep_indep_coco_images(n_pix=240, debug=args.debug==1)
+    
+    coco_utils.prep_indep_coco_images(n_pix=100, debug=args.debug==1)
 

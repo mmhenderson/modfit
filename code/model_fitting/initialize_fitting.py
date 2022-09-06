@@ -93,7 +93,9 @@ def get_full_save_name(args):
             else:
                 model_name += '_OLS'
             model_name+='_%dori_%dsf'%(args.n_ori_gabor, args.n_sf_gabor)
-            if args.use_pca_gabor_feats:
+            if 'noavg' in ft:
+                model_name += '_noavg'
+            elif args.use_pca_gabor_feats:
                 model_name += '_pca'           
             
         elif 'sketch_tokens' in ft:      
@@ -632,7 +634,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
     fe_names = []
     for ft in fitting_types:   
 
-        if 'gabor_solo' in ft:
+        if ft=='gabor_solo':
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=args.which_prf_grid,\
@@ -641,9 +643,19 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             nonlin_fn=args.gabor_nonlin_fn, \
                                                             use_pca_feats=args.use_pca_gabor_feats, \
                                                             pca_subject = pca_subject)
-
             fe.append(feat_loader)
             fe_names.append(ft)
+            
+        elif ft=='gabor_solo_noavg':
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
+                                                            which_prf_grid=args.which_prf_grid,\
+                                                            feature_type='gabor_solo_noavg',\
+                                                            n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
+                                                            pca_subject = pca_subject)
+            fe.append(feat_loader)
+            fe_names.append(ft)
+            
         elif 'pyramid' in ft:
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\

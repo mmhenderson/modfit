@@ -139,6 +139,8 @@ def get_full_save_name(args):
             model_name += 'clip_%s_%s'%(args.resnet_model_architecture, layer_name)
             if args.use_pca_resnet_feats:
                 model_name += '_pca'
+            if 'noavg' in ft:
+                model_name += '_noavg'
                 
         elif 'resnet' in ft:
             fitting_types += [ft]
@@ -151,6 +153,8 @@ def get_full_save_name(args):
             else:
                 model_name += 'resnet_%s_%s'%(args.resnet_model_architecture, layer_name)
             assert (args.use_pca_resnet_feats==True)
+            if 'noavg' in ft:
+                model_name += '_noavg'
                 
         else:
             raise ValueError('fitting type "%s" not recognized'%ft)
@@ -745,6 +749,9 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                 fe_names.append(ft)
 
         elif 'clip' in ft or 'resnet' in ft:
+            
+            use_noavg = ('noavg' in ft)
+               
             if 'clip' in ft:
                 training_type='clip'
             elif args.resnet_blurface:
@@ -762,6 +769,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             model_architecture=args.resnet_model_architecture,\
                                                             use_pca_feats=args.use_pca_resnet_feats, \
                                                             training_type=training_type,
+                                                            use_noavg=use_noavg,
                                                             pca_subject = pca_subject)
                     fe.append(feat_loader)   
                     fe_names.append('resnet_%s'%names[ll])
@@ -775,6 +783,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             model_architecture=args.resnet_model_architecture,\
                                                             use_pca_feats=args.use_pca_resnet_feats, \
                                                             training_type=training_type,
+                                                            use_noavg=use_noavg,
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft) 
@@ -787,6 +796,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             model_architecture=args.resnet_model_architecture,\
                                                             use_pca_feats=args.use_pca_resnet_feats, \
                                                             training_type=training_type,
+                                                            use_noavg=use_noavg,
                                                             pca_subject = pca_subject)
                 fe.append(feat_loader)
                 fe_names.append(ft)   

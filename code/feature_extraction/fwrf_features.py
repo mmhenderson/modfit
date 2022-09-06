@@ -319,7 +319,9 @@ class fwrf_feature_loader:
         if 'layer_name' not in kwargs.keys():
             raise ValueError('need to specify a layer name')
         self.layer_name = kwargs['layer_name']
-        self.use_pca_feats = kwargs['use_pca_feats'] if 'use_pca_feats' in kwargs.keys() else True 
+        self.use_noavg = kwargs['use_noavg'] if 'use_noavg' in kwargs.keys() else False
+        
+        self.use_pca_feats = True
         
         if self.training_type=='clip':
             feat_path = default_paths.clip_feat_path
@@ -327,28 +329,21 @@ class fwrf_feature_loader:
             feat_path = default_paths.resnet50_blurface_feat_path
         elif self.training_type=='imgnet':
             feat_path = default_paths.resnet50_feat_path
-            
-        layer_names  = extract_resnet_features.resnet_block_names
-        n_features_each_layer = extract_resnet_features.n_features_each_resnet_block
-
-        if self.use_pca_feats:
-            if self.pca_subject is not None:
-                self.features_file = os.path.join(feat_path, 'PCA', \
-                  '%s_%s_%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
-                                         self.layer_name, self.pca_subject, self.which_prf_grid))  
-            else:
-                self.features_file = os.path.join(feat_path, 'PCA', \
-                  '%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
-                                             self.layer_name, self.which_prf_grid))  
+        
+        if self.use_noavg:
+            avg_str='_noavg'
         else:
-            raise RuntimeError('have to use pca feats for resnet')
+            avg_str=''
             
-        layer_ind = [ll for ll in range(len(layer_names)) \
-                         if layer_names[ll]==self.layer_name]
-        assert(len(layer_ind)==1)
-        layer_ind = layer_ind[0]        
-        n_feat_expected = n_features_each_layer[layer_ind]
-           
+        if self.pca_subject is not None:
+            self.features_file = os.path.join(feat_path, 'PCA', \
+              '%s_%s_%s_%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                     self.layer_name, avg_str, self.pca_subject, self.which_prf_grid))  
+        else:
+            self.features_file = os.path.join(feat_path, 'PCA', \
+              '%s_%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                         self.layer_name, avg_str, self.which_prf_grid))  
+        
         with h5py.File(self.features_file, 'r') as file:
             feat_shape = np.shape(file['/features'])
             file.close()

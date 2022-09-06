@@ -416,6 +416,8 @@ def run_pca_oneprf(features_raw, filename_save_pca,
     else:
         fit_inds = np.ones((n_trials,),dtype=bool)
       
+    print('computing pca')
+    sys.stdout.flush()
     # finding pca solution for just training data (specified in fit_inds)
     _, wts, pre_mean, ev = compute_pca(features_raw[fit_inds,:], max_pc_to_retain=max_pc_to_retain)
 

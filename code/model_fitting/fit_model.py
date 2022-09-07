@@ -217,17 +217,21 @@ def fit_fwrf(args):
         dnn_layers_use = np.arange(5)
         assert(not np.any(['clip' in ft for ft in fitting_types]))
     elif np.any(['clip' in ft for ft in fitting_types]) or np.any(['resnet' in ft for ft in fitting_types]):
-        if args.n_resnet_blocks_include==4:
-            n_dnn_layers = 4;
-            dnn_layers_use = [2,6,12,15]
-        elif args.n_resnet_blocks_include==8:
-            n_dnn_layers = 8;
-            dnn_layers_use=np.arange(0,16,2)+1
-        elif args.n_resnet_blocks_include==16:
-            n_dnn_layers = 16;
-            dnn_layers_use = np.arange(0,16,1)
+        from feature_extraction import extract_resnet_features
+        if args.resnet_layer_name=='best_layer' or args.resnet_layer_name=='all_resblocks':
+            if args.n_resnet_blocks_include==4:
+                n_dnn_layers = 4;
+                dnn_layers_use = [2,6,12,15]
+            elif args.n_resnet_blocks_include==8:
+                n_dnn_layers = 8;
+                dnn_layers_use=np.arange(0,16,2)+1
+            elif args.n_resnet_blocks_include==16:
+                n_dnn_layers = 16;
+                dnn_layers_use = np.arange(0,16,1)
+            else:
+                raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
         else:
-            raise ValueError('n_resnet_blocks_include must be 4,8, or 16')
+            dnn_layers_use=args.resnet_layer_name
         if np.any(['clip' in ft for ft in fitting_types]):
             dnn_model='clip'
         elif np.any(['resnet' in ft for ft in fitting_types]):

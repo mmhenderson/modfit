@@ -337,11 +337,11 @@ class fwrf_feature_loader:
             
         if self.pca_subject is not None:
             self.features_file = os.path.join(feat_path, 'PCA', \
-              '%s_%s_%s_%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
+              '%s_%s_%s%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
                                      self.layer_name, avg_str, self.pca_subject, self.which_prf_grid))  
         else:
             self.features_file = os.path.join(feat_path, 'PCA', \
-              '%s_%s_%s_%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
+              '%s_%s_%s%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
                                          self.layer_name, avg_str, self.which_prf_grid))  
         
         with h5py.File(self.features_file, 'r') as file:

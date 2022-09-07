@@ -17,11 +17,52 @@ class semantic_feature_loader:
         
         self.__get_categ_exclude__()
       
-        if self.feature_set=='indoor_outdoor':
+        if self.n_prfs==1:
+          
+            self.same_labels_all_prfs=True
+            
+            self.labels_folder = default_paths.stim_labels_root
+            if self.feature_set=='natural_humanmade':            
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_natural_humanmade.csv'%(self.subject))          
+                self.n_features = 2
+                self.cols_use = None
+            elif self.feature_set=='real_world_size':            
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_realworldsize.csv'%(self.subject))          
+                self.n_features = 3
+                self.cols_use = None
+            elif 'coco_things' in self.feature_set:
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_binary.csv'%(self.subject))
+                
+                if 'supcateg' in self.feature_set:                    
+                    self.n_features = 12
+                    self.cols_use = np.arange(12)
+                else:
+                    # use all the basic-level coco things categories
+                    self.n_features = 80
+                    self.cols_use = np.arange(12,92)
+            elif 'coco_stuff' in self.feature_set:
+                self.features_file = os.path.join(self.labels_folder, \
+                                  'S%d_cocolabs_stuff_binary.csv'%(self.subject))
+                if 'supcateg' in self.feature_set:                    
+                    self.n_features = 16
+                    self.cols_use = np.arange(16)
+                else:
+                    self.n_features = 92     
+                    self.cols_use = np.arange(16, 108)
+            else:
+                raise ValueError('feature_set %s not recognized'%self.feature_set)
+                
+                
+        elif self.feature_set=='indoor_outdoor':
+            
             self.features_file = os.path.join(default_paths.stim_labels_root, \
                                           'S%d_indoor_outdoor.csv'%self.subject)
             self.same_labels_all_prfs=True
             self.n_features = 2
+            self.cols_use = None
             
         else:
 
@@ -123,7 +164,9 @@ class semantic_feature_loader:
             coco_df = pd.read_csv(self.features_file, index_col=0)
             labels = np.array(coco_df)
             colnames = list(coco_df.keys())  
-        
+            if self.cols_use is not None:
+                labels = labels[:,np.array(self.cols_use)]
+                colnames = [colnames[cc] for cc in self.cols_use]
         else:
             if self.feature_set=='natural_humanmade':
                 self.features_file = os.path.join(self.labels_folder, \

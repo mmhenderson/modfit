@@ -31,6 +31,7 @@ except:
 
 def extract_features(image_data, \
                     block_inds, \
+                    pooling_op = None,
                     save_dtype=np.float32,\
                     training_type='clip', \
                     debug=False):
@@ -54,6 +55,8 @@ def extract_features(image_data, \
     image_template = np.tile(image_data[0:1,:,:,:], [1,3,1,1])
     activ_template = get_resnet_activations_batch(image_template, block_inds, \
                                                  model_architecture, training_type, device=device)
+    if pooling_op is not None:
+        activ_template = [pooling_op(activ_template[0])]
     n_features_total = np.prod(activ_template[0].shape[1:])  
     print('number of features total: %d'%n_features_total)
     
@@ -80,15 +83,22 @@ def extract_features(image_data, \
 
             activ_batch = get_resnet_activations_batch(image_batch, block_inds, \
                                                  model_architecture, training_type, device=device)
-
             if bb==0:
                 print('size of activ this batch raw:')
                 print(activ_batch[0].shape)
+              
+            if pooling_op is not None:
                 
+                activ_batch = [pooling_op(activ_batch[0])]
+                
+                if bb==0:
+                    print('size of activ pooled:')
+                    print(activ_batch[0].shape)
+              
             activ_batch_reshaped = torch.reshape(activ_batch[0], [len(batch_inds), -1])
            
             if bb==0:
-                print('size of activ this batch reshaped:')
+                print('size of activ reshaped:')
                 print(activ_batch_reshaped.shape)
                 
             features[batch_inds,:] = activ_batch_reshaped.detach().cpu().numpy()
@@ -244,10 +254,17 @@ def proc_one_subject(subject, args):
         # each batch will be in a separate file, since they're big features
         
         block_inds = [ll]
-       
+        
+        if ll<=2:
+            # reduce size of larger feature maps
+            pooling_op = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        else:
+            pooling_op = None
+            
         # first extract features for all pixels/feature channels 
         features_raw = extract_features(image_data,\
                                         block_inds,\
+                                        pooling_op = pooling_op,
                                         save_dtype=np.float32,\
                                         training_type=args.training_type, \
                                         debug=args.debug)
@@ -327,9 +344,16 @@ def proc_other_image_set(image_set, args):
 
         block_inds = [ll]
         
+        if ll<=2:
+            # reduce size of larger feature maps
+            pooling_op = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        else:
+            pooling_op = None
+            
         # first extract features for all pixels/feature channels 
         features_raw = extract_features(image_data,\
                                         block_inds,\
+                                        pooling_op = pooling_op, 
                                         save_dtype=np.float32,\
                                         training_type=args.training_type, \
                                         debug=args.debug)

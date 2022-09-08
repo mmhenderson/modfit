@@ -44,8 +44,6 @@ class fwrf_feature_loader:
             self.__init_pyramid_texture__(kwargs)
         elif self.feature_type=='color':
             self.__init_color__(kwargs)
-        elif self.feature_type=='spatcolor':
-            self.__init_spatcolor__(kwargs)
         elif self.feature_type=='alexnet':
             self.__init_alexnet__(kwargs)
         elif self.feature_type=='resnet':
@@ -216,20 +214,23 @@ class fwrf_feature_loader:
     
     def __init_color__(self, kwargs):
         
-        self.map_res_pix = kwargs['map_res_pix'] if 'map_res_pix' in kwargs.keys() else 100
-        
+        self.use_noavg = kwargs['use_noavg'] if 'use_noavg' in kwargs.keys() else False
+        if self.use_noavg:
+            self.use_pca_feats=True
+        else:
+            self.use_pca_feats=False
+            
         feat_path = default_paths.color_feat_path
         
-        if self.which_prf_grid==0:
-            self.use_pca_feats = True
+        if self.use_pca_feats:
             if self.pca_subject is None:
                 self.features_file = os.path.join(feat_path, 'PCA', \
-                                              '%s_cielab_plus_sat_res%dpix_PCA_grid0.h5py'%\
-                                                  (self.image_set, self.map_res_pix))
+                                              '%s_cielab_plus_sat_noavg_PCA_grid%d.h5py'%\
+                                                  (self.image_set, self.which_prf_grid))
             else:
                 self.features_file = os.path.join(feat_path, 'PCA', \
-                               '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid0.h5py'%\
-                                (self.image_set, self.map_res_pix, self.pca_subject))
+                               '%s_cielab_plus_sat_noavg_PCA_wtsfromS%d_grid%d.h5py'%\
+                                (self.image_set, self.pca_subject, self.whcih_prf_grid))
             with h5py.File(self.features_file, 'r') as file:
                 feat_shape = np.shape(file['/features'])
                 file.close()
@@ -241,31 +242,6 @@ class fwrf_feature_loader:
             self.max_features=4
         
         self.do_varpart = False
-        self.n_feature_types=1
-        
-    def __init_spatcolor__(self, kwargs):
-
-        feat_path = default_paths.spatcolor_feat_path
-
-        self.map_res_pix = kwargs['map_res_pix'] if 'map_res_pix' in kwargs.keys() else 100
-        
-        self.use_pca_feats = True
-         
-        if self.pca_subject is not None:
-            self.features_file = os.path.join(feat_path, 'PCA', \
-                                          '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid%d.h5py'%\
-                                              (self.image_set, self.map_res_pix, self.pca_subject, self.which_prf_grid))
-        else:
-            self.features_file = os.path.join(feat_path, 'PCA', \
-                                          '%s_cielab_plus_sat_res%dpix_PCA_grid%d.h5py'%\
-                                              (self.image_set, self.map_res_pix, self.which_prf_grid))  
-        
-        with h5py.File(self.features_file, 'r') as file:
-            feat_shape = np.shape(file['/features'])
-            file.close()
-        self.max_features = feat_shape[1]
-        
-        self.do_varpart=False
         self.n_feature_types=1
         
     def __init_alexnet__(self,kwargs):

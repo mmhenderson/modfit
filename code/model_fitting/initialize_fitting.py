@@ -109,14 +109,12 @@ def get_full_save_name(args):
             if args.use_grayscale_st_feats:
                 model_name += '_gray'
                 
-        elif ft=='color':
+        elif 'color' in ft:
             fitting_types += [ft]
             model_name += 'color_cielab_sat'
-            
-        elif 'spatcolor' in ft:
-            fitting_types += [ft]
-            model_name += 'spatcolor_cielab_sat'
-            
+            if 'noavg' in ft:
+                model_name += '_noavg'
+          
         elif 'alexnet' in ft:
             fitting_types += [ft]
             if 'ReLU' in args.alexnet_layer_name:
@@ -697,16 +695,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             fe.append(feat_loader)
             fe_names.append(ft)
             
-        elif ft=='color':
-            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
-                                                            image_set=args.image_set,\
-                                                            which_prf_grid=args.which_prf_grid, \
-                                                            feature_type='color', 
-                                                            map_res_pix = 100)
-            fe.append(feat_loader)
-            fe_names.append(ft)
-            
-        elif 'spatcolor' in ft:
+        elif 'color' in ft:
+            use_noavg = ('noavg' in ft)
             if args.use_fullimage_color_feats:
                 prf_grid=0
             else:
@@ -714,12 +704,11 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=prf_grid, \
-                                                            feature_type='spatcolor', \
-                                                            pca_subject = pca_subject, \
-                                                            map_res_pix = args.spatcolor_map_res_pix)
+                                                            feature_type='color',
+                                                            use_noavg=use_noavg)
             fe.append(feat_loader)
             fe_names.append(ft)
-
+            
         elif 'alexnet' in ft:
             if args.use_fullimage_alexnet_feats:
                 prf_grid=0

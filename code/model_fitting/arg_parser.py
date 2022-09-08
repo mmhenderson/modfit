@@ -133,8 +133,6 @@ def get_args():
                     help="Want to use full-image (no pRFs) vers of gabor features?")
     
     # Specific to color models
-    parser.add_argument("--spatcolor_map_res_pix", type=int,default=100,
-                    help="resolution of color feature maps")
     parser.add_argument("--use_fullimage_color_feats", type=nice_str2bool,default=False,
                     help="Want to use full-image (no pRFs) vers of color features?")
       

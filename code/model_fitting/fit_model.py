@@ -167,6 +167,7 @@ def fit_fwrf(args):
             'n_resnet_blocks_include': args.n_resnet_blocks_include, 
             'resnet_blurface': args.resnet_blurface, 
             'resnet_layers_use': dnn_layers_use,
+            'resnet_training_type': args.resnet_training_type,    
             })
 
         print('\nSaving to %s\n'%fn2save)

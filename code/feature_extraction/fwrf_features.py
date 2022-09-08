@@ -325,24 +325,32 @@ class fwrf_feature_loader:
         
         if self.training_type=='clip':
             feat_path = default_paths.clip_feat_path
+            training_type_str=''
         elif self.training_type=='blurface':
             feat_path = default_paths.resnet50_blurface_feat_path
+            training_type_str=''
         elif self.training_type=='imgnet':
             feat_path = default_paths.resnet50_feat_path
-        
+            training_type_str=''
+        elif 'startingblurry' in self.training_type:
+            feat_path = default_paths.resnet50_startingblurry_feat_path
+            training_type_str='_%s'%self.training_type.split('startingblurry_')[1]
+            
         if self.use_noavg:
             avg_str='_noavg'
         else:
             avg_str=''
-            
+          
         if self.pca_subject is not None:
             self.features_file = os.path.join(feat_path, 'PCA', \
-              '%s_%s_%s%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
-                                     self.layer_name, avg_str, self.pca_subject, self.which_prf_grid))  
+              '%s_%s%s_%s%s_PCA_wtsfromS%d_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                                         training_type_str,self.layer_name, avg_str, \
+                                                         self.pca_subject, self.which_prf_grid))  
         else:
             self.features_file = os.path.join(feat_path, 'PCA', \
-              '%s_%s_%s%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
-                                         self.layer_name, avg_str, self.which_prf_grid))  
+              '%s_%s%s_%s%s_PCA_grid%d.h5py'%(self.image_set, self.model_architecture, \
+                                              training_type_str, self.layer_name, avg_str, \
+                                              self.which_prf_grid))  
         
         with h5py.File(self.features_file, 'r') as file:
             feat_shape = np.shape(file['/features'])

@@ -170,6 +170,8 @@ def get_args():
                        help="What layer of resnet to use?")
     parser.add_argument("--resnet_model_architecture", type=str, default='RN50', 
                        help="What model architecture used for this version of resnet?")
+    parser.add_argument("--resnet_training_type", type=str, default='', 
+                       help="What training type used for resnet?")
     parser.add_argument("--use_pca_resnet_feats", type=nice_str2bool, default=True, 
                        help="use reduced-dim version of resnet features?")
     

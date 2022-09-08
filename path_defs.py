@@ -28,3 +28,6 @@ coco_ims_path = '/lab_data/tarrlab/common/datasets/COCO'
 
 # only need this path if using floc stimuli (categories)
 floc_image_root = '/lab_data/tarrlab/maggie/fLoc_stimuli/'
+
+# path to trained models from starting blurry project
+startingblurry_root = '/home/ojinsi/trials/'

@@ -39,6 +39,7 @@ clip_feat_path = os.path.join(root, 'features', 'CLIP')
 
 # Path where ResNet50 features will be saved
 resnet50_feat_path = os.path.join(root, 'features', 'resnet50')
+resnet50_startingblurry_feat_path = os.path.join(root, 'features', 'resnet50_startingblurry')
 resnet50_blurface_feat_path = os.path.join(root, 'features', 'resnet50_blurface')
 
 # Path where color model features will be saved
@@ -54,3 +55,5 @@ coco_api_path = path_defs.coco_api_path
 coco_ims_path = path_defs.coco_ims_path
 
 floc_image_root = path_defs.floc_image_root
+
+startingblurry_root = path_defs.startingblurry_root

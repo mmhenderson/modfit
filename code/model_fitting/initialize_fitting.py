@@ -150,6 +150,8 @@ def get_full_save_name(args):
                 layer_name = args.resnet_layer_name
             if args.resnet_blurface:
                 model_name += 'resnet_blurface_%s_%s'%(args.resnet_model_architecture, layer_name)
+            elif 'startingblurry' in ft:
+                model_name += 'resnet_%s_%s'%(args.resnet_training_type, layer_name)
             else:
                 model_name += 'resnet_%s_%s'%(args.resnet_model_architecture, layer_name)
             assert (args.use_pca_resnet_feats==True)
@@ -756,6 +758,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                 training_type='clip'
             elif args.resnet_blurface:
                 training_type='blurface'
+            elif 'startingblurry' in ft:
+                training_type = args.resnet_training_type
             else:
                 training_type='imgnet'
                 

@@ -439,21 +439,6 @@ def proc_other_image_set(image_set, args):
                                         save_dtype=np.float32, compress=True, \
                                         debug=args.debug)
 
-  
-            
-def save_features(features_each_prf, filename_save, save_dtype):
-    
-    print('Writing prf features to %s\n'%filename_save)
-    
-    t = time.time()
-    with h5py.File(filename_save, 'w') as data_set:
-        dset = data_set.create_dataset("features", np.shape(features_each_prf), dtype=save_dtype)
-        data_set['/features'][:,:,:] = features_each_prf
-        data_set.close()  
-    elapsed = time.time() - t
-    
-    print('Took %.5f sec to write file'%elapsed)
-    
 
 if __name__ == '__main__':
     

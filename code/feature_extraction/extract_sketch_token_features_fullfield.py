@@ -16,6 +16,8 @@ try:
 except:
     device = 'cpu:0'
 
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 
 def get_features(features_file, 
                   pooling_op, 

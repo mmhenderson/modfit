@@ -48,13 +48,37 @@ def extract_features(image_data, \
     # Keep these params fixed
     batch_size = 100 # batches in image dimension
     model_architecture='RN50'
-
+    
+    if 'startingblurry' in training_type:   
+        do_tile=False
+        if 'ecoset_noblur_bw' in training_type:
+            trial_num = training_type.split('ecoset_noblur_bw_')[1]
+            model_filename = os.path.join(default_paths.startingblurry_root,
+                                          'BW50/%s/BWNoBlurModel.pt'%trial_num)
+        elif 'ecoset_linblur_bw' in training_type:
+            trial_num = training_type.split('ecoset_linblur_bw_')[1]
+            model_filename = os.path.join(default_paths.startingblurry_root,
+                                          'BW50/%s/50BWLinearBlurModel.pt'%trial_num)
+        elif 'ecoset_nonlinblur_bw' in training_type:
+            trial_num = training_type.split('ecoset_nonlinblur_bw_')[1]
+            model_filename = os.path.join(default_paths.startingblurry_root,
+                                          'BW50/%s/50BWNonLinearBlurModel2.pt'%trial_num)
+        else:        
+            raise ValueError('training type %s not recognized'%(training_type))
+    else:
+        do_tile=True
+        model_filename=None
+   
     n_batches = int(np.ceil(n_images/batch_size))
 
     # figure out how big features will be, by passing a test image through
-    image_template = np.tile(image_data[0:1,:,:,:], [1,3,1,1])
+    if do_tile:
+        image_template = np.tile(image_data[0:1,:,:,:], [1,3,1,1])
+    else:
+        image_template = image_data[0:1,:,:,:]
     activ_template = get_resnet_activations_batch(image_template, block_inds, \
-                                                 model_architecture, training_type, device=device)
+                                                 model_architecture, training_type, \
+                                                  model_filename=model_filename, device=device)
     if pooling_op is not None:
         activ_template = [pooling_op(activ_template[0])]
     n_features_total = np.prod(activ_template[0].shape[1:])  
@@ -76,13 +100,17 @@ def extract_features(image_data, \
 
             # using grayscale images for better comparison w my other models.
             # need to tile to 3 so model weights will be right size
-            image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
+            if do_tile:
+                image_batch = np.tile(image_data[batch_inds,:,:,:], [1,3,1,1])
+            else:
+                image_batch = image_data[batch_inds,:,:,:]
 
             gc.collect()
             torch.cuda.empty_cache()
 
             activ_batch = get_resnet_activations_batch(image_batch, block_inds, \
-                                                 model_architecture, training_type, device=device)
+                                                 model_architecture, training_type, \
+                                                 model_filename=model_filename, device=device)
             if bb==0:
                 print('size of activ this batch raw:')
                 print(activ_batch[0].shape)
@@ -110,6 +138,7 @@ def get_resnet_activations_batch(image_batch, \
                                block_inds, \
                                model_architecture, \
                                training_type, \
+                               model_filename = None, \
                                device=None):
 
     """
@@ -143,6 +172,33 @@ def get_resnet_activations_batch(image_batch, \
             new_sd[new_kn] = sd[kn]
         model.load_state_dict(new_sd)
         
+    elif 'startingblurry' in training_type:
+        
+        model = models.resnet50().float().to(device)
+        print('Loading saved model from %s'%model_filename)
+        loaded_state_dict = torch.load(model_filename, map_location=device)
+
+        # fix the key names
+        correct_state_dict = OrderedDict([k[7:],v] for k,v in loaded_state_dict.items())
+        
+        # if model was trained w grayscale images, need to reduce size of first weights
+        in_channels = correct_state_dict['conv1.weight'].shape[1]
+        if in_channels<3:
+            model.conv1 = nn.Conv2d(in_channels, model.conv1.out_channels, \
+                                    kernel_size=model.conv1.kernel_size, \
+                                    stride=model.conv1.stride, \
+                                    padding=model.conv1.padding, \
+                                    bias=model.conv1.bias, device=device)
+        
+        # if model was trained with ecoset, need to fix dim of output
+        n_out_feat_saved = correct_state_dict['fc.bias'].shape[0]
+        model.fc = nn.Linear(model.fc.in_features, n_out_feat_saved, device=device)
+
+        print(model.conv1.weight.shape)
+        print(model.fc.weight.shape)
+        # now load the saved weights into our model
+        model.load_state_dict(correct_state_dict)
+
     elif training_type=='imgnet':
         
         # normal pre-trained model from pytorch
@@ -195,7 +251,6 @@ def get_resnet_activations_batch(image_batch, \
 
         # Now remove all the hooks
         for ii, ll in enumerate(block_inds):
-            print(activ[ii].shape)
             hooks[ii].remove
 
     # Sanity check that we grabbed the right activations - check their sizes against expected
@@ -209,13 +264,18 @@ def get_resnet_activations_batch(image_batch, \
 
 def proc_one_subject(subject, args):
     
+    model_architecture_str='RN50'
+    
     if args.training_type=='clip':
         feat_path = default_paths.clip_feat_path
     elif args.training_type=='blurface':
         feat_path = default_paths.resnet50_blurface_feat_path
     elif args.training_type=='imgnet':
         feat_path = default_paths.resnet50_feat_path
-     
+    elif 'startingblurry' in args.training_type:
+        feat_path = default_paths.resnet50_startingblurry_feat_path
+        model_architecture_str += '_%s'%args.training_type.split('startingblurry_')[1]
+       
     if args.debug:
         feat_path = os.path.join(feat_path,'DEBUG')
     
@@ -249,6 +309,7 @@ def proc_one_subject(subject, args):
     if args.start_layer>0:
         blocks_to_do = blocks_to_do[args.start_layer:]
    
+    
     for ll in blocks_to_do:
 
         # each batch will be in a separate file, since they're big features
@@ -271,22 +332,21 @@ def proc_one_subject(subject, args):
 
         # then do pca to make these less huge
         layer_name = 'block%d'%(ll)
-        model_architecture='RN50'
         filename_save_pca = os.path.join(path_to_save, \
                                           'S%d_%s_%s_noavg_PCA_grid0.h5py'%\
-                                    (subject, model_architecture, layer_name))
+                                    (subject, model_architecture_str, layer_name))
         
         if args.save_pca_weights:
             save_weights_filename = os.path.join(path_to_save, \
                                     'S%d_%s_%s_noavg_PCA_weights_grid0.npy'%\
-                                    (subject, model_architecture, layer_name))
+                                    (subject, model_architecture_str, layer_name))
         else:
             save_weights_filename = None
 
         if args.use_saved_ncomp:
             ncomp_filename = os.path.join(path_to_save, \
                                     'S%d_%s_%s_noavg_PCA_grid0_ncomp.npy'%\
-                                    (subject, model_architecture, layer_name))
+                                    (subject, model_architecture_str, layer_name))
         else:
             ncomp_filename = None
 
@@ -307,12 +367,17 @@ def proc_one_subject(subject, args):
             
 def proc_other_image_set(image_set, args):
     
+    model_architecture_str='RN50'
+    
     if args.training_type=='clip':
         feat_path = default_paths.clip_feat_path
     elif args.training_type=='blurface':
         feat_path = default_paths.resnet50_blurface_feat_path
     elif args.training_type=='imgnet':
         feat_path = default_paths.resnet50_feat_path
+    elif 'startingblurry' in args.training_type:
+        feat_path = default_paths.resnet50_startingblurry_feat_path
+        model_architecture_str += '_%s'%args.training_type.split('startingblurry_')[1]
        
     if args.debug:
         feat_path = os.path.join(feat_path,'DEBUG')
@@ -359,15 +424,14 @@ def proc_other_image_set(image_set, args):
                                         debug=args.debug)
 
         layer_name = 'block%d'%(ll)
-        model_architecture='RN50'
         
         for ss in subjects_pca:
 
             load_weights_filename = os.path.join(path_to_save, 'S%d_%s_%s_noavg_PCA_weights_grid0.npy'%\
-                                    (ss, model_architecture, layer_name))
+                                    (ss, model_architecture_str, layer_name))
             filename_save_pca = os.path.join(path_to_save, \
                                     '%s_%s_%s_noavg_PCA_wtsfromS%d_grid0.h5py'%\
-                                    (image_set, model_architecture, layer_name, ss))
+                                    (image_set, model_architecture_str, layer_name, ss))
 
             pca_feats.apply_pca_oneprf(features_raw, 
                                         filename_save_pca, 

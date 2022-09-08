@@ -108,6 +108,8 @@ def get_full_save_name(args):
                 model_name += 'sketch_tokens'
             if args.use_grayscale_st_feats:
                 model_name += '_gray'
+            if 'noavg' in ft:
+                model_name += '_noavg'
                 
         elif 'color' in ft:
             fitting_types += [ft]
@@ -127,6 +129,8 @@ def get_full_save_name(args):
                 model_name += 'alexnet_%s'%name
             if args.use_pca_alexnet_feats:
                 model_name += '_pca'
+            if 'noavg' in ft:
+                model_name += '_noavg'
                 
         elif 'clip' in ft:
             fitting_types += [ft]
@@ -638,20 +642,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
     fe_names = []
     for ft in fitting_types:   
 
-        if ft=='gabor_solo':
-            
-            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
-                                                            image_set=args.image_set,\
-                                                            which_prf_grid=args.which_prf_grid,\
-                                                            feature_type='gabor_solo',\
-                                                            n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
-                                                            nonlin_fn=args.gabor_nonlin_fn, \
-                                                            use_pca_feats=args.use_pca_gabor_feats, \
-                                                            pca_subject = pca_subject)
-            fe.append(feat_loader)
-            fe_names.append(ft)
-            
-        elif ft=='gabor_solo_noavg':
+        if 'gabor' in ft:
+            use_noavg = ('noavg' in ft)
             if args.use_fullimage_gabor_feats:
                 prf_grid=0
             else:
@@ -659,12 +651,15 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=prf_grid,\
-                                                            feature_type='gabor_solo_noavg',\
+                                                            feature_type='gabor_solo',\
                                                             n_ori=args.n_ori_gabor, n_sf=args.n_sf_gabor,\
-                                                            pca_subject = pca_subject)
+                                                            nonlin_fn=args.gabor_nonlin_fn, \
+                                                            use_pca_feats=args.use_pca_gabor_feats, \
+                                                            pca_subject = pca_subject,
+                                                            use_noavg=use_noavg)
             fe.append(feat_loader)
             fe_names.append(ft)
-            
+          
         elif 'pyramid' in ft:
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
@@ -680,6 +675,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             fe_names.append(ft)
             
         elif 'sketch_tokens' in ft:
+            use_noavg = ('noavg' in ft)
             if args.use_fullimage_st_feats:
                 prf_grid=0
             else:
@@ -691,7 +687,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             use_pca_feats = args.use_pca_st_feats, \
                                                             use_residual_st_feats = args.use_residual_st_feats, \
                                                             use_grayscale_st_feats = args.use_grayscale_st_feats, \
-                                                            pca_subject = pca_subject)
+                                                            pca_subject = pca_subject,
+                                                            use_noavg=use_noavg)
             fe.append(feat_loader)
             fe_names.append(ft)
             
@@ -710,6 +707,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             fe_names.append(ft)
             
         elif 'alexnet' in ft:
+            use_noavg = ('noavg' in ft)
             if args.use_fullimage_alexnet_feats:
                 prf_grid=0
             else:
@@ -725,7 +723,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
                                                             blurface = args.alexnet_blurface, \
-                                                            pca_subject = pca_subject)
+                                                            pca_subject = pca_subject,
+                                                            use_noavg=use_noavg)
                     fe.append(feat_loader)   
                     fe_names.append('alexnet_%s'%names[ll])
             elif args.alexnet_layer_name=='best_layer':
@@ -739,7 +738,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
                                                             blurface = args.alexnet_blurface, \
-                                                            pca_subject = pca_subject)
+                                                            pca_subject = pca_subject,
+                                                            use_noavg=use_noavg)
                 fe.append(feat_loader)   
                 fe_names.append(ft)
             else:
@@ -751,7 +751,8 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             use_pca_feats = args.use_pca_alexnet_feats,\
                                                             padding_mode = args.alexnet_padding_mode, \
                                                             blurface = args.alexnet_blurface, \
-                                                            pca_subject = pca_subject)
+                                                            pca_subject = pca_subject,
+                                                            use_noavg=use_noavg)
                 fe.append(feat_loader)
                 fe_names.append(ft)
 

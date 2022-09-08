@@ -88,7 +88,7 @@ def extract_color_features(image_data,
     
 def proc_one_subject(subject, args):
 
-    feat_path = default_paths.spatcolor_feat_path
+    feat_path = default_paths.color_feat_path
        
     if args.debug:
         feat_path = os.path.join(feat_path,'DEBUG')
@@ -120,51 +120,51 @@ def proc_one_subject(subject, args):
     n_prfs = models.shape[0]
       
     n_pix = image_data.shape[2]
-    # create the binary masks for each pRF, +/- 1.5 SD
-    prf_masks = np.zeros((n_prfs, n_pix, n_pix),dtype=bool)    
+     
     n_prf_sd_out = 1.5
-    for prf_ind in range(n_prfs):    
-        prf_params = models[prf_ind,:] 
-        x,y,sigma = prf_params
-        aperture=1.0
-        prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
-                               patch_size=n_pix, zscore_plusminus=n_prf_sd_out)
-        prf_masks[prf_ind,:,:] = prf_mask==1
-    
-    mask_sums = np.sum(np.sum(prf_masks, axis=1), axis=1)
-    assert(not np.any(mask_sums==0))
-    
-    
+   
     for mm in range(n_prfs):
 
-        # if mm>1 and args.debug:
-        #     continue
+        if mm>1 and args.debug:
+            continue
             
         print('proc pRF %d of %d'%(mm, n_prfs))
         
+        # create the binary masks for each pRF, +/- 1.5 SD   
+        x,y,sigma = models[mm,:] 
+        if sigma is None:
+            assert(args.which_prf_grid==0)
+            prf_mask = np.ones((n_pix, n_pix),dtype=int)
+        else:
+            prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
+                               patch_size=n_pix, zscore_plusminus=n_prf_sd_out)
+        prf_mask = prf_mask==1
+
+        assert(np.sum(prf_mask)>0)
+        
         # first extract features for all pixels/feature channels 
         features_raw = extract_color_features(image_data, \
-                                              prf_mask = prf_masks[mm,:,:],
+                                              prf_mask = prf_mask,
                                               batch_size=args.batch_size,
                                               debug=args.debug, 
                                               device=device)
 
         # then do pca to make these less huge
         filename_save_pca = os.path.join(path_to_save, \
-                                   'S%d_cielab_plus_sat_res%dpix_PCA_grid%d.h5py'%\
-                                    (subject, args.map_res_pix, args.which_prf_grid))
+                                   'S%d_cielab_plus_sat_noavg_PCA_grid%d.h5py'%\
+                                    (subject, args.which_prf_grid))
         
         if args.save_weights:
             save_weights_filename = os.path.join(weights_folder, \
-                                    'S%d_cielab_plus_sat_res%dpix_PCA_weights_prf%d.npy'%\
-                                    (subject, args.map_res_pix, mm))
+                                    'S%d_cielab_plus_sat_noavg_PCA_weights_prf%d.npy'%\
+                                    (subject, mm))
         else:
             save_weights_filename = None
 
         if args.use_saved_ncomp:
             ncomp_filename = os.path.join(weights_folder, \
-                                    'S%d_cielab_plus_sat_res%dpix_PCA_ncomp_prf%d.npy'%\
-                                    (subject, args.map_res_pix, mm))
+                                    'S%d_cielab_plus_sat_noavg_PCA_ncomp_prf%d.npy'%\
+                                    (subject, mm))
         else:
             ncomp_filename = None
 
@@ -188,7 +188,7 @@ def proc_one_subject(subject, args):
     
 def proc_other_image_set(image_set, args):
        
-    feat_path = default_paths.spatcolor_feat_path
+    feat_path = default_paths.color_feat_path
     
     if args.debug:
         feat_path = os.path.join(feat_path,'DEBUG')
@@ -215,19 +215,9 @@ def proc_other_image_set(image_set, args):
     n_prfs = models.shape[0]
       
     n_pix = image_data.shape[2]
-    # create the binary masks for each pRF, +/- 1.5 SD
-    prf_masks = np.zeros((n_prfs, n_pix, n_pix),dtype=bool)    
-    n_prf_sd_out = 1.5
-    for prf_ind in range(n_prfs):    
-        prf_params = models[prf_ind,:] 
-        x,y,sigma = prf_params
-        aperture=1.0
-        prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
-                               patch_size=n_pix, zscore_plusminus=n_prf_sd_out)
-        prf_masks[prf_ind,:,:] = prf_mask==1
     
-    mask_sums = np.sum(np.sum(prf_masks, axis=1), axis=1)
-    assert(not np.any(mask_sums==0))
+    n_prf_sd_out = 1.5
+        
     
     for mm in range(n_prfs):
         
@@ -236,8 +226,20 @@ def proc_other_image_set(image_set, args):
 
         print('proc pRF %d of %d'%(mm, n_prfs))
         
+        # create the binary masks for each pRF, +/- 1.5 SD   
+        x,y,sigma = models[mm,:] 
+        if sigma is None:
+            assert(args.which_prf_grid==0)
+            prf_mask = np.ones((n_pix, n_pix),dtype=int)
+        else:
+            prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
+                               patch_size=n_pix, zscore_plusminus=n_prf_sd_out)
+        prf_mask = prf_mask==1
+
+        assert(np.sum(prf_mask)>0)
+        
         features_raw = extract_color_features(image_data, \
-                                              prf_mask = prf_masks[mm,:,:],
+                                              prf_mask = prf_mask,
                                               batch_size=args.batch_size,
                                               debug=args.debug, 
                                               device=device)
@@ -246,12 +248,12 @@ def proc_other_image_set(image_set, args):
 
         for ss in subjects_pca:
 
-            load_weights_filename = os.path.join(weights_folder, 'S%d_cielab_plus_sat_res%dpix_PCA_weights_prf%d.npy'%\
-                                        (ss, args.map_res_pix, mm))
+            load_weights_filename = os.path.join(weights_folder, 'S%d_cielab_plus_sat_noavg_PCA_weights_prf%d.npy'%\
+                                        (ss, mm))
             
             filename_save_pca = os.path.join(path_to_save, \
-                                   '%s_cielab_plus_sat_res%dpix_PCA_wtsfromS%d_grid%d.h5py'%\
-                                    (image_set, args.map_res_pix, ss, args.which_prf_grid))
+                                   '%s_cielab_plus_sat_noavg_PCA_wtsfromS%d_grid%d.h5py'%\
+                                    (image_set, ss, args.which_prf_grid))
 
             pca_feats.apply_pca_oneprf(features_raw, 
                                         filename_save_pca, 

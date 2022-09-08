@@ -15,7 +15,21 @@ class combined_feature_loader:
         self.do_varpart = do_varpart
         self.include_solo_models = include_solo_models
         self.max_features = np.sum(np.array([module.max_features for module in self.modules]))
-        self.n_prfs = self.modules[0].n_prfs
+        
+        self.n_prfs_each_mod = [module.n_prfs for module in self.modules]
+        print('n_prfs_each_mod:')
+        print(self.n_prfs_each_mod)
+        if np.any(self.n_prfs_each_mod!=self.n_prfs_each_mod[0]):
+            # this is for when we're mixing modules that include pRFs with those that model full-image features
+            assert(len(np.unique(self.n_prfs_each_mod))==2)
+            self.n_prfs = np.max(self.n_prfs_each_mod)
+            assert(np.min(self.n_prfs_each_mod)==1)
+            self.mixing_n_prfs = True
+            
+        else:
+            self.n_prfs = self.modules[0].n_prfs
+            self.mixing_n_prfs = False
+        print(self.n_prfs, self.mixing_n_prfs)
         self.lambda_groups = lambda_groups
         
     def clear_big_features(self):
@@ -107,7 +121,12 @@ class combined_feature_loader:
 
         for mi, module in enumerate(self.modules):
             
-            features, inds = module.load(images, prf_model_index)
+            if self.n_prfs_each_mod[mi]==1:
+                # if this module is a full-image feature set, then always use prf index 0
+                features, inds = module.load(images, 0)
+            else:
+                features, inds = module.load(images, prf_model_index)
+            
             
             if mi==0:
                 all_features_concat = features

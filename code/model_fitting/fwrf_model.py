@@ -27,7 +27,10 @@ class encoding_model():
             if 'best_model_each_voxel' in kwargs.keys() else None
         # are we fitting prfs now, or were they done before?
         self.fitting_prfs_now = self.best_model_each_voxel is None
-        
+        if hasattr(self.feature_loader, 'mixing_n_prfs') and self.feature_loader.mixing_n_prfs:
+            print('feature loader has feature sets with different n prfs')
+            assert(self.fitting_prfs_now==False)
+            
         self.zscore = kwargs['zscore'] if 'zscore' in kwargs.keys() else True
         self.add_bias = kwargs['add_bias'] if 'add_bias' in kwargs.keys() else True
         self.do_corrcoef = kwargs['do_corrcoef'] if 'do_corrcoef' in kwargs.keys() else True

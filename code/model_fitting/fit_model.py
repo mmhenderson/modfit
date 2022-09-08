@@ -120,16 +120,19 @@ def fit_fwrf(args):
         if np.any(['semantic' in ft for ft in fitting_types]):
             dict2save.update({
             'semantic_feature_set': args.semantic_feature_set,
+            'use_fullimage_sem_feats': args.use_fullimage_sem_feats,
             })
         if np.any(['spatcolor' in ft for ft in fitting_types]):
             dict2save.update({
             'spatcolor_map_res_pix': args.spatcolor_map_res_pix,
+            'use_fullimage_color_feats': args.use_fullimage_color_feats,
             })
         if np.any(['sketch_tokens' in ft for ft in fitting_types]):
             dict2save.update({         
             'use_pca_st_feats': args.use_pca_st_feats,
             'use_residual_st_feats': args.use_residual_st_feats,
             'use_grayscale_st_feats': args.use_grayscale_st_feats,
+            'use_fullimage_st_feats': args.use_fullimage_st_feats,
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({
@@ -143,6 +146,7 @@ def fit_fwrf(args):
             'n_sf_gabor': args.n_sf_gabor,
             'gabor_nonlin_fn': args.gabor_nonlin_fn,
             'use_pca_gabor_feats': args.use_pca_gabor_feats,
+            'use_fullimage_gabor_feats': args.use_fullimage_gabor_feats,
             })
         if np.any(['alexnet' in ft for ft in fitting_types]):
             dict2save.update({
@@ -150,6 +154,7 @@ def fit_fwrf(args):
             'alexnet_padding_mode': args.alexnet_padding_mode,
             'use_pca_alexnet_feats': args.use_pca_alexnet_feats, 
             'alexnet_blurface': args.alexnet_blurface,
+            'use_fullimage_alexnet_feats': args.use_fullimage_alexnet_feats,
             })
         if np.any(['clip' in ft for ft in fitting_types]):
             dict2save.update({
@@ -158,6 +163,7 @@ def fit_fwrf(args):
             'use_pca_clip_feats': args.use_pca_resnet_feats,  
             'n_resnet_blocks_include': args.n_resnet_blocks_include,
             'clip_layers_use': dnn_layers_use,
+            'use_fullimage_resnet_feats': args.use_fullimage_resnet_feats,
             })
         if np.any(['resnet' in ft for ft in fitting_types]):
             dict2save.update({
@@ -167,7 +173,8 @@ def fit_fwrf(args):
             'n_resnet_blocks_include': args.n_resnet_blocks_include, 
             'resnet_blurface': args.resnet_blurface, 
             'resnet_layers_use': dnn_layers_use,
-            'resnet_training_type': args.resnet_training_type,    
+            'resnet_training_type': args.resnet_training_type, 
+            'use_fullimage_resnet_feats': args.use_fullimage_resnet_feats,
             })
 
         print('\nSaving to %s\n'%fn2save)

@@ -4,6 +4,7 @@ import argparse
 import torch
 import time
 import h5py
+import gc
 import torch.nn as nn
 
 #import custom modules
@@ -84,6 +85,10 @@ def get_features(features_file,
             
         features[batch_inds,:] = maps_reshaped.detach().cpu().numpy()
                 
+        maps_full_field=None; maps_pooled=None; maps_reshaped=None
+        gc.collect()
+        torch.cuda.empty_cache()
+
     print(features.shape)
     
     return features

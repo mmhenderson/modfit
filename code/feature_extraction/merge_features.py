@@ -19,7 +19,7 @@ class combined_feature_loader:
         self.n_prfs_each_mod = [module.n_prfs for module in self.modules]
         print('n_prfs_each_mod:')
         print(self.n_prfs_each_mod)
-        if np.any(self.n_prfs_each_mod!=self.n_prfs_each_mod[0]):
+        if np.any(np.array(self.n_prfs_each_mod)!=self.n_prfs_each_mod[0]):
             # this is for when we're mixing modules that include pRFs with those that model full-image features
             assert(len(np.unique(self.n_prfs_each_mod))==2)
             self.n_prfs = np.max(self.n_prfs_each_mod)

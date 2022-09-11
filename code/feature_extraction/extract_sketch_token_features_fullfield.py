@@ -116,27 +116,33 @@ def proc_one_subject(subject, args):
     # These params are fixed
     map_resolution = 240
     
+    if args.pooling_kernel_size!=4:
+        ks_str = '_poolsize%d'%args.pooling_kernel_size
+    else:
+        ks_str = ''
+        
     if args.grayscale:
         features_file = os.path.join(feat_path, \
                             'S%d_features_grayscale_%d.h5py'%(subject, map_resolution))
-        filename_save_pca = os.path.join(path_to_save, 'S%d_grayscale_noavg_PCA_grid0.h5py'%(subject))
-        save_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg_PCA_weights_grid0.npy'%(subject)) \
+        filename_save_pca = os.path.join(path_to_save, 'S%d_grayscale_noavg%s_PCA_grid0.h5py'%(subject, ks_str))
+        save_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(subject, ks_str)) \
             if args.save_pca_weights else None
-        ncomp_filename = os.path.join(path_to_save,'S%d_grayscale_noavg_PCA_grid0_ncomp.npy'%(subject)) \
+        ncomp_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_grid0_ncomp.npy'%(subject, ks_str)) \
             if args.use_saved_ncomp else None
     else:
         features_file = os.path.join(feat_path, \
                             'S%d_features_%d.h5py'%(subject, map_resolution))
-        filename_save_pca = os.path.join(path_to_save, 'S%d_noavg_PCA_grid0.h5py'%(subject))
-        save_weights_filename = os.path.join(path_to_save,'S%d_noavg_PCA_weights_grid0.npy'%(subject)) \
+        filename_save_pca = os.path.join(path_to_save, 'S%d_noavg%s_PCA_grid0.h5py'%(subject, ks_str))
+        save_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(subject, ks_str)) \
             if args.save_pca_weights else None
-        ncomp_filename = os.path.join(path_to_save,'S%d_noavg_PCA_grid0_ncomp.npy'%(subject)) \
+        ncomp_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_grid0_ncomp.npy'%(subject, ks_str)) \
             if args.use_saved_ncomp else None
         
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    ks = 4;
+    # ks = 4;
+    ks = args.pooling_kernel_size
     pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
     
     features_raw = get_features(features_file, pooling_op, \
@@ -185,6 +191,11 @@ def proc_other_image_set(image_set, args):
     # These params are fixed
     map_resolution = 240
     
+    if args.pooling_kernel_size!=4:
+        ks_str = '_poolsize%d'%args.pooling_kernel_size
+    else:
+        ks_str = ''
+        
     if args.grayscale:
         features_file = os.path.join(feat_path, \
                             '%s_features_grayscale_%d.h5py'%(image_set, map_resolution))
@@ -196,7 +207,8 @@ def proc_other_image_set(image_set, args):
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    ks = 4;
+    # ks = 4;
+    ks = args.pooling_kernel_size
     pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
     
     features_raw = get_features(features_file, pooling_op, \
@@ -211,13 +223,13 @@ def proc_other_image_set(image_set, args):
     for ss in subjects_pca:
 
         if args.grayscale:
-            load_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg_PCA_weights_grid0.npy'%(ss))
+            load_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(ss, ks_str))
             filename_save_pca = os.path.join(path_to_save, \
-                                             '%s_grayscale_noavg_PCA_wtsfromS%d_grid0.h5py'%(image_set, ss))
+                                             '%s_grayscale_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, ks_str, ss))
         else:
-            load_weights_filename = os.path.join(path_to_save,'S%d_noavg_PCA_weights_grid0.npy'%(ss))
+            load_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(ss, ks_str))
             filename_save_pca = os.path.join(path_to_save, \
-                                             '%s_noavg_PCA_wtsfromS%d_grid0.h5py'%(image_set, ss))
+                                             '%s_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, ks_str, ss))
         pca_feats.apply_pca_oneprf(features_raw, 
                                     filename_save_pca, 
                                     load_weights_filename=load_weights_filename, 
@@ -247,6 +259,8 @@ if __name__ == '__main__':
                     help="want to save and load from scratch dir on current node? 1 for yes, 0 for no")
     parser.add_argument("--batch_size", type=int,default=100,
                     help="batch size? default 100")
+    parser.add_argument("--pooling_kernel_size", type=int,default=4,
+                    help="pooling_kernel size? default 4")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain", type=int,default=0,

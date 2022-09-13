@@ -158,7 +158,9 @@ def get_args():
                     help="Want to use sketch tokens features from grayscale images?")
     parser.add_argument("--use_fullimage_st_feats", type=nice_str2bool,default=False,
                     help="Want to use full-image (no pRFs) vers of sketchtokens features?")
-                  
+    parser.add_argument("--st_pooling_size", type=int,default=4,
+                    help="pooling kernel size used to compute full-image sketch tokens features")
+
     # specific to alexnet
     parser.add_argument("--alexnet_layer_name", type=str, default='', 
                        help="What layer of alexnet to use?")

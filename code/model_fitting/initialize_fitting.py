@@ -110,7 +110,9 @@ def get_full_save_name(args):
                 model_name += '_gray'
             if 'noavg' in ft:
                 model_name += '_noavg'
-                
+                if args.st_pooling_size!=4:
+                    model_name += '_poolsize%d'%args.st_pooling_size
+                    
         elif 'color' in ft:
             fitting_types += [ft]
             model_name += 'color_cielab_sat'
@@ -688,6 +690,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             use_residual_st_feats = args.use_residual_st_feats, \
                                                             use_grayscale_st_feats = args.use_grayscale_st_feats, \
                                                             pca_subject = pca_subject,
+                                                            st_pooling_size = args.st_pooling_size, \
                                                             use_noavg=use_noavg)
             fe.append(feat_loader)
             fe_names.append(ft)

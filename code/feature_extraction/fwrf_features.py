@@ -168,9 +168,13 @@ class fwrf_feature_loader:
         self.use_grayscale_st_feats = kwargs['use_grayscale_st_feats'] \
                                         if 'use_grayscale_st_feats' in kwargs.keys() else False
         self.use_noavg = kwargs['use_noavg'] if 'use_noavg' in kwargs.keys() else False
+        self.st_pooling_size = kwargs['st_pooling_size'] if 'st_pooling_size' in kwargs.keys() else 4
+        
         if self.use_noavg:
             self.use_pca_feats=True
             avg_str='_noavg'
+            if self.st_pooling_size!=4:
+                avg_str += '_poolsize%d'%self.st_pooling_size
         else:
             avg_str=''
                                                       

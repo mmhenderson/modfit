@@ -133,6 +133,7 @@ def fit_fwrf(args):
             'use_grayscale_st_feats': args.use_grayscale_st_feats,
             'use_fullimage_st_feats': args.use_fullimage_st_feats,
             'st_pooling_size': args.st_pooling_size,
+            'st_use_avgpool': args.st_use_avgpool,
             })          
         if np.any(['pyramid' in ft for ft in fitting_types]):
             dict2save.update({

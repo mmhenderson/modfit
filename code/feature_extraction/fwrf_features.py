@@ -69,11 +69,11 @@ class fwrf_feature_loader:
                 if self.pca_subject is not None:
                     self.features_file = os.path.join(feat_path, 'PCA', \
                                             '%s_gabor_noavg_%dori_%dsf_PCA_wtsfromS%d_grid%d.h5py'%\
-                                            (self.image_set, self.n_ori, self.n_sf, self.pca_subject, args.which_prf_grid))
+                                            (self.image_set, self.n_ori, self.n_sf, self.pca_subject, self.which_prf_grid))
                 else:
                     self.features_file = os.path.join(feat_path, 'PCA', \
                                             '%s_gabor_noavg_%dori_%dsf_PCA_grid%d.h5py'%\
-                                            (self.image_set, self.n_ori, self.n_sf, args.which_prf_grid))
+                                            (self.image_set, self.n_ori, self.n_sf, self.which_prf_grid))
             else:
                 if self.pca_subject is not None:
                     self.features_file = os.path.join(feat_path, 'PCA', \
@@ -169,12 +169,16 @@ class fwrf_feature_loader:
                                         if 'use_grayscale_st_feats' in kwargs.keys() else False
         self.use_noavg = kwargs['use_noavg'] if 'use_noavg' in kwargs.keys() else False
         self.st_pooling_size = kwargs['st_pooling_size'] if 'st_pooling_size' in kwargs.keys() else 4
+        self.st_use_avgpool = kwargs['st_use_avgpool'] if 'st_use_avgpool' in kwargs.keys() else False
         
         if self.use_noavg:
             self.use_pca_feats=True
             avg_str='_noavg'
-            if self.st_pooling_size!=4:
-                avg_str += '_poolsize%d'%self.st_pooling_size
+            if self.st_use_avgpool:
+                avg_str += '_avgpool'
+            else:
+                avg_str += '_maxpool'
+            avg_str += '_poolsize%d'%self.st_pooling_size
         else:
             avg_str=''
                                                       

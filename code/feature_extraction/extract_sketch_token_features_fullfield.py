@@ -116,34 +116,41 @@ def proc_one_subject(subject, args):
     # These params are fixed
     map_resolution = 240
     
-    if args.pooling_kernel_size!=4:
-        ks_str = '_poolsize%d'%args.pooling_kernel_size
+    if args.use_avgpool:
+        pool_str = '_avgpool'
     else:
-        ks_str = ''
+        pool_str = '_maxpool'
+    
+    pool_str += '_poolsize%d'%args.pooling_kernel_size
         
     if args.grayscale:
         features_file = os.path.join(feat_path, \
                             'S%d_features_grayscale_%d.h5py'%(subject, map_resolution))
-        filename_save_pca = os.path.join(path_to_save, 'S%d_grayscale_noavg%s_PCA_grid0.h5py'%(subject, ks_str))
-        save_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(subject, ks_str)) \
+        filename_save_pca = os.path.join(path_to_save, 'S%d_grayscale_noavg%s_PCA_grid0.h5py'%(subject, pool_str))
+        save_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(subject, pool_str)) \
             if args.save_pca_weights else None
-        ncomp_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_grid0_ncomp.npy'%(subject, ks_str)) \
+        ncomp_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_grid0_ncomp.npy'%(subject, pool_str)) \
             if args.use_saved_ncomp else None
     else:
         features_file = os.path.join(feat_path, \
                             'S%d_features_%d.h5py'%(subject, map_resolution))
-        filename_save_pca = os.path.join(path_to_save, 'S%d_noavg%s_PCA_grid0.h5py'%(subject, ks_str))
-        save_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(subject, ks_str)) \
+        filename_save_pca = os.path.join(path_to_save, 'S%d_noavg%s_PCA_grid0.h5py'%(subject, pool_str))
+        save_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(subject, pool_str)) \
             if args.save_pca_weights else None
-        ncomp_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_grid0_ncomp.npy'%(subject, ks_str)) \
+        ncomp_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_grid0_ncomp.npy'%(subject, pool_str)) \
             if args.use_saved_ncomp else None
         
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    # ks = 4;
     ks = args.pooling_kernel_size
-    pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
+    if args.use_avgpool:
+        pooling_op = torch.nn.AvgPool2d(kernel_size=ks, stride=ks, padding=0)
+    else:
+        pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
+
+    print('pooling op:')
+    print(pooling_op)
     
     features_raw = get_features(features_file, pooling_op, \
                             batch_size=args.batch_size, 
@@ -191,10 +198,13 @@ def proc_other_image_set(image_set, args):
     # These params are fixed
     map_resolution = 240
     
-    if args.pooling_kernel_size!=4:
-        ks_str = '_poolsize%d'%args.pooling_kernel_size
+    if args.use_avgpool:
+        pool_str = '_avgpool'
     else:
-        ks_str = ''
+        pool_str = '_maxpool'
+    
+    pool_str += '_poolsize%d'%args.pooling_kernel_size
+    
         
     if args.grayscale:
         features_file = os.path.join(feat_path, \
@@ -207,9 +217,14 @@ def proc_other_image_set(image_set, args):
     if not os.path.exists(features_file):
         raise RuntimeError('Looking at %s for precomputed features, not found.'%features_file)
         
-    # ks = 4;
     ks = args.pooling_kernel_size
-    pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
+    if args.use_avgpool:
+        pooling_op = torch.nn.AvgPool2d(kernel_size=ks, stride=ks, padding=0)
+    else:
+        pooling_op = torch.nn.MaxPool2d(kernel_size=ks, stride=ks, padding=0)
+
+    print('pooling op:')
+    print(pooling_op)
     
     features_raw = get_features(features_file, pooling_op, \
                             batch_size=args.batch_size, 
@@ -223,13 +238,13 @@ def proc_other_image_set(image_set, args):
     for ss in subjects_pca:
 
         if args.grayscale:
-            load_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(ss, ks_str))
+            load_weights_filename = os.path.join(path_to_save,'S%d_grayscale_noavg%s_PCA_weights_grid0.npy'%(ss, pool_str))
             filename_save_pca = os.path.join(path_to_save, \
-                                             '%s_grayscale_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, ks_str, ss))
+                                             '%s_grayscale_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, pool_str, ss))
         else:
-            load_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(ss, ks_str))
+            load_weights_filename = os.path.join(path_to_save,'S%d_noavg%s_PCA_weights_grid0.npy'%(ss, pool_str))
             filename_save_pca = os.path.join(path_to_save, \
-                                             '%s_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, ks_str, ss))
+                                             '%s_noavg%s_PCA_wtsfromS%d_grid0.h5py'%(image_set, pool_str, ss))
         pca_feats.apply_pca_oneprf(features_raw, 
                                     filename_save_pca, 
                                     load_weights_filename=load_weights_filename, 
@@ -261,6 +276,8 @@ if __name__ == '__main__':
                     help="batch size? default 100")
     parser.add_argument("--pooling_kernel_size", type=int,default=4,
                     help="pooling_kernel size? default 4")
+    parser.add_argument("--use_avgpool", type=int,default=0,
+                    help="want to use avg pooling? if false, use maxpool")
     parser.add_argument("--debug", type=int,default=0,
                     help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--max_pc_to_retain", type=int,default=0,
@@ -285,6 +302,7 @@ if __name__ == '__main__':
                          
     args.debug = (args.debug==1)     
     args.grayscale = (args.grayscale==1)     
+    args.use_avgpool = (args.use_avgpool==1)     
     
     if args.subject is not None:
         

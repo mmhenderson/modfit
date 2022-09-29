@@ -230,7 +230,7 @@ class fwrf_feature_loader:
             else:
                 self.features_file = os.path.join(feat_path, 'PCA', \
                                '%s_cielab_plus_sat_noavg_PCA_wtsfromS%d_grid%d.h5py'%\
-                                (self.image_set, self.pca_subject, self.whcih_prf_grid))
+                                (self.image_set, self.pca_subject, self.which_prf_grid))
             with h5py.File(self.features_file, 'r') as file:
                 feat_shape = np.shape(file['/features'])
                 file.close()

@@ -52,9 +52,11 @@ def run_pca_each_prf(raw_filename, pca_filename, \
         if fi==0 and batches_in_separate_files:
             assert(n_prfs_tmp==prf_batch_size)
             nf_1 = nf
-        elif fi>0:
+        elif fi>0 and batches_in_separate_files:
             # did the features from different prfs have diff sizes, before pca?
             prfs_diff_orig_sizes = (nf_1!=nf)
+        else:
+            prfs_diff_orig_sizes = False 
             
         n_prfs += n_prfs_tmp
     
@@ -268,9 +270,11 @@ def apply_pca_each_prf(raw_filename, pca_filename, \
         if fi==0 and batches_in_separate_files:
             assert(n_prfs_tmp==prf_batch_size)
             nf_1 = nf
-        elif fi>0:
+        elif fi>0 and batches_in_separate_files:
             # did the features from different prfs have diff sizes, before pca?
             prfs_diff_orig_sizes = (nf_1!=nf)
+        else:
+            prfs_diff_orig_sizes = False
             
         n_prfs += n_prfs_tmp
     

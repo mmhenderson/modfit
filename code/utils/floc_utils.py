@@ -118,3 +118,46 @@ def load_floc_images(npix=240):
     ims = ims.astype(np.float32) / 255
     
     return ims
+
+
+def get_balanced_floc_set(rndseed = 395878):
+
+    np.random.seed(rndseed)
+    
+    min_per_set = n_each_food_categ
+    
+    csv_filename =  os.path.join(floc_image_root,'floc_image_labels.csv')
+    df = pd.read_csv(csv_filename)
+    n_images = df.shape[0]
+    balanced_inds = np.zeros((n_images,),dtype=bool)
+
+    for cc, categ in enumerate(categories):
+
+        inds_all = np.where(df['category']==categ)[0]
+        n_this_categ = len(inds_all)
+
+        if n_this_categ>min_per_set:
+            # choose a random n images
+            inds_use = np.random.choice(inds_all, min_per_set, replace=False)
+        else:
+            # use all images
+            inds_use = inds_all
+
+        balanced_inds[inds_use] = True
+
+    balanced_labels = np.array(df['category'])[balanced_inds]
+    labs, counts = np.unique(balanced_labels, return_counts=True)
+    assert(np.all(counts==min_per_set))
+    
+    save_filename =  os.path.join(floc_image_root,'balanced_floc_inds.npy')
+    print('saving to %s'%save_filename)
+    np.save(save_filename, {'image_inds_balanced': balanced_inds, 
+                           'rndseed': rndseed})
+    
+    
+def load_balanced_floc_set():
+    
+    filename =  os.path.join(floc_image_root,'balanced_floc_inds.npy')
+    bal = np.load(filename, allow_pickle=True).item()
+    
+    return bal['image_inds_balanced']

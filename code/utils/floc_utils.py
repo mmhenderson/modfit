@@ -14,18 +14,27 @@ categories = ['word','number',
               'body','limb',
               'adult','child',
               'corridor','house',
-              'car','instrument']
+              'car','instrument',
+              'food1','food2']
+# the food domain is also added on here, using stims from Jain et al. 2022
+# note that there are no meaningful "categories" within the food domain, 
+# the "food1" and "food2" labels above are just first half and second 
+# half of all our food images.
 
-domains = ['characters','bodies','faces','places','objects']
+domains = ['characters','bodies','faces','places','objects','food']
 
-n_each_categ = 144;
+n_each_nonfood_categ = 144;
+n_nonfood_categ = 10;
+n_each_food_categ = 41;
+n_food_categ = 2;
 
 floc_image_root = default_paths.floc_image_root
+food_image_root = default_paths.food_image_root
 
 
 def prep_images(newsize=(240,240)):
     
-    n_images = n_each_categ * len(categories)
+    n_images = n_each_nonfood_categ * n_nonfood_categ + n_each_food_categ * n_food_categ
     ims_brick = np.zeros((n_images, 1, newsize[0], newsize[1]))
 
     categ_list = []
@@ -40,14 +49,30 @@ def prep_images(newsize=(240,240)):
         print('processing %s'%categ)
         dd = int(np.floor(cc/2))
         
-        for ii in np.arange(1,n_each_categ+1):
+        if 'food' in categ:
+            nc = n_each_food_categ
+        else:
+            nc = n_each_nonfood_categ
+            
+        for ii in np.arange(1,nc+1):
 
             count += 1
 
-            filename = os.path.join(floc_image_root,'%s-%d.jpg'%(categories[cc], ii))
+            if categ=='food1':
+                filename = os.path.join(food_image_root,'%s-%d.jpg'%('food', ii))
+            elif categ=='food2':
+                filename = os.path.join(food_image_root,'%s-%d.jpg'%('food', ii+n_each_food_categ))
+            else:
+                filename = os.path.join(floc_image_root,'%s-%d.jpg'%(categ, ii))
+
             if ii==1:       
                 print('loading from %s'%filename)
             im = PIL.Image.open(filename)
+            
+            if im.mode=='RGB':
+                # take just first channel (each channel is a duplicate)
+                im = PIL.Image.fromarray(np.asarray(im)[:,:,0])
+
             im_resized = im.resize(newsize, resample=PIL.Image.ANTIALIAS)
 
             ims_brick[count,0,:,:] = im_resized
@@ -87,6 +112,7 @@ def prep_images(newsize=(240,240)):
 def load_floc_images(npix=240):
     
     image_filename = os.path.join(floc_image_root, 'floc_stimuli_%d.h5py'%npix)
+    print('loading images from %s'%image_filename)
     ims = nsd_utils.load_from_hdf5(image_filename)
 
     ims = ims.astype(np.float32) / 255

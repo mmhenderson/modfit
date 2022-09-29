@@ -55,5 +55,6 @@ coco_api_path = path_defs.coco_api_path
 coco_ims_path = path_defs.coco_ims_path
 
 floc_image_root = path_defs.floc_image_root
+food_image_root = path_defs.food_image_root
 
 startingblurry_root = path_defs.startingblurry_root

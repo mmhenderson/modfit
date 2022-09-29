@@ -30,7 +30,7 @@ def extract_color_features(image_data,
     n_features_spat = np.sum(prf_mask)
     n_features_total = n_features_color * n_features_spat
     
-    print('number of features total: %d'%n_features_total)
+    print('number of [images, features] total: %d'%(n_images,n_features_total))
     
     features = np.zeros((n_images, n_features_total), dtype=np.float32)
 
@@ -209,7 +209,9 @@ def proc_other_image_set(image_set, args):
     if image_data.shape[1]==1:
         image_data = np.tile(image_data, [1,3,1,1])
  
-
+    print('shape of image_data:')
+    print(image_data.shape)
+    
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = args.which_prf_grid)    
     n_prfs = models.shape[0]

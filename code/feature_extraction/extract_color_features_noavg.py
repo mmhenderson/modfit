@@ -30,7 +30,7 @@ def extract_color_features(image_data,
     n_features_spat = np.sum(prf_mask)
     n_features_total = n_features_color * n_features_spat
     
-    print('number of [images, features] total: %d'%(n_images,n_features_total))
+    print('number of [images, features] total: %d, %d'%(n_images,n_features_total))
     
     features = np.zeros((n_images, n_features_total), dtype=np.float32)
 

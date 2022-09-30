@@ -44,8 +44,12 @@ def get_feature_loaders(image_set, feature_type, which_prf_grid=5):
                                                         use_residual_st_feats=False)
 
     elif 'alexnet' in feature_type:
-        path_to_load = default_paths.alexnet_feat_path
+        
         blurface = 'blurface' in feature_type
+        if blurface:
+            path_to_load = default_paths.alexnet_blurface_feat_path
+        else:
+            path_to_load = default_paths.alexnet_feat_path
         floaders = []
         layer_names=['Conv%d_ReLU'%ll for ll in np.arange(1,6)]
         for layer_name in layer_names:
@@ -61,12 +65,15 @@ def get_feature_loaders(image_set, feature_type, which_prf_grid=5):
         
 
     elif 'clip' in feature_type or 'resnet' in feature_type:
-        path_to_load = default_paths.clip_feat_path
+        
         if 'clip' in feature_type:
+            path_to_load = default_paths.clip_feat_path
             training_type='clip'
         elif 'blurface' in feature_type:
+            path_to_load = default_paths.resnet50_blurface_feat_path
             training_type='blurface'
         else:
+            path_to_load = default_paths.resnet50_feat_path
             training_type='imgnet'
         floaders = []
         layer_names=['block%d'%ll for ll in [2,6,12,15]]

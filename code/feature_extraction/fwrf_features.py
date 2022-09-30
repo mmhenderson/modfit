@@ -279,9 +279,7 @@ class fwrf_feature_loader:
         layer_ind = [ll for ll in range(len(alexnet_layer_names)) \
                          if alexnet_layer_names[ll]==self.layer_name]
         assert(len(layer_ind)==1)
-        layer_ind = layer_ind[0]        
-        n_feat_expected = n_features_each_layer[layer_ind]
-
+       
         with h5py.File(self.features_file, 'r') as file:
             feat_shape = np.shape(file['/features'])
             file.close()

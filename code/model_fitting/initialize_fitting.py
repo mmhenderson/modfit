@@ -719,8 +719,11 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                 prf_grid=0
             else:
                 prf_grid = args.which_prf_grid
-            if args.alexnet_layer_name=='all_conv':
-                names = ['Conv%d_ReLU'%(ll+1) for ll in dnn_layers_use]
+            if args.alexnet_layer_name=='all_conv' or args.alexnet_layer_name=='all_layers':
+                names = ['Conv%d_ReLU'%(ll) for ll in [1,2,3,4,5]]
+                if args.alexnet_layer_name=='all_layers':
+                    names += ['FC%d_ReLU'%(ll) for ll in [6,7]]
+                print('alexnet layer_names: %s'%names)
                 for ll in range(len(names)):
                     feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\

@@ -709,6 +709,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             image_set=args.image_set,\
                                                             which_prf_grid=prf_grid, \
                                                             feature_type='color',
+                                                            pca_subject = pca_subject,
                                                             use_noavg=use_noavg)
             fe.append(feat_loader)
             fe_names.append(ft)

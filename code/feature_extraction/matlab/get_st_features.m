@@ -33,7 +33,7 @@ function get_st_features(image_set, args);
     fprintf('examples of raw image values:\n')
     disp(I(1,1,:,1:3))
     
-    if args.grayscale
+    if args.grayscale & size(I,3)>1
         % convert this image into grayscale
         fprintf('converting the image to grayscale before processing\n')
         I = I(:,:,1,:)*0.2126729 + I(:,:,2,:)*0.7151522 + I(:,:,3,:)*0.0721750;

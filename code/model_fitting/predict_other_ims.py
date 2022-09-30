@@ -187,12 +187,16 @@ def predict(args):
         
         labels_file = os.path.join(default_paths.floc_image_root,'floc_image_labels.csv')
         labels = pd.read_csv(labels_file)
-        image_order = np.arange(labels.shape[0])
-        image_inds_val = image_order
+        
+        image_inds_use = floc_utils.load_balanced_floc_set()
+        image_inds_val = np.where(image_inds_use)[0]
+        print('using %d images'%len(image_inds_val))
         sem_labels = np.array([labels['domain']==domain for domain in floc_utils.domains]).T.astype(int)
         unique_labs_each = [np.unique(sem_labels[:,dd]) for dd in range(sem_labels.shape[1])]
         labels_all = np.tile(sem_labels[:,:,None], [1,1,n_prfs])
+        labels_all = labels_all[image_inds_val,:]
         discrim_type_list = ['%s > other domains'%domain for domain in floc_utils.domains]
+        print(discrim_type_list)
         
     else:
         raise ValueError('image_set %s not recognized'%args.image_set)
@@ -285,6 +289,11 @@ def predict(args):
          
         print('\nStarting semantic discriminability analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
         sys.stdout.flush()
+        
+        print('shape of pred data:')
+        print(voxel_data_val_pred.shape)
+        print('shape of labels:')
+        print(labels_all.shape)
         
         discrim_tmp, corr_tmp, n_samp_tmp, mean_tmp = \
                 semantic_selectivity.get_semantic_discrim(model.best_prf_models, \

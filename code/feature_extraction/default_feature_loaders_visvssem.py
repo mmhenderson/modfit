@@ -51,7 +51,8 @@ def get_feature_loaders(image_set, feature_type, which_prf_grid=5):
         else:
             path_to_load = default_paths.alexnet_feat_path
         floaders = []
-        layer_names=['Conv%d_ReLU'%ll for ll in np.arange(1,6)]
+        layer_names = ['Conv%d_ReLU'%ll for ll in np.arange(1,6)]
+        layer_names += ['FC%d_ReLU'%ll for ll in [6,7]]
         for layer_name in layer_names:
               
             f = fwrf_features.fwrf_feature_loader(image_set=image_set,
@@ -59,7 +60,7 @@ def get_feature_loaders(image_set, feature_type, which_prf_grid=5):
                                                 feature_type='alexnet',layer_name=layer_name,\
                                                 padding_mode = 'reflect', \
                                                 pca_subject=1, 
-                                                use_noavg=False, blurface=blurface)
+                                                use_noavg=True, blurface=blurface)
             floaders.append(f)
         feat_loaders = merge_features.combined_feature_loader(floaders, layer_names)
         

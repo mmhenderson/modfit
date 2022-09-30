@@ -29,7 +29,22 @@ def run_decoding(image_set='floc',
 
     domain_labels = np.array([labels['domain']==domain for domain in floc_utils.domains]).T.astype(int)
     domain_labels = domain_labels[image_inds_use,:]
+    n_trials = domain_labels.shape[0]
+    n_sem_axes = domain_labels.shape[1] 
     
+    # to make decoding fair, create a set of labels that downsamples larger class
+    np.random.seed(239843)
+    min_each = np.sum(domain_labels, axis=0)[0]
+    downsample_inds = np.zeros(np.shape(domain_labels),dtype=bool)
+    for dd in range(n_sem_axes):
+        for uu in np.unique(domain_labels[:,dd]):
+            inds = np.where(domain_labels[:,dd]==uu)[0]
+            if len(inds)>min_each:
+                inds_ds = np.random.choice(inds, min_each, replace=False)
+            else:
+                inds_ds = inds
+            downsample_inds[inds_ds,dd] = True
+ 
     discrim_type_list = ['%s > other domains'%domain for domain in floc_utils.domains]
 
     print('Number of images using: %d'%domain_labels.shape[0])
@@ -37,8 +52,6 @@ def run_decoding(image_set='floc',
     print(discrim_type_list)
     sys.stdout.flush()
 
-    n_trials = domain_labels.shape[0]
-    n_sem_axes = domain_labels.shape[1] 
     
     # create feature loaders
     feat_loader, path_to_load = \
@@ -81,13 +94,17 @@ def run_decoding(image_set='floc',
         # then looping over axes to decode
         for aa in range(n_sem_axes):
 
+            X = features_in_prf[downsample_inds[:,aa],:]
+            y = domain_labels[downsample_inds[:,aa],aa]
+            un, counts = np.unique(y, return_counts=True)
+            assert(counts[0]==counts[1]) # double check balancing
+            
             if prf_model_index==0:
                 print('processing axis: %s'%discrim_type_list[aa])
                 print('labels: ')
-                print(np.unique(domain_labels[:,aa]))
+                print(np.unique(y))
+                print('size of X, y: %s, %s'%(X.shape, y.shape))
             
-            X = features_in_prf
-            y = domain_labels[:,aa]
             tst_acc, tst_dprime = stats_utils.decode_lda(X, y, n_crossval_folds=10, debug=debug)
             
             acc_each_prf[prf_model_index,aa] = tst_acc

@@ -314,7 +314,7 @@ def proc_other_image_set(image_set, args):
     else:
         raise ValueError('image set %s not recognized'%image_set)
        
-    layers_to_return = ['Conv1_ReLU', 'Conv2_ReLU','Conv3_ReLU','Conv4_ReLU','Conv5_ReLU']
+    layers_to_return = ['Conv1_ReLU', 'Conv2_ReLU','Conv3_ReLU','Conv4_ReLU','Conv5_ReLU','FC6_ReLU','FC7_ReLU']
     layer_inds = [ll for ll in range(len(alexnet_layer_names)) \
                       if alexnet_layer_names[ll] in layers_to_return]
     if args.start_layer>0:

@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from utils import default_paths
+import datetime
 
 """
 General use functions for loading encoding model fit results.
@@ -49,7 +50,7 @@ def load_fit_results(subject, fitting_type, n_from_end=0, volume_space=True, \
         return out
     
 def load_eval_other_images(subject, fitting_type, image_set, n_from_end=0, volume_space=True, \
-                     verbose=True, root=None, return_filename=False):     
+                     verbose=True, root=None, return_filename=False, return_model_r2 = False):     
     """
     Load fit params for a given subject and fitting type. 
     By default, it loads the most recent fit (based on date str in name of saved file).
@@ -77,17 +78,28 @@ def load_eval_other_images(subject, fitting_type, image_set, n_from_end=0, volum
     file2load = os.path.join(subfolder2load, 'eval_on_%s.npy'%image_set)
    
     if verbose:
-        print('loading from %s\n'%file2load)
-
+        print('loading from %s'%file2load)
+        print(datetime.fromtimestamp(os.path.getmtime(file2load)))
+        print('\n')
+        
     out = np.load(file2load, allow_pickle=True).item()
     
     if verbose:
         print(out.keys())
-     
+    
+    if return_model_r2:
+        file2load = os.path.join(subfolder2load, 'all_fit_params.npy')
+        fit = np.load(file2load, allow_pickle=True).item()
+        model_r2 = fit['val_r2'][:,0]
+    
+    to_return = [out]
+    
     if return_filename:
-        return out, file2load
-    else:
-        return out
+        to_return += [file2load]
+    if return_model_r2:
+        to_return += [model_r2]
+        
+    return to_return
     
 def print_output_summary(out):
     """

@@ -35,12 +35,23 @@ def get_feature_loaders(image_set, feature_type, which_prf_grid=5):
                                                         use_noavg=True)       
  
     elif 'sketch_tokens' in feature_type:
+        if which_prf_grid==0:
+            use_noavg = True
+            st_use_avgpool = False
+            st_pooling_size = 60
+        else:
+            use_noavg = False
+            st_use_avgpool = None
+            st_pooling_size = None
         path_to_load = default_paths.sketch_token_feat_path
         feat_loaders = fwrf_features.fwrf_feature_loader(image_set=image_set,
                                                         which_prf_grid=which_prf_grid, \
                                                         feature_type='sketch_tokens',\
                                                         use_pca_feats = False, \
-                                                        use_noavg=False,
+                                                        use_noavg=use_noavg,
+                                                        st_use_avgpool=st_use_avgpool,
+                                                        st_pooling_size=st_pooling_size,
+                                                        use_grayscale_st_feats=True,
                                                         use_residual_st_feats=False)
 
     elif 'alexnet' in feature_type:

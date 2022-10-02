@@ -46,7 +46,8 @@ def run_decoding(image_set='floc',
             downsample_inds[inds_ds,dd] = True
  
     discrim_type_list = ['%s > other domains'%domain for domain in floc_utils.domains]
-
+    domains = floc_utils.domains
+    
     print('Number of images using: %d'%domain_labels.shape[0])
     print('doing decoding for:')
     print(discrim_type_list)
@@ -73,6 +74,9 @@ def run_decoding(image_set='floc',
     
     acc_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
     dprime_each_prf = np.zeros((n_prfs, n_sem_axes), dtype=np.float32)
+    
+    pairwise_acc_each_prf = np.zeros((n_prfs, n_sem_axes, n_sem_axes), dtype=np.float32)
+    pairwise_dprime_each_prf = np.zeros((n_prfs, n_sem_axes, n_sem_axes), dtype=np.float32)
     
     # first looping over pRFs
     for prf_model_index in range(n_prfs):
@@ -111,13 +115,44 @@ def run_decoding(image_set='floc',
             dprime_each_prf[prf_model_index, aa] = tst_dprime
             
             # print to see how we are doing so far
-            print('decode %s, prf %d: acc=%.2f, dprime=%.2f'%(discrim_type_list[aa], prf_model_index, tst_acc, tst_dprime))
+            print('decode %s, prf %d: acc=%.2f, dprime=%.2f'%(discrim_type_list[aa], 
+                                                              prf_model_index, tst_acc, tst_dprime))
             sys.stdout.flush()
+            
+            for aa2 in np.arange(aa+1, n_sem_axes):
+                
+                inds_use_pairwise = domain_labels[:,aa] | domain_labels[:,aa2]
+                X = features_in_prf[inds_use_pairwise==1,:]
+                y = domain_labels[inds_use_pairwise==1,aa]
+                y2 = domain_labels[inds_use_pairwise==1,aa2]
+                assert(np.all(y==(1-y2))) # should be opposites
+                un, counts = np.unique(y, return_counts=True)
+                assert(counts[0]==counts[1]) # double check balancing
+               
+                if prf_model_index==0:
+                    print('processing axis: %s vs %s'%(domains[aa], domains[aa2]))
+                    print('labels: ')
+                    print(np.unique(y))
+                    print('size of X, y: %s, %s'%(X.shape, y.shape))
+
+                tst_acc, tst_dprime = stats_utils.decode_lda(X, y, n_crossval_folds=10, debug=debug)
+
+                pairwise_acc_each_prf[prf_model_index, aa,aa2] = tst_acc
+                pairwise_dprime_each_prf[prf_model_index, aa,aa2] = tst_dprime
+                pairwise_acc_each_prf[prf_model_index, aa2,aa] = tst_acc
+                pairwise_dprime_each_prf[prf_model_index, aa2,aa] = tst_dprime
+
+                # print to see how we are doing so far
+                print('decode %s vs %s, prf %d: acc=%.2f, dprime=%.2f'%(domains[aa], domains[aa2], 
+                                                                        prf_model_index, tst_acc, tst_dprime))
+                sys.stdout.flush()
 
 
     print('saving to %s'%fn2save)
     np.save(fn2save, {'acc': acc_each_prf, \
                       'dprime': dprime_each_prf, 
+                      'pairwise_acc': pairwise_acc_each_prf, \
+                      'pairwise_dprime': pairwise_dprime_each_prf, 
                       'discrim_type_list': discrim_type_list})
 
 

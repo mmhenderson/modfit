@@ -71,8 +71,10 @@ def load_floc_decoding(feature_type, which_prf_grid=5, verbose=False):
     names = decoding['discrim_type_list']
     acc = decoding['acc']
     dprime = decoding['dprime']
+    pairwise_acc = decoding['pairwise_acc']
+    pairwise_dprime = decoding['pairwise_dprime']
     
-    return acc, dprime, names
+    return acc, dprime, pairwise_acc, pairwise_dprime, names
 
 
 def analyze_decoding_slopes(subject, feature_type, which_prf_grid=5, \

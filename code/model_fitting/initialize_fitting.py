@@ -43,8 +43,15 @@ def get_full_save_name(args):
     for fi, ft in enumerate(input_fitting_types):
         print(ft)
         if ft=='full_midlevel':
+            
             fitting_types += ['gabor_solo', 'pyramid_texture','sketch_tokens']
             model_name += 'full_midlevel'
+            
+        elif ft=='concat_midlevel':
+           
+            fitting_types += ['color_noavg','gabor_solo_noavg', 'pyramid_texture','sketch_tokens']
+            model_name += 'concat_midlevel'
+            assert(args.prfs_model_name=='texture')
             
         elif ft=='semantic':
             if args.semantic_feature_set=='all_coco':
@@ -178,7 +185,7 @@ def get_full_save_name(args):
     if not args.use_precomputed_prfs:
         if 'alexnet' not in model_name and args.which_prf_grid!=0:
             model_name += '_fit_pRFs'
-    elif len(args.prfs_model_name)>0:
+    elif len(args.prfs_model_name)>0 and 'concat_midlevel' not in model_name:
         model_name += '_use_%s_pRFs'%args.prfs_model_name
         
     if args.which_prf_grid!=5:

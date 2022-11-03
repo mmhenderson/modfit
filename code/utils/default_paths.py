@@ -45,6 +45,9 @@ resnet50_blurface_feat_path = os.path.join(root, 'features', 'resnet50_blurface'
 # Path where color model features will be saved
 color_feat_path = os.path.join(root, 'features','color')
 
+# Path where gist model features will be saved
+gist_feat_path = os.path.join(root, 'features','gist')
+
 # Path where spatial-color model features will be saved
 spatcolor_feat_path = os.path.join(root, 'features','spatcolor')
 

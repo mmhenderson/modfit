@@ -36,6 +36,8 @@ class fwrf_feature_loader:
         
         if self.feature_type=='gabor_solo':
             self.__init_gabor__(kwargs)
+        elif self.feature_type=='gist':
+            self.__init_gist__(kwargs)
         elif self.feature_type=='sketch_tokens':
             self.__init_sketch_tokens__(kwargs)
         elif self.feature_type=='pyramid_texture':
@@ -220,6 +222,16 @@ class fwrf_feature_loader:
         self.do_varpart=False
         self.n_feature_types=1
     
+    def __init_gist__(self, kwargs):
+        
+        assert(self.which_prf_grid==0)
+        feat_path = default_paths.gist_feat_path
+        self.max_features = 512;
+        self.do_varpart=False
+        self.n_feature_types=1
+        self.features_file = os.path.join(feat_path, '%s_gistdescriptors.h5py'%self.image_set)
+        self.use_pca_feats=False
+        
     def __init_color__(self, kwargs):
         
         self.use_noavg = kwargs['use_noavg'] if 'use_noavg' in kwargs.keys() else False

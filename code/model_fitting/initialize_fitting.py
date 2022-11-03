@@ -122,7 +122,12 @@ def get_full_save_name(args):
                 else:
                     model_name += '_maxpool'
                 model_name += '_poolsize%d'%args.st_pooling_size
-                    
+        
+        elif 'gist' in ft:
+            
+            fitting_types += [ft]
+            model_name += 'gist'
+        
         elif 'color' in ft:
             fitting_types += [ft]
             model_name += 'color_cielab_sat'
@@ -718,6 +723,16 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             feature_type='color',
                                                             pca_subject = pca_subject,
                                                             use_noavg=use_noavg)
+            fe.append(feat_loader)
+            fe_names.append(ft)
+            
+        elif 'gist' in ft:
+            
+            prf_grid=0
+            feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
+                                                            image_set=args.image_set,\
+                                                            which_prf_grid=prf_grid, \
+                                                            feature_type='gist')
             fe.append(feat_loader)
             fe_names.append(ft)
             

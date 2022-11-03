@@ -173,11 +173,13 @@ def proc_one_subject(subject, args):
     if args.rm_big==1:
         
         edges_file = features_file.split('_features_')[0] + '_edges_' + features_file.split('_features_')[1]
-        print('removing raw file from %s'%features_file)
-        os.remove(features_file)
-        print('removing raw file from %s'%edges_file)
-        os.remove(edges_file)
-        
+        if os.path.exists(features_file):
+            print('removing raw file from %s'%features_file)
+            os.remove(features_file)
+        if os.path.exists(edges_file):
+            print('removing raw file from %s'%edges_file)
+            os.remove(edges_file)
+
         print('done removing')
 
 def proc_other_image_set(image_set, args):
@@ -254,10 +256,12 @@ def proc_other_image_set(image_set, args):
     if args.rm_big==1:
         
         edges_file = features_file.split('_features_')[0] + '_edges_' + features_file.split('_features_')[1]
-        print('removing raw file from %s'%features_file)
-        os.remove(features_file)
-        print('removing raw file from %s'%edges_file)
-        os.remove(edges_file)
+        if os.path.exists(features_file):
+            print('removing raw file from %s'%features_file)
+            os.remove(features_file)
+        if os.path.exists(edges_file):
+            print('removing raw file from %s'%edges_file)
+            os.remove(edges_file)
         
         print('done removing')
         

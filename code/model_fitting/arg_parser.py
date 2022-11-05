@@ -136,6 +136,9 @@ def get_args():
     parser.add_argument("--use_fullimage_color_feats", type=nice_str2bool,default=False,
                     help="Want to use full-image (no pRFs) vers of color features?")
       
+    # Specific to gist models
+    parser.add_argument("--n_ori_gist", type=int,default=4,
+                    help="number of orientation channels to use")
     
     # Stuff that is specific to pyramid model
     parser.add_argument("--n_ori_pyr", type=int,default=4,

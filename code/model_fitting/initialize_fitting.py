@@ -126,7 +126,7 @@ def get_full_save_name(args):
         elif 'gist' in ft:
             
             fitting_types += [ft]
-            model_name += 'gist'
+            model_name += 'gist_%dori'%(args.n_ori_gist)
         
         elif 'color' in ft:
             fitting_types += [ft]
@@ -732,6 +732,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
             feat_loader = fwrf_features.fwrf_feature_loader(subject=sub,\
                                                             image_set=args.image_set,\
                                                             which_prf_grid=prf_grid, \
+                                                            n_ori = args.n_ori_gist, \
                                                             feature_type='gist')
             fe.append(feat_loader)
             fe_names.append(ft)

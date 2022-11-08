@@ -139,6 +139,8 @@ def get_args():
     # Specific to gist models
     parser.add_argument("--n_ori_gist", type=int,default=4,
                     help="number of orientation channels to use")
+    parser.add_argument("--n_blocks_gist", type=int,default=4,
+                    help="number of spatial grid blocks for gist model")
     
     # Stuff that is specific to pyramid model
     parser.add_argument("--n_ori_pyr", type=int,default=4,

@@ -227,13 +227,18 @@ class fwrf_feature_loader:
         assert(self.which_prf_grid==0)
         feat_path = default_paths.gist_feat_path
         self.n_ori = kwargs['n_ori'] if 'n_ori' in kwargs.keys() else 4
-        if self.n_ori==8:
+        self.n_blocks = kwargs['n_blocks'] if 'n_blocks' in kwargs.keys() else 4
+        if self.n_ori==8 and self.n_blocks==4:
             self.max_features = 512;
-        else:
+            self.features_file = os.path.join(feat_path, '%s_gistdescriptors_%dori.h5py'%(self.image_set, self.n_ori))
+        elif self.n_ori==4 and self.n_blocks==4:
             self.max_features = 256;
+            self.features_file = os.path.join(feat_path, '%s_gistdescriptors_%dori.h5py'%(self.image_set, self.n_ori))
+        elif self.n_ori==4 and self.n_blocks==2:
+            self.features_file = os.path.join(feat_path, '%s_gistdescriptors_%dori_2blocks.h5py'%(self.image_set, self.n_ori))
+            self.max_features = 64;
         self.do_varpart=False
         self.n_feature_types=1
-        self.features_file = os.path.join(feat_path, '%s_gistdescriptors_%dori.h5py'%(self.image_set, self.n_ori))
         self.use_pca_feats=False
         
     def __init_color__(self, kwargs):

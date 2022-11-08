@@ -127,7 +127,9 @@ def get_full_save_name(args):
             
             fitting_types += [ft]
             model_name += 'gist_%dori'%(args.n_ori_gist)
-        
+            if args.n_blocks_gist!=4:
+                model_name += '_%dblocks'%args.n_blocks_gist
+                
         elif 'color' in ft:
             fitting_types += [ft]
             model_name += 'color_cielab_sat'
@@ -733,6 +735,7 @@ def make_feature_loaders(args, fitting_types, vi, dnn_layers_use=None):
                                                             image_set=args.image_set,\
                                                             which_prf_grid=prf_grid, \
                                                             n_ori = args.n_ori_gist, \
+                                                            n_blocks = args.n_blocks_gist, \
                                                             feature_type='gist')
             fe.append(feat_loader)
             fe_names.append(ft)

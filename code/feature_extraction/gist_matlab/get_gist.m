@@ -25,7 +25,8 @@ function get_gist(nsd_subject_id, images_filename, save_dir, overwrite, debug)
     param.imageSize = 128;
     %param.orientationsPerScale = [8 8 8 8];
     param.orientationsPerScale = [4 4 4 4];
-    param.numberBlocks = 4;
+    %param.numberBlocks = 4;
+    param.numberBlocks = 2;
     param.fc_prefilt = 4;
     
     [gist, param] = LMgist(I_batch, 0, param);
@@ -39,7 +40,8 @@ function get_gist(nsd_subject_id, images_filename, save_dir, overwrite, debug)
     end
     
     %save_gist_filename = fullfile(save_dir, sprintf('S%d_gistdescriptors_8ori.mat', nsd_subject_id));
-    save_gist_filename = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori.mat', nsd_subject_id));
+    %save_gist_filename = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori.mat', nsd_subject_id));
+    save_gist_filename = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori_2blocks.mat', nsd_subject_id));
     fprintf('saving to %s\n', save_gist_filename);
     save(save_gist_filename, 'gist','param');
     
@@ -50,7 +52,8 @@ function get_gist(nsd_subject_id, images_filename, save_dir, overwrite, debug)
     gist_reshaped = reshape(gist', [1,n_features, n_images]);
     
     %save_gist_filename_h5 = fullfile(save_dir, sprintf('S%d_gistdescriptors_8ori.h5py', nsd_subject_id));
-    save_gist_filename_h5 = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori.h5py', nsd_subject_id));
+    %save_gist_filename_h5 = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori.h5py', nsd_subject_id));
+    save_gist_filename_h5 = fullfile(save_dir, sprintf('S%d_gistdescriptors_4ori_2blocks.h5py', nsd_subject_id));
     if exist(save_gist_filename_h5,'file')
         if overwrite
             fprintf('File exists, removing it now...\n')

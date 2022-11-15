@@ -366,6 +366,11 @@ def load_precomputed_prfs(subject, args):
     if len(args.prfs_model_name)==0 or args.prfs_model_name=='alexnet':
         # default is to use alexnet
         saved_prfs_fn = saved_fit_paths.alexnet_fit_paths[subject-1]
+    elif args.prfs_model_name=='mappingtask':
+        # these are just a discretized version of continuous pRF outputs, computed
+        # using independent mapping task data.
+        saved_prfs_fn = os.path.join(default_paths.save_fits_path,'S%02d'%subject, \
+                                     'mapping_task_prfs_grid%d'%args.which_prf_grid,'prfs.npy')
     elif args.prfs_model_name=='gabor':
         saved_prfs_fn = saved_fit_paths.gabor_fit_paths[subject-1]
     elif args.prfs_model_name=='texture':
@@ -381,10 +386,13 @@ def load_precomputed_prfs(subject, args):
 
     print('Loading pre-computed pRF estimates for all voxels from %s'%saved_prfs_fn)
     out = np.load(saved_prfs_fn, allow_pickle=True).item()
-    assert(out['average_image_reps']==True)
-    best_model_each_voxel = out['best_params'][5][:,0]
-    assert(out['which_prf_grid']==args.which_prf_grid)
-    
+    if 'prf_grid_inds' in list(out.keys()):
+        best_model_each_voxel = out['prf_grid_inds'][:,0]
+    else:
+        assert(out['average_image_reps']==True)
+        best_model_each_voxel = out['best_params'][5][:,0]
+        assert(out['which_prf_grid']==args.which_prf_grid)
+
     return best_model_each_voxel, saved_prfs_fn
 
 def load_best_model_layers(subject, model, dnn_layers_use):

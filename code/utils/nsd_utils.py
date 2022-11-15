@@ -9,7 +9,8 @@ import pandas as pd
 import pickle
 import time
 
-from utils import default_paths, roi_utils
+from utils import default_paths, roi_utils, prf_utils
+from model_fitting import initialize_fitting
 
 nsd_root = default_paths.nsd_root;
 stim_root = default_paths.stim_root
@@ -593,3 +594,62 @@ def make_image_data_partitions(pct_holdout=0.10):
                       'is_holdout': is_holdout, \
                       'is_val': is_val, \
                       'rndseeds': rndseeds})
+    
+    
+def discretize_mappingtask_prfs(which_prf_grid=5):
+    
+    """
+    Converting pRF definitions from the pRF mapping task (which are continous)
+    into the closest parameters from a grid of pRFs
+    Can be used for fitting models
+    """
+
+    prf_grid = initialize_fitting.get_prf_models(which_prf_grid).round(3)
+    grid_x_deg, grid_y_deg = prf_grid[:,0]*8.4, prf_grid[:,1]*8.4
+    grid_size_deg = prf_grid[:,2]*8.4
+
+    subjects = np.arange(1,9)
+    for si,ss in enumerate(subjects):
+
+        voxel_mask = get_voxel_mask(subject=ss)
+        n_vox = np.sum(voxel_mask)
+
+        a,e,s, exp,gain,rsq = load_prf_mapping_pars(subject=ss, voxel_mask = voxel_mask)
+        x_mapping, y_mapping = prf_utils.pol_to_cart(a,e)
+        x_mapping = np.minimum(np.maximum(x_mapping, -7), 7)
+        y_mapping = np.minimum(np.maximum(y_mapping, -7), 7)
+        s_mapping = np.minimum(s, 8.4)
+        
+        print('there are %d nans in x_mapping'%np.sum(np.isnan(x_mapping)))
+        print('there are %d nans in y_mapping'%np.sum(np.isnan(y_mapping)))
+        print('there are %d nans in s_mapping'%np.sum(np.isnan(s_mapping)))
+        x_mapping[np.isnan(x_mapping)] = 0
+        y_mapping[np.isnan(y_mapping)] = 0
+
+        prf_grid_inds = np.zeros((n_vox,1),dtype=int)
+
+        for vv in range(n_vox):
+
+            # first find the [x,y] coordinate closest to this pRF center (in my grid)
+            distances_xy = np.sqrt((x_mapping[vv]-grid_x_deg)**2 + (y_mapping[vv]-grid_y_deg)**2)
+
+            # should be multiple possible values here, for the different sizes
+            closest_xy_inds = np.where(distances_xy==np.min(distances_xy))[0]
+
+            # then find which size is closest to mapping task estimate
+            distances_size = np.abs(s_mapping[vv] - grid_size_deg[closest_xy_inds])
+
+            closest_ind = closest_xy_inds[np.argmin(distances_size)]
+
+            prf_grid_inds[vv] = closest_ind.astype(int)
+
+        save_prfs_folder = os.path.join(default_paths.save_fits_path, 'S%02d'%ss, 'mapping_task_prfs_grid%d'%which_prf_grid)
+
+        if not os.path.exists(save_prfs_folder):
+            os.makedirs(save_prfs_folder)
+
+        save_filename = os.path.join(save_prfs_folder, 'prfs.npy')
+        print('saving to %s'%save_filename)
+        np.save(save_filename, {'voxel_mask': voxel_mask,  \
+                                'prf_grid_inds': prf_grid_inds, \
+                                'prf_grid_pars': prf_grid})

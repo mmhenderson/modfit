@@ -671,3 +671,15 @@ def preproc_rois():
                                 'brain_nii_shape': brain_nii_shape, \
                                }
                )
+        
+        noise_ceiling = \
+            nsd_utils.ncsnr_to_nc(ncsnr_full[voxel_mask], average_image_reps=True, subject=subject)
+        save_filename = os.path.join(default_paths.nsd_rois_root, 'S%d_noise_ceiling_avgreps.npy'%subject)
+        print(save_filename)
+        np.save(save_filename, noise_ceiling)
+        
+        noise_ceiling = \
+            nsd_utils.ncsnr_to_nc(ncsnr_full[voxel_mask], average_image_reps=False, subject=subject)
+        save_filename = os.path.join(default_paths.nsd_rois_root, 'S%d_noise_ceiling_noavg.npy'%subject)
+        print(save_filename)
+        np.save(save_filename, noise_ceiling)

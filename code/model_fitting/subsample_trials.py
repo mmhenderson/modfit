@@ -464,7 +464,10 @@ def make_separate_categ_labels(subject, which_prf_grid=5, axes_to_do=[0,2,3], \
                                   'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
     col_names = groups['col_names_all']
 
-    rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
+    # results will be repeatable for each subject
+    seeds = [361417, 401417, 441417, 481417, 511417, 551417, 591417, 31517]
+    rnd_seed = seeds[int(subject-1)]
+    # rnd_seed = int(time.strftime('%M%H%d', time.localtime()))
     np.random.seed(rnd_seed)
     
     for ai, aa in enumerate(axes_to_do):

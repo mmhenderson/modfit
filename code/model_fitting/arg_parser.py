@@ -27,6 +27,13 @@ def get_args():
     parser.add_argument("--residuals_model_name", type=str, default='', 
                     help="model the residuals are from?")
     
+    parser.add_argument("--use_simulated_data", type=nice_str2bool, default=0, 
+                    help="using simulated voxel data?")
+    parser.add_argument("--simul_model_name", type=str, default='', 
+                    help="model the simulated data are from?")
+    parser.add_argument("--simul_noise_level", type=float, default=None, 
+                    help="noise level in simulation?")
+    
     parser.add_argument("--trial_subset", type=str,default='all', 
                     help="fit for a subset of trials only? default all trials")
    

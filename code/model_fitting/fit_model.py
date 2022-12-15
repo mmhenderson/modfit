@@ -83,6 +83,12 @@ def fit_fwrf(args):
             'residuals_model_name': args.residuals_model_name, 
             'residuals_model_filename': residuals_model_filename,
             })
+        if args.use_simulated_data:
+            dict2save.update({
+            'simul_model_name': args.simul_model_name, 
+            'simul_noise_level': args.simul_noise_level,
+            'simul_data_filename': simul_data_filename, 
+            })
         if args.do_tuning:
             dict2save.update({
             'corr_each_feature': corr_each_feature
@@ -268,7 +274,7 @@ def fit_fwrf(args):
     else:
         sessions = np.arange(0,args.up_to_sess)
     # Get all data and corresponding images, in two splits. Always a fixed set that gets left out
-    if not args.use_model_residuals:
+    if not args.use_model_residuals and not args.use_simulated_data:
         # normal case, using voxel data to fit model
         voxel_data, image_order, val_inds, holdout_inds, session_inds = \
                                     nsd_utils.get_data_splits(args.subject, \
@@ -278,7 +284,10 @@ def fit_fwrf(args):
                                     shuffle_images=args.shuffle_images_once,\
                                     average_image_reps=args.average_image_reps, \
                                     random_voxel_data=args.random_voxel_data)
-        
+    elif args.use_simulated_data:
+        # using simulated data to test model
+        voxel_data, image_order, val_inds, holdout_inds, session_inds, voxel_prf_inds, simul_data_filename = \
+                                    initialize_fitting.load_simul_data(args, sessions)
     else:
         # special case, using the residuals of another encoding model as input voxel data.
         voxel_data, image_order, val_inds, holdout_inds, session_inds, residuals_model_filename = \
@@ -338,11 +347,15 @@ def fit_fwrf(args):
         val_trials_use = None
    
         
-    if args.use_precomputed_prfs and args.which_prf_grid!=0:
+    if args.use_precomputed_prfs and args.which_prf_grid!=0 and (not args.use_simulated_data):
         # If we already computed pRFs for this subject on some model, can load those now and use them during 
         # fitting. Faster than fitting pRFs each time.
         best_model_each_voxel, saved_prfs_fn = initialize_fitting.load_precomputed_prfs(args.subject, args)
         assert(len(best_model_each_voxel)==n_voxels)
+    elif args.use_simulated_data:
+        best_model_each_voxel = voxel_prf_inds
+        assert(len(best_model_each_voxel)==n_voxels)
+        saved_prfs_fn = simul_data_filename
     elif args.which_prf_grid==0:
         best_model_each_voxel = np.zeros((n_voxels,),dtype=int)
         saved_prfs_fn = None

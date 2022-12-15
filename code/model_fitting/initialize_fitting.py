@@ -189,6 +189,10 @@ def get_full_save_name(args):
         model_name += '_%s'%args.trial_subset
     if args.use_model_residuals:
         model_name += '_from_residuals'
+        
+    if args.use_simulated_data:
+        model_name += '_simulated_%s_addnoise_%.2f'%(args.simul_model_name, args.simul_noise_level)
+        
     if not args.use_precomputed_prfs:
         if 'alexnet' not in model_name and args.which_prf_grid!=0:
             model_name += '_fit_pRFs'
@@ -634,6 +638,35 @@ def load_model_residuals(args, sessions):
         assert(np.all(image_order==image_order_expected))
     
     return voxel_data, image_order, val_inds, holdout_inds, session_inds, fn2load
+
+def load_simul_data(args, sessions):
+
+    if args.simul_model_name=='gabor':
+        folder = os.path.join(default_paths.gabor_texture_feat_path, 'simulated_data')
+    else:
+        raise ValueError('simul_model_name %s not implemented yet'%args.simul_model_name)
+    
+    fn2load = os.path.join(folder, 'S%d_sim_data_addnoise_%.2f.npy'%(args.subject, args.simul_noise_level))
+    print('Loading simulated voxel data from %s'%fn2load)
+    sim_dat = np.load(fn2load,allow_pickle=True).item()
+    
+    voxel_data = sim_dat['sim_data']
+    voxel_prf_inds = sim_dat['simulated_voxel_prf_inds']
+    
+    image_order = np.arange(10000)
+    session_inds = None
+    
+    assert(args.average_image_reps)
+    assert(args.subject==1)
+
+    is_trn, is_holdout, is_val = nsd_utils.load_image_data_partitions(args.subject)
+    val_inds = is_val[image_order]
+    holdout_inds = is_holdout[image_order]
+   
+    print('shape of simulated voxel data is:')
+    print(voxel_data.shape)
+    
+    return voxel_data, image_order, val_inds, holdout_inds, session_inds, voxel_prf_inds, fn2load
 
 
 

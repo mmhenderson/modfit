@@ -319,8 +319,12 @@ def lin_reg(x,y):
    
     if len(x.shape)==1:
         x_mat = x[:,np.newaxis]
+    else:
+        x_mat = x
     if len(y.shape)==1:
         y_mat = y[:,np.newaxis]
+    else:
+        y_mat = y
         
     n_pts = x_mat.shape[0]
     assert(y_mat.shape[0]==n_pts)

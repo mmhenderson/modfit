@@ -33,3 +33,5 @@ food_image_root = '/lab_data/tarrlab/maggie/food_images/'
 
 # path to trained models from starting blurry project
 startingblurry_root = '/home/ojinsi/trials/'
+
+retinaface_path = '/user_data/mmhender/toolboxes/RetinaFace-tf2/'

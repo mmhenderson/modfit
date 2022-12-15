@@ -62,3 +62,6 @@ floc_image_root = path_defs.floc_image_root
 food_image_root = path_defs.food_image_root
 
 startingblurry_root = path_defs.startingblurry_root
+
+# needed for face labeling code
+retinaface_path = path_defs.retinaface_path

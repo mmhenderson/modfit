@@ -284,8 +284,8 @@ class encoding_model():
 
         if self.shuffle_data:
             # prep for permutation test, if doing
-            if self.trials_use_each_prf_trn is not None:
-                raise ValueError('cannot specify a trial subset when also doing permutation test')
+            # if self.trials_use_each_prf_trn is not None:
+                # raise ValueError('cannot specify a trial subset when also doing permutation test')
             if self.shuff_rnd_seed is not None:
                 np.random.seed(self.shuff_rnd_seed)
             n_trn = len(image_inds_trn)
@@ -369,6 +369,17 @@ class encoding_model():
             trn_data_use = self.voxel_data_trn[trials_use_trn,:]
             out_features = out_features[trials_use_holdout,:]
             out_data_use = self.voxel_data_holdout[trials_use_holdout,:]
+            if self.shuffle_data:
+                self.shuff_inds_trn_use = self.shuff_inds_trn[trials_use_trn,:]
+                self.shuff_inds_out_use = self.shuff_inds_out[trials_use_holdout,:]
+                # take unique values because we're shuffling only part of data here.
+                self.shuff_inds_trn_use = np.array([np.unique(self.shuff_inds_trn_use[:,xx], return_inverse=True)[1]\
+                                             for xx in range(self.n_shuff_iters)]).T
+                self.shuff_inds_out_use = np.array([np.unique(self.shuff_inds_out_use[:,xx], return_inverse=True)[1]\
+                                             for xx in range(self.n_shuff_iters)]).T
+                print(self.shuff_inds_trn_use.shape)
+                print(self.shuff_inds_out_use.shape)
+                
         else:
             trn_data_use = self.voxel_data_trn
             out_data_use = self.voxel_data_holdout
@@ -520,10 +531,16 @@ class encoding_model():
             _vtrn = torch_utils._to_torch(trn_data_use[:,voxel_batch_inds], device=self.device)
             _vout = torch_utils._to_torch(out_data_use[:,voxel_batch_inds], device=self.device)
         
+            if self.trials_use_each_prf_trn is not None:
+                sinds_trn = self.shuff_inds_trn_use
+                sinds_out = self.shuff_inds_out_use
+            else:
+                sinds_trn = self.shuff_inds_trn
+                sinds_out = self.shuff_inds_out
             # create trial-shuffled datasets here, multiple iterations of shuffling
             # don't make a new variable name here, trying to save memory
-            _vtrn = torch.cat([_vtrn[self.shuff_inds_trn[:,ii],:,None] for ii in batch_inds], axis=2)
-            _vout = torch.cat([_vout[self.shuff_inds_out[:,ii],:,None] for ii in batch_inds], axis=2)
+            _vtrn = torch.cat([_vtrn[sinds_trn[:,ii],:,None] for ii in batch_inds], axis=2)
+            _vout = torch.cat([_vout[sinds_out[:,ii],:,None] for ii in batch_inds], axis=2)
             # size [n_trials x n_voxels x n_shuff_iters]
            
             # Fit weights and get prediction loss here
@@ -796,8 +813,8 @@ class encoding_model():
         
         if self.shuffle_data:
             # prep for permutation test evaluation, if doing 
-            if self.trials_use_each_prf_val is not None:
-                raise ValueError('cannot specify a trial subset when also doing permutation test')
+            # if self.trials_use_each_prf_val is not None:
+            #     raise ValueError('cannot specify a trial subset when also doing permutation test')
             if self.shuff_rnd_seed is not None:
                 np.random.seed(self.shuff_rnd_seed)    
             print('making shuffle inds')
@@ -857,6 +874,12 @@ class encoding_model():
                 self.val_cc[voxels_to_do,:] = np.nan
                 self.val_r2[voxels_to_do,:] = np.nan
                 return
+            if self.shuffle_data:
+                self.shuff_inds_val_use = self.shuff_inds_val[trials_use,:]
+                # take unique values because we're shuffling only part of data here.
+                self.shuff_inds_val_use = np.array([np.unique(self.shuff_inds_val_use[:,xx], return_inverse=True)[1]\
+                                             for xx in range(self.n_shuff_iters)]).T
+                print(self.shuff_inds_val_use.shape)
         else:
             trials_use = np.ones((self.n_val_trials,),dtype=bool)
             voxel_data_use = self.voxel_data_val
@@ -978,6 +1001,7 @@ class encoding_model():
                                          voxel_data_use, 
                                          voxel_batch_inds, pp):
 
+          
         # weights is [voxels x features x n_shuff_iters]
         weights = self.best_weights[voxel_batch_inds,:,pp,:][:,features_to_use, :]
         # biases is [voxels x n_shuff_iters]
@@ -1019,10 +1043,15 @@ class encoding_model():
             pred_block[trial_batch_inds,:,:] = np.moveaxis(r_all, [0], [1])
             # pred_block[trial_batch_inds,:,:] = torch_utils.get_value(torch.transpose(_r, 0,1 ))
 
+        if self.trials_use_each_prf_val is not None:
+            sinds_val = self.shuff_inds_val_use
+        else:
+            sinds_val = self.shuff_inds_val
+          
         # Now for this batch of voxels and this partial version of the model, measure performance.
         for xx in range(self.n_shuff_iters):
             # use the randomized validation set order here
-            shuff_order = self.shuff_inds_val[:,xx]
+            shuff_order = sinds_val[:,xx]
             shuff_dat = voxel_data_use[:,voxel_batch_inds][shuff_order,:]
             if self.do_corrcoef:
                 self.val_cc[voxel_batch_inds,pp,xx] = stats_utils.get_corrcoef(shuff_dat, pred_block[:,:,xx])

@@ -31,29 +31,32 @@ if __name__ == '__main__':
     else:
         subjects = list(np.arange(1,9))+[999]
         
-    for subject in subjects:
+#     for subject in subjects:
 
-        label_utils.write_binary_labels_csv(subject=subject, stuff=False)
-        label_utils.write_binary_labels_csv(subject=subject, stuff=True)
+#         label_utils.write_binary_labels_csv(subject=subject, stuff=False)
+#         label_utils.write_binary_labels_csv(subject=subject, stuff=True)
         
-        # doing these labels separately for coco labels (objects) and coco-stuff
-        label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=False, which_prf_grid=which_prf_grid)
-        label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=True, which_prf_grid=which_prf_grid)
+#         # doing these labels separately for coco labels (objects) and coco-stuff
+#         label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=False, which_prf_grid=which_prf_grid)
+#         label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=True, which_prf_grid=which_prf_grid)
 
-        # higher-level semantic dimensions
-        label_utils.write_indoor_outdoor_csv(subject=subject)
-        label_utils.write_natural_humanmade_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
-        label_utils.write_realworldsize_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
+#         # higher-level semantic dimensions
+#         label_utils.write_indoor_outdoor_csv(subject=subject)
+#         label_utils.write_natural_humanmade_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
+#         label_utils.write_realworldsize_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
+#         label_utils.write_buildings_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
     
-    # counting occurences of each label
-    label_utils.count_labels_each_prf(which_prf_grid=which_prf_grid, debug=debug)
-    label_utils.get_top_two_subcateg(which_prf_grid=which_prf_grid)
+#     # counting occurences of each label
+#     label_utils.count_labels_each_prf(which_prf_grid=which_prf_grid, debug=debug)
+#     label_utils.get_top_two_subcateg(which_prf_grid=which_prf_grid)
 
     for subject in subjects:
 
-        label_utils.concat_labels_each_prf(subject=subject, \
+        label_utils.concat_highlevel_labels_each_prf(subject=subject, \
                                       which_prf_grid=which_prf_grid, verbose=True, debug=debug)
-        label_utils.concat_labels_fullimage(subject=subject, verbose=True)
+#         label_utils.concat_labels_each_prf(subject=subject, \
+#                                       which_prf_grid=which_prf_grid, verbose=True, debug=debug)
+#         label_utils.concat_labels_fullimage(subject=subject, verbose=True)
         
-    label_utils.count_highlevel_labels(which_prf_grid=which_prf_grid, axes_to_do=[0,2,3], \
-                           debug=debug)
+#     label_utils.count_highlevel_labels(which_prf_grid=which_prf_grid, axes_to_do=[0,2,3], \
+#                            debug=debug)

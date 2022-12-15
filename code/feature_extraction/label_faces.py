@@ -4,10 +4,11 @@ import sys, os
 import time
 import h5py
 import torch
+import pandas as pd
 from src.retinafacetf2.retinaface import RetinaFace
 
 #import custom modules
-from utils import nsd_utils, default_paths
+from utils import nsd_utils, default_paths, prf_utils, segmentation_utils
 from model_fitting import initialize_fitting
 
 try:
@@ -83,6 +84,92 @@ def proc_one_subject(subject, args):
                       'n_faces_each': n_faces_each})
     # save
 
+
+def write_binary_face_labels_csv(subject, min_pix = 10, which_prf_grid=5, debug=False):
+ 
+    if subject==999:
+        # 999 is a code i am using to indicate the independent set of coco images, which were
+        # not actually shown to any NSD participants
+        subject_df = coco_utils.load_indep_coco_info()      
+    else:
+        subject_df = nsd_utils.get_subj_df(subject);
+ 
+    # Params for the spatial aspect of the model (possible pRFs)
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+
+    # Get masks for every pRF (circular), in coords of NSD images
+    n_prfs = len(models)
+    n_pix = 240 # this is the resolution that the face annotations are in, don't change this
+    n_prf_sd_out = 2
+    prf_masks = np.zeros((n_prfs, n_pix, n_pix))
+    
+    for prf_ind in range(n_prfs):    
+        prf_params = models[prf_ind,:] 
+        x,y,sigma = prf_params
+        aperture=1.0
+        prf_mask = prf_utils.get_prf_mask(center=[x,y], sd=sigma, \
+                               patch_size=n_pix)
+        prf_masks[prf_ind,:,:] = prf_mask.astype('int')
+
+    # mask_sums = np.sum(np.sum(prf_masks, axis=1), axis=1)
+    # min_overlap_pct = 0.20
+    # min_pix_req = np.ceil(mask_sums*min_overlap_pct)
+    # print(np.unique(min_pix_req))
+    min_pix_req = min_pix*np.ones((n_prfs,))
+    
+    face_labels_path = os.path.join(default_paths.stim_labels_root, 'face_labels_retinaface')
+    fn2load = os.path.join(face_labels_path, 'S%d_facelabels.npy'%(subject))   
+    f = np.load(fn2load, allow_pickle=True).item()
+ 
+    # first save labels for entire image
+    fn2save = os.path.join(default_paths.stim_labels_root, 'S%d_face_binary.csv'%(subject))
+    print('saving to %s'%(fn2save))
+    face_labels = (f['n_faces_each']>0)
+    df = pd.DataFrame(face_labels, columns=['has_face'])
+    df.to_csv(fn2save, header=True)
+    
+    # then making labels for each pRF individually
+    n_images = len(f['n_faces_each'])
+    n_prfs = len(models)
+    face_labels_binary = np.zeros((n_images, n_prfs),dtype=bool)
+                           
+    for image_ind in range(n_images):
+
+        if debug and image_ind>1:
+            continue
+
+        print('Processing image %d of %d'%(image_ind, n_images))
+
+        n_faces = f['faces'][image_ind].shape[0]
+
+        for nn in range(n_faces):
+
+            box = f['faces'][image_ind][nn,:]
+            x1,y1,x2,y2,_ = box
+            poly = [x1,y1,
+                    x1,y2,
+                    x2,y2,
+                    x2,y1]
+
+            face_mask = segmentation_utils.apply_mask_from_poly(np.ones((n_pix,n_pix)), poly)
+
+            # find where this overlaps with any pRFs
+            overlap_pix = np.tensordot(face_mask, prf_masks, [[0,1], [1,2]])
+            has_overlap = overlap_pix > min_pix_req
+
+            face_labels_binary[image_ind,has_overlap] = 1; 
+
+            sys.stdout.flush()       
+                           
+    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%\
+                                 (subject, which_prf_grid))
+    for mm in range(n_prfs):
+                           
+        fn2save = os.path.join(labels_folder, 'S%d_face_binary_prf%d.csv'%(subject, mm))
+        print('saving to %s'%(fn2save))
+        df = pd.DataFrame({'has_face':face_labels_binary[:,mm]})
+        df.to_csv(fn2save, header=True)
+                           
     
 if __name__ == '__main__':
     

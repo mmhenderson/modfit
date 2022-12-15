@@ -337,6 +337,49 @@ def write_natural_humanmade_csv(subject, which_prf_grid, debug=False):
 
     return
 
+def write_buildings_csv(subject, which_prf_grid, debug=False):
+
+    stuff_cat_objects, stuff_cat_names, stuff_cat_ids, stuff_supcat_names, stuff_ids_each_supcat = \
+            coco_utils.get_coco_cat_info(coco_utils.coco_stuff_val) 
+
+    fn2load = os.path.join(os.path.dirname(os.path.abspath(__file__)),'files','Building_stuff_categ.npy')
+    d = np.load(fn2load, allow_pickle=True).item()
+    assert np.all(np.array(list(d.keys()))==np.array(stuff_cat_names))
+    building_cat_inds = [d[kk]==1 for kk in stuff_cat_names]
+    
+    fn2load = os.path.join(default_paths.stim_labels_root,'S%d_cocolabs_stuff_binary.csv'%(subject))
+    coco_stuff_df = pd.read_csv(fn2load, index_col=0)
+    stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
+    
+    has_building = np.any(stuff_cat_labels[:,building_cat_inds], axis=1)
+    building_df = pd.DataFrame({'has_building': has_building})
+    fn2save = os.path.join(default_paths.stim_labels_root, 'S%d_building.csv'%(subject))
+    print('Saving to %s'%fn2save)
+    building_df.to_csv(fn2save, header=True)
+
+    # then pRF-specific labels
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    n_prfs = len(models)
+    labels_folder = os.path.join(default_paths.stim_labels_root, 'S%d_within_prf_grid%d'%(subject, \
+                                                                                        which_prf_grid))
+    for prf_model_index in range(n_prfs):
+             
+        if debug and prf_model_index>1:
+            continue
+            
+        fn2load = os.path.join(labels_folder, \
+                              'S%d_cocolabs_stuff_binary_prf%d.csv'%(subject, prf_model_index))
+        coco_stuff_df = pd.read_csv(fn2load, index_col=0)
+        stuff_cat_labels = np.array(coco_stuff_df)[:,16:108]
+        
+        has_building = np.any(stuff_cat_labels[:,building_cat_inds], axis=1)
+        building_df = pd.DataFrame({'has_building': has_building})
+        fn2save = os.path.join(labels_folder, 'S%d_building_prf%d.csv'%(subject, prf_model_index))
+        print('Saving to %s'%fn2save)
+        building_df.to_csv(fn2save, header=True)
+
+    return
+
 
 def write_realworldsize_csv(subject, which_prf_grid, debug=False):
     """
@@ -423,6 +466,135 @@ def write_realworldsize_csv(subject, which_prf_grid, debug=False):
         rwsize_df.to_csv(fn2save, header=True)
 
     return
+
+
+def concat_highlevel_labels_each_prf(subject, which_prf_grid, verbose=False, debug=False):
+
+    """
+    Concatenate the csv files containing a range of different labels for each image patch.
+    Save a file that is loaded later on by "load_labels_each_prf".
+    Each column is a single attribute with multiple levels - nans indicate that the attribute 
+    was ambiguous in that pRF.
+    """
+
+    cat_objects, cat_names, cat_ids, supcat_names, ids_each_supcat = \
+        coco_utils.get_coco_cat_info(coco_utils.coco_val)
+
+    labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+    # this file will get made once every time this method is run, it is same for all subjects/pRFs.
+    save_name_groups = os.path.join(default_paths.stim_labels_root,'Highlevel_concat_labelgroupnames.npy')
+
+    print('concatenating labels from folders at %s and %s (will be slow...)'%\
+          (default_paths.stim_labels_root, labels_folder))
+    sys.stdout.flush()
+
+    # list all the attributes we want to look at here
+    discrim_type_list = ['face-building','animate-inanimate','small-large','indoor-outdoor']
+
+    n_sem_axes = len(discrim_type_list)
+    n_trials = 10000
+    models = initialize_fitting.get_prf_models(which_grid=which_prf_grid)    
+    n_prfs = models.shape[0]
+
+    # load the labels for indoor vs outdoor (which is defined across entire images, not within pRF)
+    in_out_labels_fn = os.path.join(default_paths.stim_labels_root, 'S%d_indoor_outdoor.csv'%subject)
+    if verbose:
+        print('Loading pre-computed features from %s'%in_out_labels_fn)
+    in_out_df = pd.read_csv(in_out_labels_fn, index_col=0)
+
+    for prf_model_index in range(n_prfs):
+
+        if debug and prf_model_index>1:
+            continue
+
+        # will make a single dataframe for each pRF
+        labels_df = pd.DataFrame({})
+        save_name = os.path.join(labels_folder, \
+                                  'S%d_highlevel_concat_prf%d.csv'%(subject, prf_model_index))
+
+        col_names_all = []
+        for dd in range(n_sem_axes):
+
+            labels=None; colnames=None;
+
+            discrim_type = discrim_type_list[dd]
+
+            if 'indoor-outdoor' in discrim_type:
+                labels = np.array(in_out_df).astype(np.float32)
+                colnames = list(in_out_df.keys())
+
+            elif 'small-large' in discrim_type:
+                size_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_realworldsize_prf%d.csv'%(subject, prf_model_index))
+                size_df = pd.read_csv(size_labels_fn, index_col=0) 
+                labels = np.array(size_df)[:,[0,2]].astype(np.float32)
+                colnames = [size_df.keys()[0], size_df.keys()[2]]
+
+            elif 'animate-inanimate' in discrim_type:
+                coco_things_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_cocolabs_binary_prf%d.csv'%(subject, prf_model_index))
+                coco_things_df = pd.read_csv(coco_things_labels_fn, index_col=0)
+                supcat_labels = np.array(coco_things_df)[:,0:12]
+                animate_supcats = [1,9]
+                inanimate_supcats = [ii for ii in range(12)\
+                                     if ii not in animate_supcats]
+                has_animate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                               for ii in animate_supcats]), axis=0)
+                has_inanimate = np.any(np.array([supcat_labels[:,ii]==1 \
+                                            for ii in inanimate_supcats]), axis=0)
+                labels = np.concatenate([has_animate[:,np.newaxis], \
+                                             has_inanimate[:,np.newaxis]], axis=1).astype(np.float32)
+                colnames = ['has_animate','has_inanimate']
+
+            elif 'face-building' in discrim_type:
+                face_labels_fn = os.path.join(labels_folder, \
+                      'S%d_face_binary_prf%d.csv'%(subject, prf_model_index))
+                has_face = np.array(pd.read_csv(face_labels_fn, index_col=0))
+                bld_labels_fn = os.path.join(labels_folder, \
+                                  'S%d_building_prf%d.csv'%(subject, prf_model_index))
+                has_bld = np.array(pd.read_csv(bld_labels_fn, index_col=0))
+                colnames = ['has_face','has_building']
+                labels = np.concatenate([has_face,has_bld], axis=1).astype(np.float32)
+
+            col_names_all.append(colnames)
+
+            if verbose:
+                print(discrim_type)
+                print(colnames)          
+                if labels.shape[1]==2:
+                    print('num 1/1, 1/0, 0/1, 0/0:')
+                    print([np.sum((labels[:,0]==1) & (labels[:,1]==1)), \
+                    np.sum((labels[:,0]==1) & (labels[:,1]==0)),\
+                    np.sum((labels[:,0]==0) & (labels[:,1]==1)),\
+                    np.sum((labels[:,0]==0) & (labels[:,1]==0))])
+                else:
+                    print('num each column:')
+                    print(np.sum(labels, axis=0).astype(int))
+
+            # remove any images with >1 or 0 labels, since these are ambiguous.
+            assert(len(colnames)==labels.shape[1])
+            has_one_label = np.sum(labels, axis=1)==1
+            labels = np.array([np.where(labels[ii,:]==1)[0][0] \
+                       if has_one_label[ii] else np.nan \
+                       for ii in range(labels.shape[0])])
+
+            if verbose:
+                print('n trials labeled/ambiguous: %d/%d'%\
+                      (np.sum(~np.isnan(labels)), np.sum(np.isnan(labels))))
+
+            labels_df[discrim_type] = labels
+
+        if verbose:
+            print('Saving to %s'%save_name)
+
+        labels_df.to_csv(save_name, header=True)
+
+        if prf_model_index==0:
+            print('Saving to %s'%(save_name_groups))
+            np.save(save_name_groups, {'discrim_type_list': discrim_type_list, \
+                                      'col_names_all': col_names_all}, allow_pickle=True)
+
 
 def count_labels_each_prf(which_prf_grid=5, debug=False):
 
@@ -627,7 +799,6 @@ def get_top_two_subcateg(which_prf_grid=5):
     print('saving to %s'%fn2save)
     np.save(fn2save, {'things_top_two': things_top_two, \
                      'stuff_top_two': stuff_top_two})
-    
     
     
 def concat_labels_each_prf(subject, which_prf_grid, verbose=False, debug=False):

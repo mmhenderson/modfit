@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 
 # import custom modules
-from utils import nsd_utils, default_paths
+from utils import nsd_utils, default_paths, prf_utils
 from feature_extraction import default_feature_loaders
 import initialize_fitting
 
@@ -670,7 +670,7 @@ def make_random_downsample_sets(subject, which_prf_grid=5, \
                 allow_pickle=True)
 
 
-def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, axes_to_do=[0,2,3], \
+def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, axes_to_do=[0,1,2,3,4], \
                                n_samp_iters=1000, debug=False):
    
     """
@@ -687,25 +687,34 @@ def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, axes_to_do=[0,
     counts_filename = os.path.join(default_paths.stim_labels_root, 'Highlevel_counts_all.npy')
     counts = np.load(counts_filename, allow_pickle=True).item()
     
-    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)   
-    n_prfs = models.shape[0]
-
-    assert(subject==999)
+    models = prf_utils.get_prf_models(which_grid=which_prf_grid)
+    prfs_use = prf_utils.get_prfs_use_decoding(which_prf_grid=which_prf_grid)
+    n_prfs = len(prfs_use)
+    print('using %d of %d pRFs'%(np.sum(prfs_use), n_prfs))
     
-    # 999 is a code for the independent coco image set, using all images
-    # (cross-validate within this set)
-    image_order = np.arange(10000)
+    if subject==999:
+        # 999 is a code for the independent coco image set, using all images
+        # (cross-validate within this set)
+        n_images = 10000
+        sub_ind = 8
+    elif subject==998:
+        # this is the larger set of 50,000 independent images
+        n_images = 50000
+        sub_ind = 9
+    else:
+        raise ValueError('subject must be 999 or 998')
     
-    counts_each = counts['counts'][8,:,:,:]
+    image_order = np.arange(n_images)
+    
+    counts_each = counts['counts'][sub_ind,prfs_use,:,:]
     min_counts_each_prf = np.min(counts_each[:,:,0:2], axis=2)
     min_counts = np.min(min_counts_each_prf, axis=0).astype(int)
-
     
     n_trials = len(image_order)
 
     # get semantic category labels
     labels_all, discrim_type_list, unique_labels_each = \
-                        initialize_fitting.load_labels_each_prf(subject, \
+                        initialize_fitting.load_highlevel_labels_each_prf(subject, \
                                 which_prf_grid, image_inds=image_order, \
                                 models=models,verbose=False, debug=debug)
 
@@ -725,7 +734,7 @@ def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, axes_to_do=[0,
         # how many trials minimum any group, any pRF?
         n_each = min_counts[ai]
         print(n_each)
-
+    
         # boolean masks for which trials will be included in the balanced sets
         # the sets are each balanced perfectly for label 1 & label 2, with
         # no ambiguous trials.
@@ -733,6 +742,9 @@ def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, axes_to_do=[0,
 
         for mm in range(n_prfs):
 
+            if not prfs_use[mm]:
+                continue
+                
             if debug and mm>1:
                 continue
 
@@ -815,5 +827,5 @@ if __name__ == '__main__':
     
     if args.balance_for_decoding:
         make_decoding_subsets_balanced(args.subject, args.which_prf_grid, \
-                                       axes_to_do = [0,2,3], \
+                                       axes_to_do = [0,1,2,3,4], \
                                       n_samp_iters=args.n_samp_iters, debug=args.debug==1)

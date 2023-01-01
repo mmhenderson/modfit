@@ -6,7 +6,7 @@ import pandas as pd
 import statsmodels
 import statsmodels.stats.multitest
 
-from utils import default_paths
+from utils import default_paths, prf_utils
 from model_fitting import initialize_fitting
 
 
@@ -100,12 +100,13 @@ def analyze_decoding_slopes(subject, feature_type, which_prf_grid=5, \
     n_angles = len(np.unique(angles))-1
     n_sizes = len(size_vals)
 
-    # removing any pRFs that are very peripheral - for these, not all sizes/angles
-    # are evenly represented so the grid is un-balanced.
-    # left with 1280 pRFs (assuming grid=5)
-    counts = np.array([np.sum(ecc==ecc_vals[ee]) for ee in range(n_ecc)])
-    ecc_use = counts==(n_angles*n_sizes)
-    prfs_use = np.isin(ecc,ecc_vals[ecc_use])
+    prfs_use = prf_utils.get_prfs_use_decoding()
+    # # removing any pRFs that are very peripheral - for these, not all sizes/angles
+    # # are evenly represented so the grid is un-balanced.
+    # # left with 1280 pRFs (assuming grid=5)
+    # counts = np.array([np.sum(ecc==ecc_vals[ee]) for ee in range(n_ecc)])
+    # ecc_use = counts==(n_angles*n_sizes)
+    # prfs_use = np.isin(ecc,ecc_vals[ecc_use])
     print('using %d pRFs'%np.sum(prfs_use))
     
     pars = [sizes, ecc, x, y]

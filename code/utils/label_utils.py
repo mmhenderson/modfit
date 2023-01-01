@@ -18,6 +18,9 @@ def write_binary_labels_csv(subject, stuff=False):
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
         subject_df = coco_utils.load_indep_coco_info()      
+    elif subject==998:
+        # this is the larger set of 50,000 independent images
+        subject_df = coco_utils.load_indep_coco_info_big()
     else:
         subject_df = nsd_utils.get_subj_df(subject);
         
@@ -62,7 +65,10 @@ def write_binary_labels_csv_within_prf(subject, min_pix = 10, stuff=False, \
     if subject==999:
         # 999 is a code i am using to indicate the independent set of coco images, which were
         # not actually shown to any NSD participants
-        subject_df = coco_utils.load_indep_coco_info()      
+        subject_df = coco_utils.load_indep_coco_info()  
+    elif subject==998:
+        # this is the larger set of 50,000 independent images
+        subject_df = coco_utils.load_indep_coco_info_big()
     else:
         subject_df = nsd_utils.get_subj_df(subject);
  
@@ -490,7 +496,8 @@ def concat_highlevel_labels_each_prf(subject, which_prf_grid, verbose=False, deb
     sys.stdout.flush()
 
     # list all the attributes we want to look at here
-    discrim_type_list = ['face-building','animate-inanimate','small-large','indoor-outdoor']
+    # discrim_type_list = ['face-building','animate-inanimate','small-large','indoor-outdoor']
+    discrim_type_list = ['face-none','building-none','animate-inanimate','small-large','indoor-outdoor']
 
     n_sem_axes = len(discrim_type_list)
     n_trials = 10000
@@ -547,15 +554,19 @@ def concat_highlevel_labels_each_prf(subject, which_prf_grid, verbose=False, deb
                                              has_inanimate[:,np.newaxis]], axis=1).astype(np.float32)
                 colnames = ['has_animate','has_inanimate']
 
-            elif 'face-building' in discrim_type:
+            elif 'face-none' in discrim_type:
                 face_labels_fn = os.path.join(labels_folder, \
                       'S%d_face_binary_prf%d.csv'%(subject, prf_model_index))
                 has_face = np.array(pd.read_csv(face_labels_fn, index_col=0))
+                colnames = ['has_face','no_face']
+                labels = np.concatenate([has_face,~has_face], axis=1).astype(np.float32)
+
+            elif 'building-none' in discrim_type:
                 bld_labels_fn = os.path.join(labels_folder, \
                                   'S%d_building_prf%d.csv'%(subject, prf_model_index))
                 has_bld = np.array(pd.read_csv(bld_labels_fn, index_col=0))
-                colnames = ['has_face','has_building']
-                labels = np.concatenate([has_face,has_bld], axis=1).astype(np.float32)
+                colnames = ['has_building','no_building']
+                labels = np.concatenate([has_bld, ~has_bld], axis=1).astype(np.float32)
 
             col_names_all.append(colnames)
 
@@ -1159,7 +1170,7 @@ def concat_labels_fullimage(subject, verbose=False):
                               'col_names_all': col_names_all}, allow_pickle=True)
 
 
-def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
+def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,1,2,3,4], \
                            debug=False):
 
     """
@@ -1171,7 +1182,7 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
     n_prfs = models.shape[0]
 
    
-    subjects = np.array(list(np.arange(1,9)) + [999])
+    subjects = np.array(list(np.arange(1,9)) + [999,998])
     n_subjects = len(subjects)
     n_axes = len(axes_to_do)
     n_levels = 3; # levels are [label1, label2, ambiguous]
@@ -1187,7 +1198,7 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
                                      'S%d_within_prf_grid%d'%(ss, which_prf_grid))
         if si==0:
             groups = np.load(os.path.join(default_paths.stim_labels_root,\
-                                  'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
+                                  'Highlevel_concat_labelgroupnames.npy'), allow_pickle=True).item()
             group_names = [groups['col_names_all'][aa] for aa in axes_to_do]
             axis_names = [groups['discrim_type_list'][aa] for aa in axes_to_do]
           
@@ -1197,7 +1208,7 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
         # will be using all the available sessions. 
         image_order = nsd_utils.get_master_image_order()    
         session_inds = nsd_utils.get_session_inds_full()
-        if ss!=999:
+        if (ss!=999) and (ss!=998):
             sessions = np.arange(nsd_utils.max_sess_each_subj[ss-1])
             inds2use = np.isin(session_inds, sessions) # remove any sessions that weren't shown
             # list of all the image indices shown on each trial
@@ -1214,7 +1225,7 @@ def count_highlevel_labels(which_prf_grid=5, axes_to_do=[0,2,3], \
                 continue
 
             fn2load = os.path.join(labels_folder, \
-                                      'S%d_concat_prf%d.csv'%(ss, prf_model_index))
+                                      'S%d_highlevel_concat_prf%d.csv'%(ss, prf_model_index))
             concat_df = pd.read_csv(fn2load, index_col=0)
             labels = np.array(concat_df)
             labels = labels[image_order,:]

@@ -33,11 +33,12 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 def get_discrim(args):
     
     
-    if not args.trial_subset=='all':
-        model_name = 'semantic_discrim_raw_trn'        
+    if args.trial_subset=='all':
+        model_name = 'semantic_discrim_raw_val_all'
+    elif args.trial_subset=='all_trnval':
+        model_name = 'semantic_discrim_raw_trnval_all'        
     else:
-        model_name = 'semantic_discrim_raw_val'
-    model_name += '_%s'%args.trial_subset    
+        model_name = 'semantic_discrim_raw_trn_%s'%args.trial_subset 
     
     output_dir, fn2save = initialize_fitting.get_save_path(model_name, args)
     sys.stdout.flush()
@@ -69,7 +70,7 @@ def get_discrim(args):
         'discrim_type_list': discrim_type_list,
         'n_sem_samp_each_axis': n_sem_samp_each_axis, 
         'mean_each_sem_level': mean_each_sem_level,
-        'axes_to_do': axes_to_do, 
+        'axes_to_do_partial': axes_to_do, 
         'sem_partial_corrs': sem_partial_corrs, 
         'sem_partial_n_samp': sem_partial_n_samp, 
         }
@@ -115,8 +116,16 @@ def get_discrim(args):
                                 average_image_reps = args.average_image_reps)
     trn_inds = ~val_inds & ~holdout_inds
     
-    
-    if args.trial_subset!='all':
+    if args.trial_subset=='all':
+        # default case - using all validation set trials, no sub-sampling.
+        image_inds_use = image_order[val_inds]
+        voxel_data_use = voxel_data[val_inds,:]    
+        trials_use = None
+    elif args.trial_subset=='all_trnval':
+        image_inds_use = image_order
+        voxel_data_use = voxel_data
+        trials_use = None
+    else:
         print('choosing a subset of trials to work with: %s'%args.trial_subset) 
         trn_trials_use, holdout_trials_use, val_trials_use = \
                 initialize_fitting.get_subsampled_trial_order(image_order[trn_inds], \
@@ -131,13 +140,7 @@ def get_discrim(args):
         voxel_data_use = voxel_data[trn_inds,:]
         trials_use = trn_trials_use       
         print('min trn trials: %d'%np.min(np.sum(trn_trials_use, axis=0)))
-        
-    else:
-        # default case - using all validation set trials, no sub-sampling.
-        image_inds_use = image_order[val_inds]
-        voxel_data_use = voxel_data[val_inds,:]    
-        trials_use = None
-        
+    
     voxel_data_use = voxel_data_use[:,:,np.newaxis]
         
     n_voxels = voxel_data_use.shape[1]   
@@ -158,14 +161,28 @@ def get_discrim(args):
     sys.stdout.flush()
    
     labels_all, discrim_type_list, unique_labs_each = \
-            initialize_fitting.load_labels_each_prf(args.subject, args.which_prf_grid,\
+            initialize_fitting.load_highlevel_labels_each_prf(args.subject, args.which_prf_grid,\
                                             image_inds=image_inds_use, \
                                             models=prf_models,verbose=False, \
                                             debug=args.debug)
+#     split_names = discrim_type_list[0].split('-')
+#     split_labs = unique_labs_each[0]
+
+#     labels_all = np.concatenate([1-(labels_all[:,0:1,:]==split_labs[0]).astype(int), 
+#                               1-(labels_all[:,0:1,:]==split_labs[1]).astype(int), \
+#                               labels_all[:,1:,:]], axis=1)
+#     discrim_type_list = ['%s vs not'%split_names[0], '%s vs not'%split_names[1]] + discrim_type_list[1:]
+#     unique_labs_each = [np.unique(labels_all[:,0]),np.unique(labels_all[:,1])] + unique_labs_each[1:]     
+    print('semantic dimensions:')
+    print(discrim_type_list)
+    
     print('size of voxel data:')
     print(voxel_data_use.shape)
     print('size of labels:')
     print(labels_all.shape)
+    print('max nans each dimension')
+    print(np.max(np.sum(np.isnan(labels_all), axis=0), axis=1))
+    
     # Plug in the actual raw data here, not encoding model predictions.
     sem_discrim_each_axis, sem_corr_each_axis, n_sem_samp_each_axis, mean_each_sem_level = \
             semantic_selectivity.get_semantic_discrim(best_model_each_voxel[:,np.newaxis], \
@@ -176,7 +193,7 @@ def get_discrim(args):
     
     save_all(fn2save)
     
-    axes_to_do = [0,2,3]
+    axes_to_do = [0,1,2,3,4]
     print('\nGoing to compute partial correlations, for these pairs of axes:')
     print([discrim_type_list[aa] for aa in axes_to_do])
     sem_partial_corrs, sem_partial_n_samp = \

@@ -10,36 +10,21 @@ def get_sem_corrs(which_prf_grid=1, debug=False):
     # Params for the spatial aspect of the model (possible pRFs)
     models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
      
-    subjects = np.arange(1,9)
-    
+    subjects = [999]
+
     print('Using images/labels for subjects:')
     print(subjects)
     
-    # First gather all semantic labels
-    trninds_list = []
-    for si, ss in enumerate(subjects):
-        # training / validation data always split the same way - shared 1000 inds are validation.
-        subject_df = nsd_utils.get_subj_df(ss)
-        valinds = np.array(subject_df['shared1000'])
-        trninds = np.array(subject_df['shared1000']==False)
-        trninds_list.append(trninds)
-        # working only with training data here.
-        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = initialize_fitting.load_labels_each_prf(ss, \
-                             which_prf_grid, image_inds=np.where(trninds)[0], models=models,verbose=False, debug=debug)
-        if si==0:
-            labels_all = labels_all_ss
-            discrim_type_list = discrim_type_list_ss
-            unique_labels_each = unique_labels_each_ss
-        else:
-            labels_all = np.concatenate([labels_all, labels_all_ss], axis=0)
-            # check that columns are same for all subs
-            assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
-            assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) \
-                           for ii in range(len(unique_labels_each))]))
-            
-    # how many diff levels for each semantic axis? usually two, sometimes 3.
+    trninds = np.arange(10000)
+    
+    # working only with training data here.
+    labels_all, discrim_type_list, unique_labels_each = \
+                         initialize_fitting.load_highlevel_labels_each_prf(subjects[0], \
+                         which_prf_grid, image_inds=np.where(trninds)[0], \
+                         models=models,verbose=False, debug=debug)
+
+    # how many diff levels for each semantic axis? 
     n_levels = [len(un) for un in unique_labels_each]
-#     assert(np.all([len(un)==2 for un in unique_labels_each]))
     
     print('Number of images using: %d'%labels_all.shape[0])
     n_sem_axes_total = labels_all.shape[1]

@@ -26,11 +26,8 @@ if __name__ == '__main__':
     
     which_prf_grid=5
     
-    if debug:
-        subjects = [1, 999]
-    else:
-        subjects = list(np.arange(1,9))+[999]
-        
+    subjects = [998]
+      
     for subject in subjects:
 
         label_utils.write_binary_labels_csv(subject=subject, stuff=False)
@@ -45,14 +42,14 @@ if __name__ == '__main__':
         label_utils.write_natural_humanmade_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
         label_utils.write_realworldsize_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
         label_utils.write_buildings_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
-    
-    # counting occurences of each label
-    label_utils.count_labels_each_prf(which_prf_grid=which_prf_grid, debug=debug)
-    label_utils.get_top_two_subcateg(which_prf_grid=which_prf_grid)
-
+   
     for subject in subjects:
 
         label_utils.concat_labels_each_prf(subject=subject, \
                                       which_prf_grid=which_prf_grid, verbose=True, debug=debug)
         label_utils.concat_labels_fullimage(subject=subject, verbose=True)
-   
+        label_utils.concat_highlevel_labels_each_prf(subject=subject, \
+                                      which_prf_grid=which_prf_grid, verbose=True, debug=debug)
+    
+    label_utils.count_highlevel_labels(which_prf_grid=which_prf_grid, axes_to_do=[0,1,2,3,4], \
+                           debug=debug)

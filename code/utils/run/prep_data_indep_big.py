@@ -37,16 +37,10 @@ if __name__ == '__main__':
 
     print('debug=%d'%args.debug)
     
-    nsd_utils.make_image_data_partitions(pct_holdout=0.10)
+    coco_utils.get_coco_ids_indep_big(n_images=50000)
     
-    nsd_utils.get_subject_specific_images(nsd_root, path_to_save, npix=240, debug=args.debug==1)
-
-    nsd_utils.get_subject_specific_images(nsd_root, path_to_save, npix=100, debug=args.debug==1)
-
-    coco_utils.get_coco_ids_indep(n_images=10000)
-
-    coco_utils.prep_indep_coco_images(n_pix=240, debug=args.debug==1)
-
-    coco_utils.prep_indep_coco_images(n_pix=100, debug=args.debug==1)
+    coco_utils.prep_indep_coco_images_big(n_pix=240, debug=args.debug==1)
     
+    coco_utils.prep_indep_coco_images_big(n_pix=100, debug=args.debug==1)
     
+

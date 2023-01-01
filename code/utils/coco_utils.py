@@ -196,7 +196,46 @@ def get_coco_ids_indep(n_images = 10000):
     # save as a file for use later
     ims_df = pd.DataFrame(data=ids_indep, columns=['cocoId'])
     ims_df.to_csv(os.path.join(default_paths.root, 'features', 'coco_ids_indep_set.csv'))
-    
+   
+def get_coco_ids_indep_big(n_images = 50000):
+
+    # choosing a set of images from the COCO dataset which are 
+    # NOT overlapping with any of the NSD images.
+
+    # first listing all the files in every image dir (train, val)
+
+    files = os.listdir(os.path.join(default_paths.coco_ims_path, 'train2017'))
+    cocotrnids = np.array([int(ff.split('.jpg')[0]) for ff in files])
+    files = os.listdir(os.path.join(default_paths.coco_ims_path, 'val2017'))
+    cocovalids = np.array([int(ff.split('.jpg')[0]) for ff in files])
+
+    coco_ids_all = np.concatenate([cocotrnids, cocovalids], axis=0)
+
+    assert len(np.unique(coco_ids_all))==len(coco_ids_all)
+
+    # find all the cocoids used in NSD
+    ids_nsd = [] 
+    for ss in np.arange(1,9):
+        subj_df = nsd_utils.get_subj_df(ss)
+        ids_nsd += list(subj_df['cocoId'])
+
+    ids_nsd = np.unique(np.array(ids_nsd))
+
+    # choose a set of images that won't overlap
+    ids_indep = coco_ids_all[~np.isin(coco_ids_all, ids_nsd)]
+
+    # subsample the desired number out of this set
+    rndseed = 354656 # hard code this so we always get same sequence
+    np.random.seed(rndseed)
+    print(len(ids_indep), n_images)
+    ids_indep = np.random.choice(ids_indep, n_images, replace=False)
+    assert(not any(np.isin(ids_nsd, ids_indep)))
+    assert(not any(np.isin(ids_indep, ids_nsd)))
+
+    # save as a file for use later
+    ims_df = pd.DataFrame(data=ids_indep, columns=['cocoId'])
+    ims_df.to_csv(os.path.join(default_paths.root, 'features', 'coco_ids_indep_big_set.csv'))
+   
 def prep_indep_coco_images(n_pix=240, debug=False):
 
     # makes Indep_set_stimuli_240.h5py
@@ -263,6 +302,86 @@ def prep_indep_coco_images(n_pix=240, debug=False):
         hf.create_dataset(key,data=val, dtype='uint8')
         
     print('done')
+    
+def prep_indep_coco_images_big(n_pix=240, debug=False):
+
+    # makes Indep_set_stimuli_240.h5py
+    # brick of images for the independent image set, COCO ims that are not in NSD
+    
+    files = os.listdir(os.path.join(default_paths.coco_ims_path, 'train2017'))
+    cocotrnids = np.array([int(ff.split('.jpg')[0]) for ff in files])
+
+    files = os.listdir(os.path.join(default_paths.coco_ims_path, 'val2017'))
+    cocovalids = np.array([int(ff.split('.jpg')[0]) for ff in files])
+
+    # load this file that indicates which coco images we will use here
+    ids = pd.read_csv(os.path.join(default_paths.root, 'features', 'coco_ids_indep_big_set.csv'), index_col=0)
+    coco_ids = np.array(ids['cocoId'])
+    n_images = len(coco_ids)
+    
+    bboxes = []
+    coco_split = []
+    filenames = []
+                 
+    coco_image_stack = np.zeros((n_images, 3, n_pix, n_pix))
+    
+    for ii, coco_id in enumerate(coco_ids):
+        
+        if debug and ii>1:
+            bboxes += [[]]
+            coco_split += ['']
+            filenames += [[]]
+            continue
+            
+        if coco_id in cocotrnids:
+            split = 'train2017'
+        elif coco_id in cocovalids:
+            split = 'val2017'
+        else:
+            split = np.nan
+            
+        cocoim_raw = os.path.join(default_paths.coco_ims_path, split, '%012d.jpg'%coco_id)
+        print('%d of %d'%(ii, len(coco_ids)))
+        print('loading from %s'%cocoim_raw)
+        sys.stdout.flush()
+        coco_image = PIL.Image.open(cocoim_raw)
+        
+        # preprocess these images to be square, black and white
+        # process at same size as i processed the NSD images
+        cropped, bbox = segmentation_utils.crop_to_square(np.array(coco_image))
+        resized = PIL.Image.fromarray(cropped).resize([n_pix, n_pix], \
+                                                       resample=PIL.Image.BILINEAR)
+        resized = np.array(resized.convert('RGB'))
+
+        # make sure this is now an RGB image, uint8 values spanning 0-255
+        assert(resized.shape[2]==3)
+        assert(resized.dtype=='uint8')
+        coco_image_stack[ii,:,:,:] = np.moveaxis(resized, [0,1,2], [1,2,0])
+        
+        # making these to match subject df from NSD, makes processing easier later on
+        bboxes += [tuple(bbox)]
+        coco_split += [split]
+        filenames += [cocoim_raw]
+
+    if debug:
+        fn2save = os.path.join(default_paths.stim_root, 'Indep_big_set_stimuli_%d_debug.h5py'%n_pix)
+        fn2save_df = os.path.join(default_paths.stim_root, 'Indep_big_set_info_debug.csv')    
+    else:
+        fn2save = os.path.join(default_paths.stim_root, 'Indep_big_set_stimuli_%d.h5py'%n_pix)
+        fn2save_df = os.path.join(default_paths.stim_root, 'Indep_big_set_info.csv')
+    
+    info_df = pd.DataFrame({'cocoId': coco_ids, 'cropBox': bboxes, 'cocoSplit': coco_split, 'filename_raw': filenames})    
+    print('saving to %s'%fn2save_df)
+    info_df.to_csv(fn2save_df)
+    
+    print('saving to %s'%fn2save)
+    
+    with h5py.File(fn2save, 'w') as hf:
+        key = 'stimuli'
+        val = coco_image_stack  
+        hf.create_dataset(key,data=val, dtype='uint8')
+        
+    print('done')
 
 def load_indep_coco_images(n_pix=240):
     
@@ -275,6 +394,24 @@ def load_indep_coco_images(n_pix=240):
 def load_indep_coco_info():
     
     info_fn = os.path.join(default_paths.stim_root, 'Indep_set_info.csv')
+    print('\nloading image info from %s\n'%info_fn)
+    info_df = pd.read_csv(info_fn, index_col=0)
+    
+    info_df['cropBox'] = info_df['cropBox'].apply(literal_eval)
+    
+    return info_df
+
+def load_indep_coco_images_big(n_pix=240):
+    
+    ims_fn = os.path.join(default_paths.stim_root, 'Indep_big_set_stimuli_%d.h5py'%n_pix)
+    print('\nloading images from %s\n'%ims_fn)
+    image_data = nsd_utils.load_from_hdf5(ims_fn)
+    
+    return image_data
+
+def load_indep_coco_info_big():
+    
+    info_fn = os.path.join(default_paths.stim_root, 'Indep_big_set_info.csv')
     print('\nloading image info from %s\n'%info_fn)
     info_df = pd.read_csv(info_fn, index_col=0)
     

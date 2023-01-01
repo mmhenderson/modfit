@@ -88,9 +88,9 @@ def load_feature_semantic_corrs(feature_type, subject='all', which_prf_grid=5, \
     return corr, discrim, nsamp, names, signed_names
 
 
-def load_discrim_names(which_axes_negate = [1,2], return_levels=False):
+def load_discrim_names(which_axes_negate = [], return_levels=False):
     
-    save_name_groups = os.path.join(default_paths.stim_labels_root,'All_concat_labelgroupnames.npy')
+    save_name_groups = os.path.join(default_paths.stim_labels_root,'Highlevel_concat_labelgroupnames.npy')
     groups = np.load(save_name_groups, allow_pickle=True).item()
     names = groups['discrim_type_list']
     levels = groups['col_names_all']
@@ -123,7 +123,7 @@ def load_discrim_names(which_axes_negate = [1,2], return_levels=False):
     
     
 def load_feature_semantic_partial_corrs(feature_type, subject='all', which_prf_grid=5, \
-                                        axes_to_do_partial = [0,2,3], \
+                                        axes_to_do_partial = [1,2,3], \
                                         which_axes_negate = [1], \
                                         min_samp=10, verbose=False):
     
@@ -170,9 +170,9 @@ def load_feature_semantic_partial_corrs(feature_type, subject='all', which_prf_g
     return partial_corr, nsamp, names, signed_names
 
 
-def load_partial_discrim_names(axes_to_do_partial = [0,2,3], which_axes_negate = [1]):
+def load_partial_discrim_names(axes_to_do_partial = [0,1,2,3], which_axes_negate = []):
     
-    save_name_groups = os.path.join(default_paths.stim_labels_root,'All_concat_labelgroupnames.npy')
+    save_name_groups = os.path.join(default_paths.stim_labels_root,'Highlevel_concat_labelgroupnames.npy')
     groups = np.load(save_name_groups, allow_pickle=True).item()
     names = [groups['discrim_type_list'][aa] for aa in axes_to_do_partial]
     levels = [groups['col_names_all'][aa] for aa in axes_to_do_partial]

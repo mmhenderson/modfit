@@ -679,7 +679,7 @@ def fit_fwrf(args):
                 print('\nStarting semantic discriminability analysis (voxel subset %d of %d)...\n'%(vi, len(voxel_subset_masks)))
                 sys.stdout.flush()
                 labels_all, discrim_type_list, unique_labs_each = \
-                        initialize_fitting.load_labels_each_prf(args.subject, args.which_prf_grid,\
+                        initialize_fitting.load_highlevel_labels_each_prf(args.subject, args.which_prf_grid,\
                                                         image_inds=image_inds_val, \
                                                         models=prf_models,verbose=False, \
                                                         debug=args.debug)
@@ -706,7 +706,7 @@ def fit_fwrf(args):
                 save_all(fn2save)
     
                 # compute partial correlations for some axes 
-                axes_to_do = [0,2,3]
+                axes_to_do = [1,2,3]
                 print('\nGoing to compute partial correlations, for these pairs of axes:')
                 print([discrim_type_list[aa] for aa in axes_to_do])
                 partial_corr_tmp, n_samp_tmp = \

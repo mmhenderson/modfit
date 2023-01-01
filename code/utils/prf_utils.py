@@ -4,6 +4,7 @@ import math
 import copy
 import scipy.stats
 
+
 def make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
                           eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16):
     
@@ -374,4 +375,70 @@ def cart_to_pol(x_deg, y_deg):
     eccen_deg = np.sqrt(x_deg**2+y_deg**2)
     
     return angle_deg, eccen_deg
+
+def get_prf_models(which_grid=5, verbose=False):
+
+    # models is three columns, x, y, sigma
+    if which_grid==0:
+        # this is a placeholder for the models that have no pRFs (full-field features)
+        models = np.array([[None, None, None]])
+    elif which_grid==1:
+        smin, smax = np.float32(0.04), np.float32(0.4)
+        n_sizes = 8
+        aperture_rf_range=1.1
+        models = model_space_pyramid(logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range)  
+    
+    elif which_grid==2 or which_grid==3:
+        smin, smax = np.float32(0.04), np.float32(0.8)
+        n_sizes = 9
+        aperture_rf_range=1.1
+        models = model_space_pyramid2(logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range)  
+        
+    elif which_grid==4:
+        models = make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
+                              eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16)
+    elif which_grid==5:
+        models = make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
+                              eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16)        
+    elif which_grid==6:
+        models = make_log_polar_grid_scale_size_eccen(eccen_range=[0, 7/8.4], \
+                              n_eccen_steps = 10, n_angle_steps = 16)
+    elif which_grid==7:
+        models = make_rect_grid(sigma_range=[0.04, 0.04], n_sigma_steps=1, min_grid_spacing=0.04)
+      
+    else:
+        raise ValueError('prf grid number not recognized')
+
+    if verbose:
+        print('number of pRFs: %d'%len(models))
+        print('most extreme RF positions:')
+        print(models[0,:])
+        print(models[-1,:])
+
+    return models
+
+def get_prfs_use_decoding(which_prf_grid=5):
+
+    assert(which_prf_grid==5)
+    models = get_prf_models(which_grid=which_prf_grid)
+    n_prfs = len(models)
+
+    x = models[:,0]*8.4; y = models[:,1]*8.4;
+    ecc = np.round(np.sqrt(models[:,0]**2+models[:,1]**2)*8.4, 4)
+    sizes = np.round(models[:,2]*8.4, 4)
+    angles = np.round(np.mod(np.arctan2(y,x)*180/np.pi, 360),1)
+
+    ecc_vals = np.unique(ecc)
+    size_vals = np.unique(sizes)
+    n_ecc = len(ecc_vals);
+    n_sizes = len(size_vals)
+    n_angles = len(np.unique(angles))
+
+    counts = np.array([np.sum(ecc==ecc_vals[ee]) for ee in range(n_ecc)])
+    ecc_use = counts==(n_angles*n_sizes)
+    # remove smallest two sizes
+    size_use = np.arange(3,n_sizes)
+    prfs_use = np.isin(ecc,ecc_vals[ecc_use]) & np.isin(sizes, size_vals[size_use])
+    
+    return prfs_use
     

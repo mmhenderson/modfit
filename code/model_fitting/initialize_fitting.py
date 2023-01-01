@@ -306,42 +306,7 @@ def get_lambdas(fitting_types, zscore_features=True, ridge=True):
 
 def get_prf_models(which_grid=5, verbose=False):
 
-    # models is three columns, x, y, sigma
-    if which_grid==0:
-        # this is a placeholder for the models that have no pRFs (full-field features)
-        models = np.array([[None, None, None]])
-    elif which_grid==1:
-        smin, smax = np.float32(0.04), np.float32(0.4)
-        n_sizes = 8
-        aperture_rf_range=1.1
-        models = prf_utils.model_space_pyramid(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range)  
-    
-    elif which_grid==2 or which_grid==3:
-        smin, smax = np.float32(0.04), np.float32(0.8)
-        n_sizes = 9
-        aperture_rf_range=1.1
-        models = prf_utils.model_space_pyramid2(prf_utils.logspace(n_sizes)(smin, smax), min_spacing=1.4, aperture=aperture_rf_range)  
-        
-    elif which_grid==4:
-        models = prf_utils.make_polar_angle_grid(sigma_range=[0.04, 1], n_sigma_steps=12, \
-                              eccen_range=[0, 1.4], n_eccen_steps=12, n_angle_steps=16)
-    elif which_grid==5:
-        models = prf_utils.make_log_polar_grid(sigma_range=[0.02, 1], n_sigma_steps=10, \
-                              eccen_range=[0, 7/8.4], n_eccen_steps=10, n_angle_steps=16)        
-    elif which_grid==6:
-        models = prf_utils.make_log_polar_grid_scale_size_eccen(eccen_range=[0, 7/8.4], \
-                              n_eccen_steps = 10, n_angle_steps = 16)
-    elif which_grid==7:
-        models = prf_utils.make_rect_grid(sigma_range=[0.04, 0.04], n_sigma_steps=1, min_grid_spacing=0.04)
-      
-    else:
-        raise ValueError('prf grid number not recognized')
-
-    if verbose:
-        print('number of pRFs: %d'%len(models))
-        print('most extreme RF positions:')
-        print(models[0,:])
-        print(models[-1,:])
+    models = prf_utils.get_prf_models(which_grid=which_grid, verbose=verbose)
 
     return models
 
@@ -479,6 +444,59 @@ def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=Fa
         else:
             fn2load = os.path.join(labels_folder, \
                                   'S%d_concat_prf%d.csv'%(subject, prf_model_index))
+            
+        concat_df = pd.read_csv(fn2load, index_col=0)
+        labels = np.array(concat_df)
+        labels = labels[image_inds,:]
+        discrim_type_list = list(concat_df.keys())
+        
+        if prf_model_index==0:
+            print(discrim_type_list)
+            print('num nans each column (out of %d trials):'%n_trials)
+            print(np.sum(np.isnan(labels), axis=0))
+            n_sem_axes = len(discrim_type_list)
+            labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
+
+        # put into big array
+        
+        labels_all[:,:,prf_model_index] = labels
+    
+
+    return labels_all, discrim_type_list, unique_labs_each
+
+def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
+
+    """
+    Load csv files containing spatially-specific category labels for coco images.
+    Makes an array [n_trials x n_discrim_types x n_prfs]
+    """
+
+    if which_prf_grid==0:
+        labels_folder = default_paths.stim_labels_root
+    else:
+        labels_folder = os.path.join(default_paths.stim_labels_root, \
+                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
+        
+    groups = np.load(os.path.join(default_paths.stim_labels_root,\
+                                  'Highlevel_concat_labelgroupnames.npy'), allow_pickle=True).item()
+    col_names = groups['col_names_all']
+    unique_labs_each = [np.arange(len(cn)) for cn in col_names]
+    
+    print('loading labels from folders at %s (will be slow...)'%(labels_folder))
+  
+    n_trials = image_inds.shape[0]
+    n_prfs = models.shape[0]
+
+    for prf_model_index in range(n_prfs):
+        
+        if debug and prf_model_index>1:
+            continue
+            
+        if which_prf_grid==0:
+            fn2load = os.path.join(labels_folder,'S%d_concat.csv'%subject)
+        else:
+            fn2load = os.path.join(labels_folder, \
+                                  'S%d_highlevel_concat_prf%d.csv'%(subject, prf_model_index))
             
         concat_df = pd.read_csv(fn2load, index_col=0)
         labels = np.array(concat_df)

@@ -28,6 +28,8 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
             # 999 is a code for the set of images that are independent of NSD images, 
             # not shown to any participant.
             trninds = np.ones((10000,),dtype=bool)
+        elif ss==998:
+            trninds = np.ones((50000,),dtype=bool)
         else:  
             # training / validation data always split the same way - shared 1000 inds are validation.
             subject_df = nsd_utils.get_subj_df(ss)
@@ -35,7 +37,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
         trninds_list.append(trninds)
         # working only with training data here.
         labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = \
-                            initialize_fitting.load_labels_each_prf(ss, \
+                            initialize_fitting.load_highlevel_labels_each_prf(ss, \
                                     which_prf_grid, image_inds=np.where(trninds)[0], \
                                     models=models,verbose=False, debug=debug)
         if si==0:
@@ -48,8 +50,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
             assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
             assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) \
                            for ii in range(len(unique_labels_each))]))
-            
-     
+        
     # create feature loaders
     feat_loaders, path_to_load = \
         default_feature_loaders.get_feature_loaders(subjects, feature_type, which_prf_grid)
@@ -89,7 +90,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
     all_discrim =  np.zeros((n_features, n_prfs, n_sem_axes), dtype=np.float32)
     n_samp_each_axis = np.zeros((n_prfs, n_sem_axes, max_categ), dtype=np.float32)
     
-    axes_to_do_partial = [0,2,3]
+    axes_to_do_partial = [0,1,2,3,4]
     all_partial_corrs = np.zeros((n_features, n_prfs, len(axes_to_do_partial)), dtype=np.float32)
     n_samp_each_axis_partial = np.zeros((n_prfs, len(axes_to_do_partial), max_categ), dtype=np.float32)
     
@@ -100,6 +101,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
             continue
 
         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
+        sys.stdout.flush()
         
         for si, feat_loader in enumerate(feat_loaders):
 
@@ -167,6 +169,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
                     n_samp_each_axis[prf_model_index, aa, gi] = len(gg)
                 
             else:
+                print('missing label, entering a nan for corr')
                 # if any labels are missing, skip this axis for this pRF
                 all_discrim[:,prf_model_index,aa] = np.nan
                 all_corrs[:,prf_model_index,aa] = np.nan
@@ -174,6 +177,8 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
                 
         # Next doing the partial correlations, for some sub-set of the semantic axes.
         inds2use = np.sum(np.isnan(labels_all[:,axes_to_do_partial,prf_model_index]), axis=1)==0
+        print('for partial correlations, there are %d trials available'%np.sum(inds2use))
+        
         for ai, aa in enumerate(axes_to_do_partial):
 
             other_axes = np.array(axes_to_do_partial)[~np.isin(np.array(axes_to_do_partial), aa)]
@@ -199,7 +204,8 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
                    
             else:
                 # at least one category is missing for this voxel's pRF and this semantic axis.
-                # skip it and put nans in the arrays.               
+                # skip it and put nans in the arrays.    
+                print('missing label, entering a nan for partial corr')
                 all_partial_corrs[:,prf_model_index,ai] = np.nan
                 n_samp_each_axis_partial[prf_model_index,ai,:] = np.nan
                 

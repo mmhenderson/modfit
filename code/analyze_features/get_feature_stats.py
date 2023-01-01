@@ -28,6 +28,8 @@ def get_feature_stats(subject, feature_type, which_prf_grid=5, debug=False, laye
             # 999 is a code for the set of images that are independent of NSD images, 
             # not shown to any participant.
             indsuse = np.ones((10000,),dtype=bool)
+        elif ss==998:
+            indsuse = np.ones((50000,),dtype=bool)
         else:          
             # training / validation data always split the same way - shared 1000 inds are validation.
             subject_df = nsd_utils.get_subj_df(ss)

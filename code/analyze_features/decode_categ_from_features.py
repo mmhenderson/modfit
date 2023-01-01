@@ -5,13 +5,13 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
 
-from utils import default_paths, nsd_utils, stats_utils
+from utils import default_paths, nsd_utils, stats_utils, prf_utils
 from model_fitting import initialize_fitting 
 from feature_extraction import default_feature_loaders
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
+def run_decoding(subject=999, sem_axes_decode = [0,1,2,3,4], \
                  feature_type='gabor_solo', \
                  which_prf_grid=1, debug=False, \
                  zscore_each=False, balance_downsample=False, \
@@ -19,8 +19,9 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
   
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
-    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
-    n_prfs = len(models)
+    models = prf_utils.get_prf_models(which_grid=which_prf_grid)
+    prfs_use = prf_utils.get_prfs_use_decoding(which_prf_grid=which_prf_grid)
+    n_prfs = len(prfs_use)
 
     print('Using images/labels for subject:')
     print(subject)    
@@ -34,14 +35,15 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
         trninds = trninds | outinds
         image_inds = np.where(trninds)[0]
         assert(balance_downsample==False)
-    else:
+    elif subject==999:
         # 999 is a code for the independent coco image set, using all images
         # (cross-validate within this set)
         image_inds = np.arange(10000)
-        
-    labels_all, discrim_type_list, unique_labels_each = initialize_fitting.load_labels_each_prf(subject, \
+    elif subject==998:
+        image_inds = np.arange(50000)
+    labels_all, discrim_type_list, unique_labels_each = initialize_fitting.load_highlevel_labels_each_prf(subject, \
                          which_prf_grid, image_inds=image_inds, models=models,verbose=False, debug=debug)
-    
+   
     print('Number of images using: %d'%labels_all.shape[0])
     sys.stdout.flush()
 
@@ -66,8 +68,9 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
             resamp_order = np.load(fn2load, allow_pickle=True).item()
             assert(np.all(resamp_order['image_order']==image_inds))
             trial_masks[:,:,aa] = resamp_order['trial_inds_balanced'][:,0,:]
-        n_each = (np.sum(trial_masks[:,0,:], axis=0)/2).astype(int)
-    
+        n_each = (np.sum(trial_masks[:,np.where(prfs_use)[0][0],:], axis=0)/2).astype(int)
+        print('n_each:')
+        print(n_each)
     # create feature loaders
     feat_loaders, path_to_load = \
         default_feature_loaders.get_feature_loaders([subject], feature_type, which_prf_grid)
@@ -97,6 +100,9 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
     # first looping over pRFs
     for prf_model_index in range(n_prfs):
 
+        if not prfs_use[prf_model_index]:
+            continue
+            
         if debug and prf_model_index>1:
             continue
 
@@ -121,6 +127,9 @@ def run_decoding(subject=999, sem_axes_decode = [0,2,3], \
             if balance_downsample:
                 # use a balanced set, equally represent each label
                 inds2use = trial_masks[:,prf_model_index, aa]==1
+                print(inds2use.shape, labels.shape)
+                print(n_each)
+                print(np.sum(labels[inds2use]==0))
                 assert(np.sum(labels[inds2use]==0)==n_each[aa])
                 assert(np.sum(labels[inds2use]==1)==n_each[aa])
                 assert(not np.any(np.isnan(labels[inds2use])))

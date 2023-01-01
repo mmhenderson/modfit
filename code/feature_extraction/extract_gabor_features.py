@@ -6,7 +6,7 @@ import time
 import h5py
 
 #import custom modules
-from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths, floc_utils
+from utils import numpy_utils, torch_utils, nsd_utils, prf_utils, default_paths
 from model_fitting import initialize_fitting
 from feature_extraction import gabor_feature_extractor
 
@@ -15,6 +15,8 @@ try:
 except:
     device = 'cpu:0'
     
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 def extract_features(image_data,\
                      n_ori=4, n_sf=4, \
                      sample_batch_size=100, \
@@ -173,6 +175,11 @@ def proc_one_subject(subject, args):
         from utils import coco_utils
         image_data = coco_utils.load_indep_coco_images(n_pix=240)
         image_data = nsd_utils.image_uncolorize_fn(image_data)
+    elif subject==998:
+        # larger set of 50000 images for image stats analyses
+        from utils import coco_utils
+        image_data = coco_utils.load_indep_coco_images_big(n_pix=240)
+        image_data = nsd_utils.image_uncolorize_fn(image_data)
     else: 
         # load all images for the current subject, 10,000 ims
         image_data = nsd_utils.get_image_data(subject)  
@@ -186,6 +193,7 @@ def proc_one_subject(subject, args):
         
     filename_save += '_grid%d.h5py'%args.which_prf_grid   
         
+    sys.stdout.flush()
     features_each_prf = extract_features(image_data, \
                                          n_ori=args.n_ori, n_sf=args.n_sf, \
                                          sample_batch_size=args.sample_batch_size, \
@@ -209,6 +217,7 @@ def proc_other_image_set(image_set, args):
         os.makedirs(gabor_texture_feat_path)
         
     if image_set=='floc':
+        from utils import floc_utils
         image_data = floc_utils.load_floc_images(npix=240)
     else:
         raise ValueError('image set %s not recognized'%image_set)

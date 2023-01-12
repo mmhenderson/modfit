@@ -436,8 +436,8 @@ def get_prfs_use_decoding(which_prf_grid=5):
 
     counts = np.array([np.sum(ecc==ecc_vals[ee]) for ee in range(n_ecc)])
     ecc_use = counts==(n_angles*n_sizes)
-    # remove smallest two sizes
-    size_use = np.arange(3,n_sizes)
+    # remove smallest sizes
+    size_use = np.arange(5,n_sizes)
     prfs_use = np.isin(ecc,ecc_vals[ecc_use]) & np.isin(sizes, size_vals[size_use])
     
     return prfs_use

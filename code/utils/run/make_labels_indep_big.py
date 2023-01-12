@@ -36,20 +36,3 @@ if __name__ == '__main__':
         # doing these labels separately for coco labels (objects) and coco-stuff
         label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=False, which_prf_grid=which_prf_grid)
         label_utils.write_binary_labels_csv_within_prf(subject=subject, min_pix=10, debug=debug, stuff=True, which_prf_grid=which_prf_grid)
-
-        # higher-level semantic dimensions
-        label_utils.write_indoor_outdoor_csv(subject=subject)
-        label_utils.write_natural_humanmade_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
-        label_utils.write_realworldsize_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
-        label_utils.write_buildings_csv(subject=subject, which_prf_grid=which_prf_grid, debug=debug)
-   
-    for subject in subjects:
-
-        label_utils.concat_labels_each_prf(subject=subject, \
-                                      which_prf_grid=which_prf_grid, verbose=True, debug=debug)
-        label_utils.concat_labels_fullimage(subject=subject, verbose=True)
-        label_utils.concat_highlevel_labels_each_prf(subject=subject, \
-                                      which_prf_grid=which_prf_grid, verbose=True, debug=debug)
-    
-    label_utils.count_highlevel_labels(which_prf_grid=which_prf_grid, axes_to_do=[0,1,2,3,4], \
-                           debug=debug)

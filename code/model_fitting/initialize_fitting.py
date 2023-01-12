@@ -12,7 +12,7 @@ from datetime import datetime
 
 # import custom modules
 from feature_extraction import fwrf_features, semantic_features, merge_features
-from utils import prf_utils, default_paths, nsd_utils
+from utils import prf_utils, default_paths, nsd_utils, label_utils
 from model_fitting import saved_fit_paths
 
 def init_cuda():
@@ -410,112 +410,9 @@ def load_best_model_layers(subject, model, dnn_layers_use):
 
     return best_layer_each_voxel, saved_best_layer_fn
 
-
-def load_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
-
-    """
-    Load csv files containing spatially-specific category labels for coco images.
-    Makes an array [n_trials x n_discrim_types x n_prfs]
-    """
-
-    if which_prf_grid==0:
-        labels_folder = default_paths.stim_labels_root
-    else:
-        labels_folder = os.path.join(default_paths.stim_labels_root, \
-                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
-        
-    groups = np.load(os.path.join(default_paths.stim_labels_root,\
-                                  'All_concat_labelgroupnames.npy'), allow_pickle=True).item()
-    col_names = groups['col_names_all']
-    unique_labs_each = [np.arange(len(cn)) for cn in col_names]
-    
-    print('loading labels from folders at %s (will be slow...)'%(labels_folder))
-  
-    n_trials = image_inds.shape[0]
-    n_prfs = models.shape[0]
-
-    for prf_model_index in range(n_prfs):
-        
-        if debug and prf_model_index>1:
-            continue
-            
-        if which_prf_grid==0:
-            fn2load = os.path.join(labels_folder,'S%d_concat.csv'%subject)
-        else:
-            fn2load = os.path.join(labels_folder, \
-                                  'S%d_concat_prf%d.csv'%(subject, prf_model_index))
-            
-        concat_df = pd.read_csv(fn2load, index_col=0)
-        labels = np.array(concat_df)
-        labels = labels[image_inds,:]
-        discrim_type_list = list(concat_df.keys())
-        
-        if prf_model_index==0:
-            print(discrim_type_list)
-            print('num nans each column (out of %d trials):'%n_trials)
-            print(np.sum(np.isnan(labels), axis=0))
-            n_sem_axes = len(discrim_type_list)
-            labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
-
-        # put into big array
-        
-        labels_all[:,:,prf_model_index] = labels
-    
-
-    return labels_all, discrim_type_list, unique_labs_each
-
 def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
 
-    """
-    Load csv files containing spatially-specific category labels for coco images.
-    Makes an array [n_trials x n_discrim_types x n_prfs]
-    """
-
-    if which_prf_grid==0:
-        labels_folder = default_paths.stim_labels_root
-    else:
-        labels_folder = os.path.join(default_paths.stim_labels_root, \
-                                     'S%d_within_prf_grid%d'%(subject, which_prf_grid))
-        
-    groups = np.load(os.path.join(default_paths.stim_labels_root,\
-                                  'Highlevel_concat_labelgroupnames.npy'), allow_pickle=True).item()
-    col_names = groups['col_names_all']
-    unique_labs_each = [np.arange(len(cn)) for cn in col_names]
-    
-    print('loading labels from folders at %s (will be slow...)'%(labels_folder))
-  
-    n_trials = image_inds.shape[0]
-    n_prfs = models.shape[0]
-
-    for prf_model_index in range(n_prfs):
-        
-        if debug and prf_model_index>1:
-            continue
-            
-        if which_prf_grid==0:
-            fn2load = os.path.join(labels_folder,'S%d_concat.csv'%subject)
-        else:
-            fn2load = os.path.join(labels_folder, \
-                                  'S%d_highlevel_concat_prf%d.csv'%(subject, prf_model_index))
-            
-        concat_df = pd.read_csv(fn2load, index_col=0)
-        labels = np.array(concat_df)
-        labels = labels[image_inds,:]
-        discrim_type_list = list(concat_df.keys())
-        
-        if prf_model_index==0:
-            print(discrim_type_list)
-            print('num nans each column (out of %d trials):'%n_trials)
-            print(np.sum(np.isnan(labels), axis=0))
-            n_sem_axes = len(discrim_type_list)
-            labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
-
-        # put into big array
-        
-        labels_all[:,:,prf_model_index] = labels
-    
-
-    return labels_all, discrim_type_list, unique_labs_each
+    return label_utils.load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models)
 
 def get_subsampled_trial_order(trn_image_order, \
                                holdout_image_order, \

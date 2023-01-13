@@ -884,7 +884,6 @@ def make_decoding_subsets_balanced(subject=999, which_prf_grid=5, \
         print('saving to %s'%fn2save)
         np.save(fn2save, {'trial_inds_balanced': inds_mask, \
                           'image_order': image_order, \
-                          'group_names': counts['group_names'][ai], \
                           'axis_names': axis_name, \
                           'rnd_seed': rnd_seed,\
                           'min_counts_each_prf': min_counts_each_prf}, 

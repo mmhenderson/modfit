@@ -156,10 +156,13 @@ def run_decoding(subject=999, \
 
 
     print('saving to %s'%fn2save)
-    np.save(fn2save, {'acc': acc_each_prf, \
-                      'dprime': dprime_each_prf, \
-                      'discrim_type_list': discrim_type_list, \
-                      'n_trials_eachlabel': n_trials_eachlabel})
+    d = {'acc': acc_each_prf, \
+          'dprime': dprime_each_prf, \
+          'discrim_type_list': discrim_type_list, \
+          'n_trials_eachlabel': n_trials_eachlabel}
+    print(d.keys())
+    print(d['n_trials_eachlabel'])
+    np.save(fn2save, d, allow_pickle=True)
 
 
 

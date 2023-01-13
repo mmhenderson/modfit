@@ -2,70 +2,51 @@ import sys, os
 import numpy as np
 import argparse
 
-from utils import default_paths, nsd_utils, stats_utils
+from utils import default_paths, stats_utils, label_utils, prf_utils
 from feature_extraction import default_feature_loaders
-from model_fitting import initialize_fitting 
   
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, layer_name=None):
+def get_feature_corrs(subject, feature_type, which_prf_grid=1, layer_name=None):
 
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
-    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
+    models = prf_utils.get_prf_models(which_grid = which_prf_grid)    
 
-    if subject=='all':       
-        subjects = np.arange(1,9)
+    print(subject)
+    subject = int(subject)
+    print(subject)
+    if subject==999:
+        # 999 is a code for the independent coco image set, using all images
+        # (cross-validate within this set)
+        image_inds = np.arange(10000)
+    elif subject==998:
+        image_inds = np.arange(50000)
     else:
-        subjects = [int(subject)]
-    print('Using images/labels for subjects:')
-    print(subjects)
-    
-    # First gather all semantic labels
-    trninds_list = []
-    for si, ss in enumerate(subjects):
-        if ss==999:
-            # 999 is a code for the set of images that are independent of NSD images, 
-            # not shown to any participant.
-            trninds = np.ones((10000,),dtype=bool)
-        elif ss==998:
-            trninds = np.ones((50000,),dtype=bool)
-        else:  
-            # training / validation data always split the same way - shared 1000 inds are validation.
-            subject_df = nsd_utils.get_subj_df(ss)
-            trninds = np.array(subject_df['shared1000']==False)
-        trninds_list.append(trninds)
-        # working only with training data here.
-        labels_all_ss, discrim_type_list_ss, unique_labels_each_ss = \
-                            initialize_fitting.load_highlevel_labels_each_prf(ss, \
-                                    which_prf_grid, image_inds=np.where(trninds)[0], \
-                                    models=models,verbose=False, debug=debug)
-        if si==0:
-            labels_all = labels_all_ss
-            discrim_type_list = discrim_type_list_ss
-            unique_labels_each = unique_labels_each_ss
-        else:
-            labels_all = np.concatenate([labels_all, labels_all_ss], axis=0)
-            # check that columns are same for all subs
-            assert(np.all(np.array(discrim_type_list)==np.array(discrim_type_list_ss)))
-            assert(np.all([np.all(unique_labels_each[ii]==unique_labels_each_ss[ii]) \
-                           for ii in range(len(unique_labels_each))]))
+        raise ValueError('subject must be 999 or 998')
         
+    substr = 'S%s'%subject
+    print('Using images/labels for subject %d, %s, %d images'%(subject, substr, len(image_inds))) 
+    
+    labels_binary, axis_names, unique_labels_each = label_utils.load_highlevel_labels_each_prf(subject, \
+                         which_prf_grid, image_inds=image_inds, models=models)
+   
+    axes_use = [1,2,3,4,5]
+    labels_all = labels_binary[:,axes_use,:]
+    axis_names = np.array(axis_names)[axes_use]
+    print('using axes:')
+    print(axis_names)
+    unique_labels_each = np.array(unique_labels_each)[axes_use]
+    
     # create feature loaders
     feat_loaders, path_to_load = \
-        default_feature_loaders.get_feature_loaders(subjects, feature_type, which_prf_grid)
-   
-    if debug:
-        path_to_save = os.path.join(path_to_load, 'feature_stats_DEBUG')
-    else:
-        path_to_save = os.path.join(path_to_load, 'feature_stats')
+        default_feature_loaders.get_feature_loaders([subject], feature_type, which_prf_grid)
+    feat_loader = feat_loaders[0]
+    
+    # decide where to save results
+    path_to_save = os.path.join(path_to_load, 'feature_stats')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
-        
-    if subject=='all':
-        substr = 'All_trn'
-    else:
-        substr = 'S%s'%subject
     
     fn2save_corrs = os.path.join(path_to_save, '%s_%s_semantic_corrs_grid%d.npy'\
                                  %(substr, feature_type, which_prf_grid))
@@ -81,7 +62,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
     
     n_total_ims = labels_all.shape[0]
     print('Number of images using: %d'%n_total_ims)
-    max_categ = np.max([len(un) for un in unique_labels_each])
+    max_categ = 2
     n_sem_axes = labels_all.shape[1]    
     n_features = feat_loaders[0].max_features
     n_prfs = models.shape[0]
@@ -90,41 +71,19 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
     all_discrim =  np.zeros((n_features, n_prfs, n_sem_axes), dtype=np.float32)
     n_samp_each_axis = np.zeros((n_prfs, n_sem_axes, max_categ), dtype=np.float32)
     
-    axes_to_do_partial = [0,1,2,3,4]
-    all_partial_corrs = np.zeros((n_features, n_prfs, len(axes_to_do_partial)), dtype=np.float32)
-    n_samp_each_axis_partial = np.zeros((n_prfs, len(axes_to_do_partial), max_categ), dtype=np.float32)
+    all_partial_corrs = np.zeros((n_features, n_prfs, n_sem_axes), dtype=np.float32)
+    n_samp_each_axis_partial = np.zeros((n_prfs, n_sem_axes, max_categ), dtype=np.float32)
     
     
     for prf_model_index in range(n_prfs):
 
-        if debug and prf_model_index>1:
-            continue
-
         print('Processing pRF %d of %d'%(prf_model_index, n_prfs))
-        sys.stdout.flush()
-        
-        for si, feat_loader in enumerate(feat_loaders):
-
-            # take training set trials only
-            features_ss, def_ss = feat_loader.load(np.where(trninds_list[si])[0],prf_model_index);
- 
-            if si==0:
-                features_in_prf_trn = features_ss
-                feature_inds_defined = def_ss
-                
-            else:
-                features_in_prf_trn = np.concatenate([features_in_prf_trn,features_ss], axis=0)
-                assert(np.all(def_ss==feature_inds_defined))
-        
-        assert(features_in_prf_trn.shape[0]==n_total_ims)
-        assert(len(feature_inds_defined)==n_features)
-        n_features_defined = np.sum(feature_inds_defined)
-        assert(features_in_prf_trn.shape[1]==n_features_defined)
-        
-        
+        features_in_prf, _ = feat_loader.load(image_inds, prf_model_index)
+       
         print('Size of features array for this image set and prf is:')
-        print(features_in_prf_trn.shape)
-        
+        print(features_in_prf.shape)
+        assert(not np.any(np.isnan(features_in_prf)))
+
         sys.stdout.flush()
          
         # first looking at each axis individually
@@ -135,7 +94,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
             unique_labels_actual = np.unique(labels[inds2use])
             
             if prf_model_index==0:
-                print('processing axis: %s'%discrim_type_list[aa])
+                print('processing axis: %s'%axis_names[aa])
                 print('labels: ')
                 print(unique_labels_each[aa])
                
@@ -143,27 +102,20 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
                 
                 # groups is a list of arrays, one for each level of this semantic axis.
                 # each array is [n_trials x n_features]
-                groups = [features_in_prf_trn[(labels==ll) & inds2use,:] for ll in unique_labels_actual]
+                groups = [features_in_prf[(labels==ll) & inds2use,:] for ll in unique_labels_actual]
 
-                if len(unique_labels_actual)==2:
-                    # use t-statistic as a measure of discriminability
-                    # larger pos value means feature[label==1] > feature[label==0]
-                    # automatically goes down the 0th axis, so we get n_features tstats returned.
-                    d = stats_utils.ttest_warn(groups[1],groups[0]).statistic
-                    assert(len(d)==n_features_defined)
-                    all_discrim[feature_inds_defined, prf_model_index, aa] = d;
-                else:
-                    # if more than 2 classes, computing an F statistic 
-                    f = stats_utils.anova_oneway_warn(groups).statistic
-                    assert(len(f)==n_features_defined)
-                    all_discrim[feature_inds_defined, prf_model_index, aa] = f;
-                    
+                # use t-statistic as a measure of discriminability
+                # larger pos value means feature[label==1] > feature[label==0]
+                # automatically goes down the 0th axis, so we get n_features tstats returned.
+                d = stats_utils.ttest_warn(groups[1],groups[0]).statistic
+                
+                all_discrim[:, prf_model_index, aa] = d;
+                  
                 # also computing a correlation coefficient between each feature and the label
                 # sign is consistent with t-statistic
-                c_vals = stats_utils.numpy_corrcoef_warn(features_in_prf_trn[inds2use,:].T,labels[inds2use])
-                c = c_vals[0:n_features_defined, n_features_defined]
-                assert(len(c)==n_features_defined)
-                all_corrs[feature_inds_defined, prf_model_index, aa] = c;
+                c_vals = stats_utils.numpy_corrcoef_warn(features_in_prf[inds2use,:].T,labels[inds2use])
+                c = c_vals[0:n_features, n_features]
+                all_corrs[:, prf_model_index, aa] = c;
 
                 for gi, gg in enumerate(groups):
                     n_samp_each_axis[prf_model_index, aa, gi] = len(gg)
@@ -175,13 +127,14 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
                 all_corrs[:,prf_model_index,aa] = np.nan
                 n_samp_each_axis[prf_model_index,aa,:] = np.nan
                 
-        # Next doing the partial correlations, for some sub-set of the semantic axes.
-        inds2use = np.sum(np.isnan(labels_all[:,axes_to_do_partial,prf_model_index]), axis=1)==0
+        # Next doing the partial correlations
+        # only use the images where every single label is defined
+        inds2use = np.sum(np.isnan(labels_all[:,:,prf_model_index]), axis=1)==0
         print('for partial correlations, there are %d trials available'%np.sum(inds2use))
         
-        for ai, aa in enumerate(axes_to_do_partial):
-
-            other_axes = np.array(axes_to_do_partial)[~np.isin(np.array(axes_to_do_partial), aa)]
+        for aa in range(n_sem_axes):
+            
+            other_axes = np.arange(n_sem_axes)[~np.isin(np.arange(n_sem_axes), aa)]
 
             # going to compute information about the current axis of interest, while
             # partialling out the other axes. 
@@ -192,22 +145,22 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, debug=False, laye
             
             if np.all(np.isin(unique_labels_each[aa], unique_labels_actual)):
             
-                for fi, ff in enumerate(np.where(feature_inds_defined)[0]):
+                for ff in range(n_features):
                 
                     partial_corr = stats_utils.compute_partial_corr(x=labels_main_axis[inds2use], \
-                                                                y=features_in_prf_trn[inds2use,fi], \
+                                                                y=features_in_prf[inds2use,ff], \
                                                                 c=labels_other_axes[inds2use,:])
-                    all_partial_corrs[ff,prf_model_index,ai] = partial_corr
+                    all_partial_corrs[ff,prf_model_index,aa] = partial_corr
                 
                 for ui, uu in enumerate(unique_labels_actual):
-                    n_samp_each_axis_partial[prf_model_index,ai,ui] = np.sum(labels_main_axis[inds2use]==uu)
+                    n_samp_each_axis_partial[prf_model_index,aa,ui] = np.sum(labels_main_axis[inds2use]==uu)
                    
             else:
                 # at least one category is missing for this voxel's pRF and this semantic axis.
                 # skip it and put nans in the arrays.    
                 print('missing label, entering a nan for partial corr')
-                all_partial_corrs[:,prf_model_index,ai] = np.nan
-                n_samp_each_axis_partial[prf_model_index,ai,:] = np.nan
+                all_partial_corrs[:,prf_model_index,aa] = np.nan
+                n_samp_each_axis_partial[prf_model_index,aa,:] = np.nan
                 
     print('saving to %s\n'%fn2save_corrs)
     np.save(fn2save_corrs, all_corrs)                     
@@ -230,8 +183,6 @@ if __name__ == '__main__':
                     help="number of the subject, 1-8, or all")
     parser.add_argument("--feature_type", type=str,default='sketch_tokens',
                     help="what kind of features are we using?")
-    parser.add_argument("--debug", type=int,default=0,
-                    help="want to run a fast test version of this script to debug? 1 for yes, 0 for no")
     parser.add_argument("--which_prf_grid", type=int,default=1,
                     help="which prf grid to use")
     parser.add_argument("--layer_name", type=str,default='',
@@ -239,8 +190,5 @@ if __name__ == '__main__':
    
     args = parser.parse_args()
 
-    if args.debug:
-        print('DEBUG MODE\n')
-
-    get_feature_corrs(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, which_prf_grid=args.which_prf_grid, layer_name=args.layer_name)
+    get_feature_corrs(subject=args.subject, feature_type=args.feature_type, which_prf_grid=args.which_prf_grid, layer_name=args.layer_name)
    

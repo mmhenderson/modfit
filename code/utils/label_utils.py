@@ -510,7 +510,7 @@ def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models):
     n_trials = image_inds.shape[0]
     
     labels_all = np.zeros((n_trials, n_sem_axes, n_prfs)).astype(np.float32)
-
+    
     for axis_ind, ax in enumerate(discrim_type_list):
         
         if 'face-none' in ax:
@@ -528,7 +528,7 @@ def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models):
             fn = os.path.join(default_paths.stim_labels_root, 'S%d_building.npy'%(subject))
             d = np.load(fn, allow_pickle=True).item()
             blabs = d['has_building']
-            binary_labels = blabs
+            binary_labels = copy.deepcopy(blabs)
             ambig = (flabs+blabs)!=1
             binary_labels[ambig] = np.nan
             labs = binary_labels
@@ -674,5 +674,72 @@ def count_highlevel_labels(which_prf_grid=5):
     np.save(fn2save, d, allow_pickle=True)
 
     return 
+
+
+def count_total_coco_labels(which_prf_grid=5):
+
+    """
+    Count total things/stuff occurences in the entire image set
+    for each NSD participant.
+    """
+    
+    models = prf_utils.get_prf_models(which_prf_grid)
+    n_prfs = models.shape[0]
+    
+    subjects = np.array(list(np.arange(1,9)) + [999,998])
+    n_subjects = len(subjects)
+    
+    counts_coco_things = np.zeros((n_subjects, n_prfs))
+    counts_coco_stuff = np.zeros((n_subjects, n_prfs))
+                             
+    for si, ss in enumerate(subjects):
+    
+        if (ss!=999) and (ss!=998):
+            image_order = nsd_utils.get_master_image_order()    
+            session_inds = nsd_utils.get_session_inds_full()
+            sessions = np.arange(nsd_utils.max_sess_each_subj[ss-1])
+            inds2use = np.isin(session_inds, sessions) # remove any sessions that weren't shown
+            # list of all the image indices shown on each trial
+            image_order = image_order[inds2use] 
+            # reduce to the ~10,000 unique images
+            image_order = np.unique(image_order) 
+        elif ss==999:
+            image_order = np.arange(10000)
+        elif ss==998:
+            image_order = np.arange(50000)
+        
+        print('analyzing counts for S%d, %d images'%(ss, len(image_order)))
+        n_trials = len(image_order)
+        sys.stdout.flush()
+        labels_folder = os.path.join(default_paths.stim_labels_root,\
+                                 'S%d_within_prf_grid%d'%(ss, which_prf_grid))
+    
+        for prf_model_index in range(n_prfs):
+      
+            fn2load = os.path.join(labels_folder,'S%d_cocolabs_binary_prf%d.csv'%(ss, prf_model_index))
+            coco_df = pd.read_csv(fn2load, index_col = 0)
+            coco_things_binary = np.array(coco_df)[:,12:92]
+            num_things = np.sum(coco_things_binary, axis=1)
+        
+            counts_coco_things[si,prf_model_index] = np.sum(num_things)
+            
+            fn2load = os.path.join(labels_folder,'S%d_cocolabs_stuff_binary_prf%d.csv'%(ss, prf_model_index))
+            coco_df = pd.read_csv(fn2load, index_col = 0)
+            coco_stuff_binary = np.array(coco_df)[:,16:108]
+            num_stuff = np.sum(coco_stuff_binary, axis=1)
+        
+            counts_coco_stuff[si,prf_model_index] = np.sum(num_stuff)
+            
+        
+    fn2save = os.path.join(default_paths.stim_labels_root, 'Coco_counts_all.npy')
+    print('saving to %s'%fn2save)
+    d = {'subjects': subjects, \
+         'counts_coco_things': counts_coco_things, \
+         'counts_coco_stuff': counts_coco_stuff}
+    print(d.keys())
+    np.save(fn2save, d, allow_pickle=True)
+
+    return 
+
 
 

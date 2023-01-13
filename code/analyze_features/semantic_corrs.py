@@ -1,28 +1,26 @@
 import sys, os
 import numpy as np
-from utils import default_paths, nsd_utils, stats_utils
-from model_fitting import initialize_fitting 
+from utils import default_paths, stats_utils, label_utils, prf_utils
 import argparse
  
 def get_sem_corrs(which_prf_grid=1, debug=False):
 
     print('\nusing prf grid %d\n'%(which_prf_grid))
     # Params for the spatial aspect of the model (possible pRFs)
-    models = initialize_fitting.get_prf_models(which_grid = which_prf_grid)    
+    models = prf_utils.get_prf_models(which_grid = which_prf_grid)    
      
     subjects = [999]
 
     print('Using images/labels for subjects:')
     print(subjects)
     
-    trninds = np.arange(10000)
+    image_inds = np.arange(10000)
     
     # working only with training data here.
-    labels_all, discrim_type_list, unique_labels_each = \
-                         initialize_fitting.load_highlevel_labels_each_prf(subjects[0], \
-                         which_prf_grid, image_inds=np.where(trninds)[0], \
-                         models=models,verbose=False, debug=debug)
-
+    labels_all, axis_names, unique_labels_each = \
+                label_utils.load_highlevel_labels_each_prf(subjects[0], \
+                         which_prf_grid, image_inds=image_inds, models=models)
+   
     # how many diff levels for each semantic axis? 
     n_levels = [len(un) for un in unique_labels_each]
     
@@ -71,7 +69,7 @@ def get_sem_corrs(which_prf_grid=1, debug=False):
                     all_nsamp[aa1,aa2,prf_model_index,0] = np.sum(inds2use)
                     
                 if prf_model_index==0:
-                    print('processing %s vs. %s'%(discrim_type_list[aa1],discrim_type_list[aa2]))
+                    print('processing %s vs. %s'%(axis_names[aa1],axis_names[aa2]))
 
                 if ((len(np.unique(labels1[inds2use]))==n_levels[aa1]) and \
                     (len(np.unique(labels2[inds2use]))==n_levels[aa2])):

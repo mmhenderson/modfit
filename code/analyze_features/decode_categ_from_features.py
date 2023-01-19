@@ -5,8 +5,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import argparse
 import pandas as pd   
 
-from utils import default_paths, nsd_utils, stats_utils, prf_utils
-from model_fitting import initialize_fitting 
+from utils import default_paths, nsd_utils, stats_utils, prf_utils, label_utils
 from feature_extraction import default_feature_loaders
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
@@ -15,6 +14,7 @@ def run_decoding(subject=999, \
                  feature_type='gabor_solo', \
                  which_prf_grid=1, debug=False, \
                  zscore_each=False, match_prf_trialcounts=True, \
+                 categ_vs_none = False, \
                  layer_name=None):
   
     print('\nusing prf grid %d\n'%(which_prf_grid))
@@ -41,8 +41,15 @@ def run_decoding(subject=999, \
     else:
         raise ValueError('subject must be 999 or 998')
         
-    labels_all, discrim_type_list, unique_labels_each = initialize_fitting.load_highlevel_labels_each_prf(subject, \
-                         which_prf_grid, image_inds=image_inds, models=models,verbose=False, debug=debug)
+    if categ_vs_none:
+        labels_all, discrim_type_list = \
+            label_utils.load_highlevel_categ_labels_each_prf(subject, \
+                         which_prf_grid, image_inds=image_inds, models=models)
+        discrim_type_list = ['categ_%s'%dd for dd in discrim_type_list]
+    else:
+        labels_all, discrim_type_list, unique_labels_each = \
+            label_utils.load_highlevel_labels_each_prf(subject, \
+                         which_prf_grid, image_inds=image_inds, models=models)
    
     print('Number of images using: %d'%labels_all.shape[0])
     sys.stdout.flush()
@@ -84,12 +91,20 @@ def run_decoding(subject=999, \
         path_to_save = os.path.join(path_to_load, 'feature_decoding')
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
-
+    
     if match_prf_trialcounts:
-        fn2save = os.path.join(path_to_save, \
+        if categ_vs_none:
+            fn2save = os.path.join(path_to_save, \
+               'S%s_%s_LDA_categ_all_grid%d_matchprfs.npy'%(subject, feature_type, which_prf_grid))
+        else:
+            fn2save = os.path.join(path_to_save, \
                'S%s_%s_LDA_all_grid%d_matchprfs.npy'%(subject, feature_type, which_prf_grid))
     else:
-        fn2save = os.path.join(path_to_save, \
+        if categ_vs_none:
+            fn2save = os.path.join(path_to_save, \
+               'S%s_%s_LDA_categ_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
+        else:
+            fn2save = os.path.join(path_to_save, \
                'S%s_%s_LDA_all_grid%d.npy'%(subject, feature_type, which_prf_grid))
        
     print(fn2save)
@@ -180,6 +195,8 @@ if __name__ == '__main__':
                     help="which prf grid to use")
     parser.add_argument("--match_prf_trialcounts", type=int,default=1,
                     help="use same number of trials for each pRF?")
+    parser.add_argument("--categ_vs_none", type=int,default=1,
+                    help="use same number of trials for each pRF?")
 
     args = parser.parse_args()
 
@@ -189,5 +206,6 @@ if __name__ == '__main__':
     sys.stdout.flush()
      
     run_decoding(subject=args.subject, feature_type=args.feature_type, debug=args.debug==1, \
-                  which_prf_grid=args.which_prf_grid, match_prf_trialcounts=args.match_prf_trialcounts==1)
+                 which_prf_grid=args.which_prf_grid, match_prf_trialcounts=args.match_prf_trialcounts==1, \
+                 categ_vs_none=args.categ_vs_none==1)
     

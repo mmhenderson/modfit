@@ -414,6 +414,10 @@ def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models, 
 
     return label_utils.load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models)
 
+def load_highlevel_categ_labels_each_prf(subject, which_prf_grid, image_inds, models, verbose=False, debug=False):
+
+    return label_utils.load_highlevel_categ_labels_each_prf(subject, which_prf_grid, image_inds, models)
+
 def get_subsampled_trial_order(trn_image_order, \
                                holdout_image_order, \
                                val_image_order, \

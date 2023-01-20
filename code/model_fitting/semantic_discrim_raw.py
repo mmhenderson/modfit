@@ -159,12 +159,7 @@ def get_discrim(args):
     
     print('\nStarting semantic discriminability analysis ...\n')
     sys.stdout.flush()
-   
-    # labels_all, discrim_type_list, unique_labs_each = \
-    #         initialize_fitting.load_highlevel_labels_each_prf(args.subject, args.which_prf_grid,\
-    #                                         image_inds=image_inds_use, \
-    #                                         models=prf_models,verbose=False, \
-    #                                         debug=args.debug)
+
     labels_all, discrim_type_list = \
             initialize_fitting.load_highlevel_categ_labels_each_prf(args.subject, args.which_prf_grid,\
                                             image_inds=image_inds_use, \
@@ -193,7 +188,6 @@ def get_discrim(args):
     save_all(fn2save)
     
     axes_to_do = [0,1,2,3,4,5,6,7]
-    # axes_to_do = [1,2,3,4,5]
     print('\nGoing to compute partial correlations, for these pairs of axes:')
     print([discrim_type_list[aa] for aa in axes_to_do])
     sem_partial_corrs, sem_partial_n_samp = \

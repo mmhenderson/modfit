@@ -425,31 +425,10 @@ def get_subsampled_trial_order(trn_image_order, \
                               trn_only=False):
     
     folder = os.path.join(default_paths.stim_labels_root,'resampled_trial_orders')
-    if 'only' in args.trial_subset:        
-        axis = args.trial_subset.split('_only')[0]
-        fn2load = os.path.join(folder,
-                   'S%d_trial_resamp_order_has_%s.npy'%\
-                           (args.subject, axis))        
-    elif 'balance' in args.trial_subset:       
-        if 'orient' in args.trial_subset:
-            axis = args.trial_subset.split('balance_orient_')[1]
-            fn2load = os.path.join(folder, \
-                   'S%d_trial_resamp_order_balance_4orientbins_%s.npy'%\
-                           (args.subject, axis)) 
-        elif 'freq' in args.trial_subset:
-            axis = args.trial_subset.split('balance_freq_')[1]
-            fn2load = os.path.join(folder, \
-                   'S%d_trial_resamp_order_balance_2freqbins_%s.npy'%\
-                           (args.subject, axis)) 
-        else:            
-            axis = args.trial_subset.split('balance_')[1]
-            fn2load = os.path.join(folder, \
-                       'S%d_trial_resamp_order_both_%s.npy'%\
-                               (args.subject, axis)) 
-    else:
-        fn2load = os.path.join(folder, \
-                   'S%d_trial_resamp_order_%s.npy'%\
-                           (args.subject, args.trial_subset)) 
+    
+    fn2load = os.path.join(folder, \
+               'S%d_trial_resamp_order_%s.npy'%\
+                       (args.subject, args.trial_subset)) 
     print('loading balanced trial order (pre-computed) from %s'%fn2load)
     trials = np.load(fn2load, allow_pickle=True).item()
     

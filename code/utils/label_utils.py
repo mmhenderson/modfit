@@ -500,9 +500,8 @@ def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models):
     (binary labels for each axis; if both/neither categ present then label is nan)
     """
     
-    discrim_type_list = ['face-building',\
-                         'face-none','building-none',\
-                         'animate-inanimate','small-large','indoor-outdoor']
+    discrim_type_list = ['face-building','animate-inanimate',\
+                         'small-large','indoor-outdoor']
     unique_labs_each = [np.arange(2) for dd in discrim_type_list]
     
     n_sem_axes = len(discrim_type_list)
@@ -513,15 +512,7 @@ def load_highlevel_labels_each_prf(subject, which_prf_grid, image_inds, models):
     
     for axis_ind, ax in enumerate(discrim_type_list):
         
-        if 'face-none' in ax:
-            fn = os.path.join(default_paths.stim_labels_root, 'S%d_face.npy'%(subject))
-            d = np.load(fn, allow_pickle=True).item()
-            labs = 1-d['has_face']
-        elif 'building-none' in ax:
-            fn = os.path.join(default_paths.stim_labels_root, 'S%d_building.npy'%(subject))
-            d = np.load(fn, allow_pickle=True).item()
-            labs = 1-d['has_building']
-        elif 'face-building' in ax:
+        if 'face-building' in ax:
             fn = os.path.join(default_paths.stim_labels_root, 'S%d_face.npy'%(subject))
             d = np.load(fn, allow_pickle=True).item()
             flabs = d['has_face']

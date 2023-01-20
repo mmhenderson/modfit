@@ -56,7 +56,7 @@ def image_preproc_fn(image):
 def get_voxel_mask(subject):
     
     voxel_mask, voxel_index, voxel_roi, voxel_ncsnr, brain_nii_shape = \
-                roi_utils.get_voxel_roi_info(subject, volume_space=True)
+                roi_utils.get_voxel_roi_info(subject, which_hemis='concat')
     
     return voxel_mask
 

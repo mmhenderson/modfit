@@ -31,7 +31,7 @@ def get_feature_corrs(subject, feature_type, which_prf_grid=1, layer_name=None):
     labels_binary, axis_names, unique_labels_each = label_utils.load_highlevel_labels_each_prf(subject, \
                          which_prf_grid, image_inds=image_inds, models=models)
    
-    axes_use = [1,2,3,4,5]
+    axes_use = [0,1,2,3]
     labels_all = labels_binary[:,axes_use,:]
     axis_names = np.array(axis_names)[axes_use]
     print('using axes:')

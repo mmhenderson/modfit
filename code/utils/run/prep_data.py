@@ -43,10 +43,10 @@ if __name__ == '__main__':
 
     nsd_utils.get_subject_specific_images(nsd_root, path_to_save, npix=100, debug=args.debug==1)
 
-    coco_utils.get_coco_ids_indep(n_images=10000)
+#     coco_utils.get_coco_ids_indep(n_images=10000)
 
-    coco_utils.prep_indep_coco_images(n_pix=240, debug=args.debug==1)
+#     coco_utils.prep_indep_coco_images(n_pix=240, debug=args.debug==1)
 
-    coco_utils.prep_indep_coco_images(n_pix=100, debug=args.debug==1)
+#     coco_utils.prep_indep_coco_images(n_pix=100, debug=args.debug==1)
     
     

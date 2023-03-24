@@ -27,9 +27,9 @@ if __name__ == '__main__':
     which_prf_grid=5
     
     if debug:
-        subjects = [1, 999]
+        subjects = [1]
     else:
-        subjects = list(np.arange(1,9))+[999]
+        subjects = list(np.arange(1,9))
         
     for subject in subjects:
 

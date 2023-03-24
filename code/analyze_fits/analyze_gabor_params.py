@@ -20,7 +20,7 @@ def get_gabor_feature_info(n_ori=12, n_sf=8, screen_eccen_deg=8.4):
     
     return sf_unique, ori_unique
 
-def analyze_freq_peaks(est_tuning_curves, val_r2, r2_cutoff=0.10, peak_thresh=0.50,\
+def analyze_freq_peaks(est_tuning_curves, abv_thresh, peak_thresh=0.50,\
                          sf_unique=np.logspace(np.log10(3),np.log10(72),num = 12)/8.4 ):
     
     n_voxels, n_sf = est_tuning_curves.shape
@@ -40,7 +40,7 @@ def analyze_freq_peaks(est_tuning_curves, val_r2, r2_cutoff=0.10, peak_thresh=0.
     
     # will only return results for voxels that are above the r2 threshold
     # return nans otherwise
-    abv_thresh = val_r2>r2_cutoff
+    # abv_thresh = val_r2>r2_cutoff
     
     peak_ratios = np.full(shape=(n_voxels,max_n_peaks),fill_value=np.nan)
     n_peaks_nonneg = np.full(shape=(n_voxels,),fill_value=np.nan)
@@ -93,7 +93,7 @@ def analyze_freq_peaks(est_tuning_curves, val_r2, r2_cutoff=0.10, peak_thresh=0.
     return n_peaks_abovethresh, top_freqs
 
 
-def analyze_orient_peaks(est_tuning_curves, val_r2, r2_cutoff=0.10, peak_thresh=0.50,\
+def analyze_orient_peaks(est_tuning_curves, abv_thresh, r2_cutoff=0.10, peak_thresh=0.50,\
                          ori_unique = np.arange(0,165,12)):
     
     n_voxels = est_tuning_curves.shape[0]
@@ -110,7 +110,7 @@ def analyze_orient_peaks(est_tuning_curves, val_r2, r2_cutoff=0.10, peak_thresh=
     
     # will only return results for voxels that are above the r2 threshold
     # return nans otherwise
-    abv_thresh = val_r2>r2_cutoff
+    # abv_thresh = val_r2>r2_cutoff
     
     peak_ratios = np.full(shape=(n_voxels,max_n_peaks),fill_value=np.nan)
     n_peaks_nonneg = np.full(shape=(n_voxels,),fill_value=np.nan)

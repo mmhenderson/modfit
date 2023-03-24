@@ -196,7 +196,7 @@ if __name__ == '__main__':
     parser.add_argument("--match_prf_trialcounts", type=int,default=1,
                     help="use same number of trials for each pRF?")
     parser.add_argument("--categ_vs_none", type=int,default=1,
-                    help="use same number of trials for each pRF?")
+                    help="decode presence vs. absence of each category?")
 
     args = parser.parse_args()
 

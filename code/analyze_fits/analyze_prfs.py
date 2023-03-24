@@ -6,6 +6,7 @@ from utils import roi_utils, default_paths, prf_utils
 from analyze_fits import sem_voxel_groups
 
 def compute_prf_coverage(subjects, \
+                         which_hemis='concat', \
                          fitting_type='alexnet_all_conv_pca', \
                          image_size=224):
     
@@ -31,7 +32,8 @@ def compute_prf_coverage(subjects, \
     r2_cutoff = 0.01    
     abv_thresh = val_r2>r2_cutoff
 
-    roi_def = roi_utils.multi_subject_roi_def(subjects, remove_ret_overlap=True, remove_categ_overlap=True)
+    roi_def = roi_utils.multi_subject_roi_def(subjects, which_hemis=which_hemis, \
+                                              remove_ret_overlap=True, remove_categ_overlap=True)
     roi_names =roi_def.roi_names
     n_rois = roi_def.n_rois
     
@@ -65,7 +67,12 @@ def compute_prf_coverage(subjects, \
 
     fn2save = os.path.join(default_paths.save_fits_path, 'prf_coverage', \
                                'All_pRFs_%s'%fitting_type)
-    
+    if not os.path.exists(os.path.join(default_paths.save_fits_path, 'prf_coverage')):
+        os.makedirs(os.path.join(default_paths.save_fits_path, 'prf_coverage'))
+        
+    if which_hemis!='concat':
+        fn2save += '_%s_only'%which_hemis
+        
     fn2save+= '_%dpix.npy'%(image_size)
     
     print('saving to %s'%fn2save)
@@ -141,7 +148,9 @@ def compute_prf_coverage_bigroigroups(subjects, \
 
     fn2save = os.path.join(default_paths.save_fits_path, 'prf_coverage', \
                                'All_pRFs_bigroigroups_%s'%fitting_type)
-    
+    if not os.path.exists(os.path.join(default_paths.save_fits_path, 'prf_coverage')):
+        os.makedirs(os.path.join(default_paths.save_fits_path, 'prf_coverage'))
+     
     fn2save+= '_%dpix.npy'%(image_size)
     
     print('saving to %s'%fn2save)
